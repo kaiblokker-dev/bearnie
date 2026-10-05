@@ -81,7 +81,22 @@ Test uitvoeren (alleen nodig voor ontwikkeling):
 node build.js
 NODE_PATH=$(npm root -g) node tests/acceptatietest.js         # vereist playwright en python3 met openpyxl en pillow
 NODE_PATH=$(npm root -g) node tests/betrouwbaarheidstest.js   # controletests versie 1.4
+NODE_PATH=$(npm root -g) node tests/blokkentest.js            # controletests diensttijdblokken (versie 1.5)
 ```
+
+## Versie 1.5: diensttijdblokken (PR24)
+
+- **Invoer:** naast *Omvang: aantal dienstperioden* staat het optionele veld *Aantal resulterende diensttijdblokken*: een geheel getal vanaf 0, of leeg als het onbekend is. Meer blokken dan dienstperioden geeft een waarschuwing, maar opslaan blijft mogelijk. Het veld staat standaard aan bij PR24; bij andere processen verschijnt het pas als bij *Processen beheren* "diensttijdblokken vastleggen" aanstaat. Bestaande metingen blijven leeg.
+- **Berekeningen** (normale gevallen, binnen alle filters, testmetingen standaard uitgesloten), steeds als totaal ÷ totaal:
+  - dienstperioden per dossier = Σ dienstperioden ÷ Σ dossiers;
+  - diensttijdblokken per dossier = Σ blokken ÷ Σ dossiers;
+  - actieve tijd per diensttijdblok = Σ actieve tijd ÷ Σ blokken;
+  - geschat aantal blokken per week = blokken per dossier × totale frequentie;
+  - verhouding = Σ blokken ÷ Σ dienstperioden (bijv. *40 dienstperioden resulteerden in 4 diensttijdblokken.*).
+
+  Metingen zonder aantal blokken vallen alleen buiten de berekeningen per blok.
+- **Tijdsbelasting ongewijzigd:** totale frequentie × gemiddelde actieve tijd per dossier. De tijd voor de blokken zit al in de tijd per dossier en wordt niet nog eens vermenigvuldigd (geen dubbele telling).
+- **Export en opslag:** het veld staat in de ruwe procesmetingen (Excel/CSV), in het Totaaloverzicht, in Per medewerker en in de JSON-back-up, en gaat mee bij dupliceren, concepten en herstel.
 
 ## Versie 1.4: gebruiksvriendelijkheid en betrouwbaarheid
 

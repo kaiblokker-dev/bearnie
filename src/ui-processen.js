@@ -111,6 +111,9 @@ function renderProcesEditor(fouten = []) {
         <label for="peOmvangMv" class="verplicht">Omvangseenheid (meervoud)</label>
         <input type="text" id="peOmvangMv" data-eenheidveld="omvangseenheidMeervoud" value="${esc(b.omvangseenheidMeervoud)}" placeholder="bijv. dienstperioden">
       </div>
+      <div class="veld breed">
+        <label class="keuzes" style="font-weight:400"><input type="checkbox" id="peBlokken" ${procesBlokkenAan(b) ? 'checked' : ''}> Bij metingen ook het <strong>aantal resulterende diensttijdblokken</strong> vastleggen (optioneel veld; standaard aan voor PR24)</label>
+      </div>
     </div>
     ${b.origineelId && staat.procesmetingen.some((m) => m.procesId === b.origineelId) ? '<p class="klein zacht">Bestaande metingen behouden de eenheden die bij het meten zijn vastgelegd. Alleen metingen zonder vastgelegde eenheid (uit een eerdere versie) tonen de eenheden van het proces.</p>' : ''}
     <h4>Processtappen</h4>
@@ -145,6 +148,7 @@ function verwerkProcesEditorInvoer(e) {
     b.procesId = nieuw;
   } else if (t.id === 'peNaam') b.naam = t.value;
   else if (t.dataset.eenheidveld) b[t.dataset.eenheidveld] = t.value;
+  else if (t.id === 'peBlokken') b.blokkenVastleggen = t.checked;
   else if (t.dataset.stapveld) {
     const i = Number(t.closest('tr').dataset.index);
     const s = b.stappen[i];
@@ -156,6 +160,9 @@ function verwerkProcesEditorInvoer(e) {
 async function slaProcesOp() {
   const b = procesBewerking;
   const invoer = { procesId: b.procesId.trim(), naam: b.naam, ...Object.fromEntries(EENHEID_VELDEN.map((k) => [k, b[k]])), stappen: b.stappen };
+  // Alleen vastleggen als de gebruiker de instelling heeft gewijzigd; anders geldt de standaard (aan voor PR24).
+  if (typeof b.blokkenVastleggen === 'boolean') invoer.blokkenVastleggen = b.blokkenVastleggen;
+  else if (b.origineelId && typeof (zoekProces(b.origineelId) || {}).blokkenVastleggen === 'boolean') invoer.blokkenVastleggen = zoekProces(b.origineelId).blokkenVastleggen;
   const fouten = valideerProces(invoer, b.origineelId);
   if (!b.origineelId && /^demo-/i.test(invoer.procesId)) fouten.push('ProcesID\'s die beginnen met "DEMO-" zijn gereserveerd voor demogegevens.');
   if (fouten.length) { renderProcesEditor(fouten); return; }
@@ -266,4 +273,10 @@ async function importeerProcessenCsv(bestand) {
   if (!ok) return;
   for (const p of nieuw) bewaarProces(p, null);
   await naWijziging(`${nieuw.length} proces(sen) geïmporteerd.`);
+}
+
+/** Stand van de instelling 'diensttijdblokken vastleggen' in de proceseditor. */
+function procesBlokkenAan(b) {
+  if (typeof b.blokkenVastleggen === 'boolean') return b.blokkenVastleggen;
+  return b.origineelId ? blokkenVastleggen(b.origineelId) : (b.procesId || '').trim() === 'PR24';
 }

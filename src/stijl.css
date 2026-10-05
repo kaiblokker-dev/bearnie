@@ -21,6 +21,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Het hidden-attribuut moet altijd winnen van display-regels (bijv. .veld { display: flex }). */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;

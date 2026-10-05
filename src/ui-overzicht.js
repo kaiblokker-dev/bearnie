@@ -74,7 +74,7 @@ function renderOverzichtTabel() {
 function renderProcesmetingenTabel(f) {
   const lijst = staat.procesmetingen
     .filter((m) => metingVoldoetAanOverzicht(m, f))
-    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
+    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
       ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
   const nTest = lijst.filter(isTestmeting).length;
@@ -92,7 +92,7 @@ function renderProcesmetingenTabel(f) {
       <td>${htmlTekst(m.medewerkerId)}</td>
       <td>${esc(m.casustype)}</td>
       <td class="getal">${htmlMetEenheid(m.aantalUitvoeringen, eenhedenVan(m), 'uitvoering')}</td>
-      <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}</td>
+      <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}${isGetal(m.aantalBlokken) ? `<br><span class="klein zacht">${esc(fmtAantal(m.aantalBlokken))} ${m.aantalBlokken === 1 ? 'diensttijdblok' : 'diensttijdblokken'}</span>` : ''}</td>
       <td>${meetwijzeHtml(m.meetwijze)}</td>
       <td class="getal berekend">${htmlGetal(b.totaalActief)}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
       <td class="getal berekend">${htmlGetal(b.totaalWacht)}</td>
@@ -187,6 +187,7 @@ function metingDetailHtml(m) {
         <dt>Aantal uitvoeringen</dt><dd><strong>${htmlMetEenheid(m.aantalUitvoeringen, e, 'uitvoering')}</strong>${'aantalUitvoeringen' in m ? '' : ' <span class="zacht">(niet vastgelegd: meting uit versie 1.0)</span>'}</dd>
         <dt>Herkomst aantal</dt><dd class="klein">${esc(m.aantalUitvoeringenHerkomst || ('aantalUitvoeringen' in m ? 'Ingevoerd' : '—'))}</dd>
         <dt>Omvang</dt><dd><strong>${htmlMetEenheid(m.omvang, e, 'omvang')}</strong></dd>
+        ${blokkenVastleggen(m.procesId) || isGetal(m.aantalBlokken) ? `<dt>Aantal resulterende diensttijdblokken ${infoHtml('blokken')}</dt><dd><strong>${htmlAantal(m.aantalBlokken)}</strong></dd>` : ''}
         <dt>Eenheden</dt><dd class="klein">uitvoeringseenheid: ${esc(e.uitvoeringseenheid)} · omvangseenheid: ${esc(e.omvangseenheid)}</dd>
         <dt>Meetwijze</dt><dd>${meetwijzeHtml(m.meetwijze)}</dd>
         <dt>Algemene toelichting</dt><dd>${esc(m.toelichting || '—')}</dd>
@@ -201,6 +202,7 @@ function metingDetailHtml(m) {
       <dl class="gegevens">
         <dt>Totale actieve tijd</dt><dd>${htmlGetal(b.totaalActief, 2, ' min')}</dd>
         <dt>Totale wachttijd</dt><dd>${htmlGetal(b.totaalWacht, 2, ' min')}</dd>
+        ${isGetal(m.aantalBlokken) ? `<dt>Actieve tijd per diensttijdblok</dt><dd>${htmlGetal(m.aantalBlokken > 0 && isGetal(b.totaalActief) ? b.totaalActief / m.aantalBlokken : null, 2, ' min')}</dd>` : ''}
         <dt>Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</dt><dd>${htmlGetal(isGetal(b.totaalActief) && isGetal(b.totaalWacht) ? b.totaalActief + b.totaalWacht : null, 2, ' min')}</dd>
         <dt><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</dt><dd><strong>${htmlGetal(b.actiefPerUitvoering, 2, ' min')}</strong></dd>
         <dt>Wachttijd per ${esc(e.uitvoeringseenheid)}</dt><dd>${htmlGetal(b.wachtPerUitvoering, 2, ' min')}</dd>
