@@ -95,8 +95,10 @@ function nuIso() {
 
 function isGeldigeDatum(iso) {
   if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
-  const d = new Date(iso + 'T00:00:00');
-  return !isNaN(d) && d.toISOString().slice(0, 10) === iso;
+  // Volledig in UTC controleren: lokale middernacht valt in UTC+1/+2 op de vorige dag.
+  const [j, m, d] = iso.split('-').map(Number);
+  const datum = new Date(Date.UTC(j, m - 1, d));
+  return datum.getUTCFullYear() === j && datum.getUTCMonth() === m - 1 && datum.getUTCDate() === d;
 }
 
 function bestandsdatum() {

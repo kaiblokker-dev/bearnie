@@ -1,5 +1,5 @@
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.0.0';
+const VERSIE = '1.0.1';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];

@@ -24,7 +24,9 @@ const num = (t) => Number(String(t).replace(',', '.'));
 
 (async () => {
   const browser = await chromium.launch(process.env.CHROMIUM_PAD ? { executablePath: process.env.CHROMIUM_PAD } : {});
-  const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 1366, height: 900 }, deviceScaleFactor: 1 });
+  const context = await browser.newContext({ acceptDownloads: true, viewport: { width: 1366, height: 900 }, deviceScaleFactor: 1,
+    // Standaard Nederlandse tijd: datumfouten rond middernacht vallen in UTC niet op.
+    timezoneId: process.env.TEST_TIJDZONE || 'Europe/Amsterdam', locale: 'nl-NL' });
   await context.setOffline(true);
   const netwerk = [];
   context.on('request', (r) => { if (!r.url().startsWith('file:') && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) netwerk.push(r.url()); });
@@ -48,6 +50,12 @@ const num = (t) => Number(String(t).replace(',', '.'));
   const stapVeld = (stapId, veld) => `#mStappen tr[data-stap="${stapId}"] [data-veld="${veld}"]`;
   const timerKnop = (stapId, actie) => `#mStappen tr[data-stap="${stapId}"] button[data-timer="${actie}"]`;
   const staat = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__meettool.staat())));
+
+  // ---------- Datumcontrole (tijdzone-onafhankelijk) ----------
+  const datums = await page.evaluate(() => ['2026-03-02', '2026-03-29', '2026-10-25', '2024-02-29', '2026-01-01', '2026-12-31', '2025-02-29', '2026-13-01', '2026-04-31', '02-03-2026']
+    .map((d) => [d, window.__meettool.isGeldigeDatum(d)]));
+  assert.deepStrictEqual(datums.map((x) => x[1]), [true, true, true, true, true, true, false, false, false, false], JSON.stringify(datums));
+  ok('controle', `Datumcontrole correct in tijdzone ${await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone)} (incl. zomertijdwissels en schrikkeldag)`);
 
   // ---------- 1. Proces met drie stappen ----------
   await tab('processen');

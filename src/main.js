@@ -102,6 +102,7 @@ async function start() {
     berekenTijdsbelasting,
     kiesFrequentie,
     leesGetal,
+    isGeldigeDatum,
     mediaan,
     wachtOpOpslag: () => Opslag.wachtrij.then(() => true, () => false),
     klaar: true,

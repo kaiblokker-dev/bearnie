@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Meettool administratieve processen
-  Versie: 1.0.0
+  Versie: 1.0.1
   Gebouwd op: 2026-10-05
 
   Zelfstandig bestand: alle JavaScript en CSS staan hieronder in dit bestand.
@@ -603,7 +603,7 @@ td.mono { white-space: nowrap; }
 'use strict';
 // ===== versie.js =====
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.0.0';
+const VERSIE = '1.0.1';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
@@ -716,8 +716,10 @@ function nuIso() {
 
 function isGeldigeDatum(iso) {
   if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
-  const d = new Date(iso + 'T00:00:00');
-  return !isNaN(d) && d.toISOString().slice(0, 10) === iso;
+  // Volledig in UTC controleren: lokale middernacht valt in UTC+1/+2 op de vorige dag.
+  const [j, m, d] = iso.split('-').map(Number);
+  const datum = new Date(Date.UTC(j, m - 1, d));
+  return datum.getUTCFullYear() === j && datum.getUTCMonth() === m - 1 && datum.getUTCDate() === d;
 }
 
 function bestandsdatum() {
@@ -3904,6 +3906,7 @@ async function start() {
     berekenTijdsbelasting,
     kiesFrequentie,
     leesGetal,
+    isGeldigeDatum,
     mediaan,
     wachtOpOpslag: () => Opslag.wachtrij.then(() => true, () => false),
     klaar: true,
