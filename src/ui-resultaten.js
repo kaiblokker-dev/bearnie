@@ -2,6 +2,7 @@
 
 let resultaatCasustype = 'Normaal';
 const gekozenFrequentie = {}; // per ProcesID het gekozen FrequentieID
+const gekozenTotaalPeriode = {}; // per ProcesID de gekozen periode-eenheid voor het totaaloverzicht
 
 function initResultaten() {
   vulSelect($('#rMeetwijze'), [{ waarde: 'alle', label: 'Alle meetwijzen (gemengd, wordt vermeld)' }, ...MEETWIJZE_GROEPEN.map((g) => ({ waarde: g.code, label: g.label }))], 'alle');
@@ -9,6 +10,10 @@ function initResultaten() {
   $('#resultatenInhoud').addEventListener('change', (e) => {
     if (e.target.id === 'rFrequentie') {
       gekozenFrequentie[$('#rProces').value] = e.target.value;
+      renderResultaten();
+    }
+    if (e.target.id === 'rTotaalPeriode') {
+      gekozenTotaalPeriode[$('#rProces').value] = e.target.value;
       renderResultaten();
     }
   });
@@ -99,8 +104,12 @@ function renderResultaten() {
       <h3>Resultaten per medewerker</h3>
       ${medewerkerTabelHtml(procesId, filters, e)}
     </div>
+    <div class="kaart" id="rTotaal">
+      <h3>Totale frequentie en geschatte tijdsbelasting</h3>
+      ${totaalOverzichtHtml(procesId, filters)}
+    </div>
     <div class="kaart">
-      <h3>Frequentie en geschatte tijdsbelasting</h3>
+      <h3>Frequentie en geschatte tijdsbelasting per frequentiemeting</h3>
       ${tijdsbelastingHtml(procesId, freq, belasting, e)}
     </div>
     <div class="kaart">
@@ -146,6 +155,83 @@ function samenvattingTabelHtml(N, U, e) {
         <td class="rechts"><button type="button" class="klein" data-actie="onderliggende-metingen" data-casustype="Uitzondering">Onderliggende metingen bekijken</button></td>
       </tr>
     </tbody></table></div>`;
+}
+
+/** Periode voor het totaaloverzicht: de gekozen periode, anders de eerste beschikbare. */
+function kiesTotaalPeriode(procesId) {
+  const perioden = totaalPeriodenVanProces(procesId);
+  const gekozen = gekozenTotaalPeriode[procesId];
+  return perioden.includes(gekozen) ? gekozen : perioden[0] || null;
+}
+
+function bronLabel(meetwijze) {
+  return MEETWIJZE_FREQUENTIE_LABELS[meetwijze] || meetwijze || ONBEKEND;
+}
+
+/** Onderdeel 'Totale frequentie en geschatte tijdsbelasting' op het resultatenscherm. */
+function totaalOverzichtHtml(procesId, filters) {
+  const perioden = totaalPeriodenVanProces(procesId);
+  const periode = kiesTotaalPeriode(procesId);
+  const t = berekenTotaalOverzicht(procesId, filters, periode);
+  const e = t.eenheden;
+  const perTekst = periode ? `per ${periode.toLowerCase()}` : '';
+  const keuze = perioden.length
+    ? `<div class="veld" style="max-width:260px"><label for="rTotaalPeriode">Periode</label><select id="rTotaalPeriode">${perioden.map((p) => `<option value="${esc(p)}" ${p === periode ? 'selected' : ''}>per ${esc(p.toLowerCase())}</option>`).join('')}</select></div>`
+    : '';
+  const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
+  const waarde = (v, dec, eenheid) => (isGetal(v) ? `<strong>${esc(fmtGetal(v, dec))}</strong> ${eenheid}` : `<span class="onbekend">${ONBEKEND}</span>`);
+  const statusRijen = t.status.map(({ frequentie: f, geselecteerd, reden }) => `<tr${geselecteerd ? ' class="gekozen"' : ''}>
+      <td class="mono">${esc(f.frequentieId)}${demoLabel(f)}</td><td>${htmlTekst(f.medewerkerId)}</td><td>${f.bereik ? esc(f.bereik) : '<span class="onbekend">Nog niet bepaald</span>'}</td>
+      <td class="klein">${esc(f.afbakening || '')}</td><td>${f.periodeEenheid ? 'per ' + esc(f.periodeEenheid.toLowerCase()) : '<span class="onbekend">Nog niet bepaald</span>'}</td><td>${htmlTekst(f.meetperiode)}</td>
+      <td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td>${meetwijzeHtml(f.meetwijze)}</td><td>${esc(meetellenTekst(f))}</td>
+      <td>${geselecteerd ? '<strong>Ja</strong>' : `Nee <span class="klein zacht">(${esc(reden)})</span>`}</td>
+      <td class="acties"><button type="button" class="klein" data-actie="frequentie-bewerken" data-id="${esc(f.frequentieId)}">Aanpassen</button></td></tr>`).join('');
+  return `
+    <p class="klein zacht">Totaalbeeld per proces. Alleen frequentiemetingen met <em>Meetellen in totaal</em> aangevinkt en dezelfde periode worden opgeteld, en alleen als ze niet (mogelijk) overlappen.
+      De tijdsbelasting gebruikt uitsluitend actieve tijd; wachttijd telt niet mee. De afzonderlijke frequentiemetingen blijven hieronder en onder <em>Metingen bekijken</em> zichtbaar.</p>
+    ${keuze}
+    ${blokkades.length ? `<div class="melding fout mt"><strong>Niet (volledig) berekend:</strong><ul>${blokkades.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>` : ''}
+    ${t.waarschuwingen.length ? `<div class="melding waarschuwing mt"><strong>Let op:</strong><ul>${t.waarschuwingen.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+    <div class="berekend-kader mt">
+      <span class="etiket berekend">Automatisch berekend</span>
+      <div class="formule">Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per ${esc(e.uitvoeringseenheid)}<br>
+        = ${isGetal(t.totaleFrequentie) ? esc(fmtAantal(t.totaleFrequentie)) : ONBEKEND} × ${isGetal(t.gemiddeldeActief) ? esc(fmtGetal(t.gemiddeldeActief)) : ONBEKEND} min = <strong>${isGetal(t.minuten) ? esc(fmtGetal(t.minuten)) + ' min' : ONBEKEND}</strong>
+        ${isGetal(t.uren) ? ` = <strong>${esc(fmtGetal(t.uren, 2))} uur</strong> ${esc(perTekst)}` : ''}</div>
+      <dl class="gegevens">
+        <dt>Periode</dt><dd>${periode ? esc(perTekst) : `<span class="onbekend">${ONBEKEND}</span>`}${t.meetperioden.length ? ` <span class="klein">(meetperiode: ${esc(t.meetperioden.join(', '))})</span>` : ''}</dd>
+        <dt>Totale frequentie</dt><dd>${waarde(t.totaleFrequentie, Number.isInteger(t.totaleFrequentie) ? 0 : 2, `${esc(e.uitvoeringseenheidMeervoud)} ${esc(perTekst)}`)}</dd>
+        <dt>Gemiddelde actieve tijd per ${esc(e.uitvoeringseenheid)}</dt><dd>${waarde(t.gemiddeldeActief, 2, `min per ${esc(e.uitvoeringseenheid)}`)}${t.aantalProcesmetingen ? ` <span class="klein">(n = ${t.aantalProcesmetingen}; bandbreedte ${esc(fmtGetal(t.minimumActief))}–${esc(fmtGetal(t.maximumActief))} min)</span>` : ''}</dd>
+        <dt>Keuze gemiddelde</dt><dd><strong>${esc(keuzeGemiddeldeTekst(filters))}</strong> <span class="klein">(normale gevallen; wijzig via het filter Medewerker bovenaan)</span></dd>
+        <dt>Geschatte actieve tijdsbelasting</dt><dd>${waarde(t.minuten, 2, `minuten ${esc(perTekst)}`)} · ${waarde(t.uren, 2, `uur ${esc(perTekst)}`)}</dd>
+        <dt>Gemiddelde wachttijd (apart, niet meegeteld)</dt><dd>${waarde(t.gemiddeldeWacht, 2, `min per ${esc(e.uitvoeringseenheid)}`)}${t.nWacht ? ` <span class="klein">(n = ${t.nWacht}; onderdeel van de doorlooptijd)</span>` : ''}</dd>
+        <dt>Frequentiemetingen in totaal</dt><dd>${t.frequenties.length}${t.frequenties.length ? ` <span class="mono klein">(${esc(t.frequenties.map((f) => f.frequentieId).join(', '))})</span>` : ''}</dd>
+        <dt>Procesmetingen voor gemiddelde</dt><dd>${t.aantalProcesmetingen}${t.metingIds.length ? ` <span class="mono klein">(${esc(t.metingIds.join(', '))})</span>` : ''}</dd>
+        <dt>Medewerker-ID's (procesmetingen)</dt><dd>${esc(t.medewerkerIds.join(', ') || '—')}</dd>
+        <dt>Bron(nen) frequentie</dt><dd>${esc(t.bronnen.map(bronLabel).join('; ') || '—')}</dd>
+        <dt>Meetwijze(n) tijd</dt><dd>${esc(t.meetwijzenTijd.join('; ') || '—')}</dd>
+      </dl>
+      <div class="knoppen"><button type="button" class="klein" data-actie="totaal-onderliggend">Onderliggende gegevens bekijken</button></div>
+    </div>
+    ${t.status.length ? `<h4>Frequentiemetingen van dit proces</h4>
+      <div class="tabelhouder"><table class="klein">
+        <thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Periode</th><th>Meetperiode</th><th class="getal">Aantal</th><th>Bron</th><th>Meetellen</th><th>In dit totaal</th><th></th></tr></thead>
+        <tbody>${statusRijen}</tbody></table></div>` : '<p class="zacht klein mt">Er zijn voor dit proces nog geen frequentiemetingen.</p>'}`;
+}
+
+/** Herleidbaarheid van het totaaloverzicht: alle gebruikte procesmetingen en frequentiemetingen. */
+function toonTotaalOnderliggend() {
+  const procesId = $('#rProces').value;
+  const filters = resultaatFilters();
+  const t = berekenTotaalOverzicht(procesId, filters, kiesTotaalPeriode(procesId));
+  const e = t.eenheden;
+  informeer(`Onderliggende gegevens totaaloverzicht – ${procesId}`, `
+    <p class="klein">Periode: ${t.periodeEenheid ? 'per ' + esc(t.periodeEenheid.toLowerCase()) : ONBEKEND} · Keuze gemiddelde: ${esc(keuzeGemiddeldeTekst(filters))} (normale gevallen) · Filters: ${esc(filtersAlsTekst(filters))}</p>
+    <h4>Gebruikte frequentiemetingen (${t.frequenties.length})</h4>
+    ${t.frequenties.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Meetperiode</th><th class="getal">Aantal ${esc(e.uitvoeringseenheidMeervoud)}</th><th>Meetwijze / bron</th><th>Bron of toelichting</th></tr></thead><tbody>
+      ${t.frequenties.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}</td><td>${htmlTekst(f.medewerkerId)}</td><td>${esc(f.bereik || '')}</td><td>${esc(f.afbakening || '')}</td><td>${htmlTekst(f.meetperiode)}</td><td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td>${meetwijzeHtml(f.meetwijze)}</td><td>${esc(f.bron || '')}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="zacht">Geen.</p>'}
+    <h4>Gebruikte procesmetingen (${t.gebruikteMetingen.length})</h4>
+    ${metingenTabelHtml(t.gebruikteMetingen, e)}`);
 }
 
 /** Tabel 'Resultaten per medewerker', apart voor normale gevallen en uitzonderingen. */

@@ -67,6 +67,12 @@ const KOLOMMEN_FREQUENTIE = [
   ['Vastgelegd op', (f) => f.aangemaakt || ''],
   ['Laatst gewijzigd', (f) => f.gewijzigd || ''],
   ['Demogegevens', (f) => (f.demo ? 'Ja' : 'Nee')],
+  // Sinds versie 1.3 (achteraan toegevoegd, zodat bestaande kolommen op hun plaats blijven)
+  ['MedewerkerID', (f) => f.medewerkerId || ''],
+  ['Periode', (f) => (f.periodeEenheid ? 'per ' + f.periodeEenheid.toLowerCase() : 'Nog niet bepaald')],
+  ['Bereik', (f) => f.bereik || 'Nog niet bepaald'],
+  ['Afbakening / toelichting', (f) => f.afbakening || ''],
+  ['Meetellen in totaal', (f) => meetellenTekst(f)],
 ];
 
 function gesorteerdeProcesmetingen() {
@@ -187,6 +193,37 @@ function resultatenBlad(filters) {
   return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 16, 16, 40, 28, 10, 12, 20, 24, 8, 18, 16, 16, 16, 10, 16, 16, 24, 8, 18, 16, 16, 16, 16, 16, 14, 14, 20, 18, 18, 50, 40, 30, 30, 50], kopRij };
 }
 
+/** Tabblad 'Totaaloverzicht': totale frequentie en geschatte actieve tijdsbelasting per proces en periode. */
+function totaalBlad(filters) {
+  const rijen = [];
+  rijen.push([{ v: 'Totaaloverzicht – totale frequentie en geschatte actieve tijdsbelasting (automatisch berekend)', s: 'titel' }]);
+  if (bevatDemo()) rijen.push([{ v: DEMO_WAARSCHUWING, s: 'waarschuwing' }]);
+  rijen.push(['Gebruikte filters', filtersAlsTekst(filters)]);
+  rijen.push(['Keuze gemiddelde', keuzeGemiddeldeTekst(filters) + ' (normale gevallen)']);
+  rijen.push(['Formule', 'Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering; uren = minuten / 60. Wachttijd telt niet mee. Totale frequentie = som van frequentiemetingen met "Meetellen in totaal" = Ja en dezelfde periode, alleen als ze niet (mogelijk) overlappen.']);
+  rijen.push([]);
+  const koppen = ['ProcesID', 'Procesnaam', 'Periode', 'Meetperiode(n)', 'Uitvoeringseenheid', 'Totale frequentie', 'Gemiddelde actieve tijd per uitvoering (min)',
+    'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)', 'Geschatte actieve tijdsbelasting (min)', 'Geschatte actieve tijdsbelasting (uur)',
+    'Gemiddelde wachttijd per uitvoering (min, niet meegeteld)', 'Aantal procesmetingen', 'Aantal frequentiemetingen', 'Keuze gemiddelde',
+    'Gebruikte medewerker-ID\'s', 'Gebruikte MetingID\'s', 'Gebruikte frequentie-ID\'s', 'Bronnen frequentie', 'Meetwijzen tijd', 'Status', 'Waarschuwingen'];
+  rijen.push(koppen.map(kop));
+  const kopRij = rijen.length;
+  for (const procesId of alleProcesIds()) {
+    const perioden = totaalPeriodenVanProces(procesId);
+    for (const periode of perioden.length ? perioden : [null]) {
+      const t = berekenTotaalOverzicht(procesId, filters, periode);
+      const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
+      rijen.push([procesId, procesNaam(procesId), periode ? 'per ' + periode.toLowerCase() : ONBEKEND, t.meetperioden.join(', '), t.eenheden.uitvoeringseenheid,
+        getalOfLeeg(t.totaleFrequentie), getalOfLeeg(t.gemiddeldeActief), getalOfLeeg(t.minimumActief), getalOfLeeg(t.maximumActief),
+        getalOfLeeg(t.minuten), getalOfLeeg(t.uren), getalOfLeeg(t.gemiddeldeWacht), t.aantalProcesmetingen, t.frequenties.length,
+        keuzeGemiddeldeTekst(filters), t.medewerkerIds.join(', '), t.metingIds.join(', '), t.frequenties.map((f) => f.frequentieId).join(', '),
+        t.bronnen.map(bronLabel).join('; '), t.meetwijzenTijd.join('; '),
+        isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | ')]);
+    }
+  }
+  return { naam: 'Totaaloverzicht', rijen, kolombreedtes: [12, 28, 12, 18, 14, 12, 16, 12, 12, 16, 14, 16, 10, 10, 26, 22, 30, 30, 34, 24, 18, 90], kopRij };
+}
+
 /** Tabblad 'Per medewerker': samenvatting per medewerker en de individuele metingen met berekende waarden. */
 function medewerkerBlad(filters) {
   const rijen = [];
@@ -272,6 +309,11 @@ function methodeBlad(filters) {
   r.push(['Geteld (frequentie)', 'Het aantal uitvoeringen is handmatig geteld.']);
   r.push(['Resultaten per medewerker', 'Per MedewerkerID: aantal metingen, gemiddelde/minimum/maximum actieve tijd per uitvoering, gemiddelde wachttijd per uitvoering en gemiddelde omvang per uitvoering (omvang / aantal uitvoeringen), elk met het aantal gebruikte metingen (n). Het gecombineerde resultaat (alle medewerkers) wordt berekend uit alle individuele metingen samen, niet uit de gemiddelden per medewerker. MedewerkerID\'s zijn anonieme codes (bijv. PZ01); er worden geen namen vastgelegd.']);
   r.push(['Filter op medewerker', 'Resultaten kunnen worden berekend voor alle medewerkers samen (standaard) of voor één MedewerkerID. Het gebruikte filter staat bij de resultaten vermeld.']);
+  r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
+  r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
+  r.push(['Meetellen in totaal', 'Ja / Nee door de gebruiker gekozen. Bij frequentiemetingen uit eerdere versies is dit "Nog niet bepaald"; die tellen niet mee in het totaal, zodat oude frequenties niet automatisch dubbel worden geteld.']);
+  r.push(['Bereik van de frequentie', 'Eigen werkzaamheden, team, gehele afdeling of anders. Afbakening / toelichting beschrijft op welke dossiers of werkzaamheden de frequentie betrekking heeft.']);
+  r.push(['Berekend / Anders (frequentie)', 'Berekend = afgeleid uit andere gegevens; Anders = zie bron of toelichting.']);
   r.push(['Filter op meetwijze', 'Resultaten kunnen per meetwijze worden berekend. Bij "alle meetwijzen" wordt de verdeling van de meetwijzen bij iedere samenvatting vermeld.']);
   r.push(['Tijdvastlegging', 'Handmatig = tijd rechtstreeks ingevoerd; Timer = tijd met de timer vastgelegd (tot op 0,01 minuut); "Timer, handmatig aangepast" = timerwaarde daarna door de gebruiker gewijzigd.']);
   r.push([]);
@@ -297,6 +339,7 @@ async function exporteerExcel() {
   const filters = resultaatFilters();
   const blob = maakXlsx([
     resultatenBlad(filters),
+    totaalBlad(filters),
     medewerkerBlad(filters),
     ruwBlad('Procesmetingen', KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), [16, 11, 12, 34, 13, 13, 9, 14, 24, 40, 22, 22, 13]),
     ruwBlad('Stapmetingen', KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), [16, 16, 9, 34, 16, 16, 34, 34, 24, 13]),
@@ -385,6 +428,9 @@ function controleerBackup(json) {
     if (!tekst(f.procesId)) fouten.push(`${l}: ProcesID ontbreekt.`);
     if (!MEETWIJZEN_FREQUENTIE.includes(f.meetwijze)) fouten.push(`${l}: meetwijze ontbreekt of is ongeldig.`);
     if (!getalOfNull(f.aantalUitvoeringen) || !getalOfNull(f.totaalVolume)) fouten.push(`${l}: aantal of volume is ongeldig.`);
+    if (f.periodeEenheid && !PERIODE_EENHEDEN.includes(f.periodeEenheid)) fouten.push(`${l}: periode is ongeldig.`);
+    if (f.bereik && !BEREIKEN.includes(f.bereik)) fouten.push(`${l}: bereik is ongeldig.`);
+    if (f.meetellenInTotaal !== undefined && f.meetellenInTotaal !== null && typeof f.meetellenInTotaal !== 'boolean') fouten.push(`${l}: "Meetellen in totaal" is ongeldig.`);
   });
   dubbel(json.processen, (p) => p.procesId, 'ProcesID');
   dubbel(json.processtappen, (s) => s.stapId, 'StapID');

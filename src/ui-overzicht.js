@@ -38,9 +38,9 @@ function wisOverzichtFilters() {
 function renderOverzicht() {
   $('#overzichtLegacy').innerHTML = legacyMeldingHtml(null);
   const isFreq = overzichtSubtab === 'frequentiemetingen';
-  for (const el of $$('#overzichtFilters [data-filter]')) el.hidden = isFreq;
+  for (const el of $$('#overzichtFilters [data-filter]')) el.hidden = isFreq && el.dataset.filter !== 'medewerker';
   vulSelect($('#ozProces'), alleProcesIds().map((id) => ({ waarde: id, label: procesLabel(id) })), $('#ozProces').value, 'Alle processen');
-  const medewerkers = uniek(staat.procesmetingen.map((m) => m.medewerkerId || '')).filter(Boolean).sort(vergelijkTekst);
+  const medewerkers = uniek([...staat.procesmetingen, ...staat.frequentiemetingen].map((m) => m.medewerkerId || '')).filter(Boolean).sort(vergelijkTekst);
   const huidigeMedewerker = $('#ozMedewerker').value;
   vulSelect($('#ozMedewerker'), [...medewerkers, { waarde: '__leeg__', label: '(niet ingevuld)' }], huidigeMedewerker, 'Alle medewerkers');
   vulSelect($('#ozCasustype'), CASUSTYPEN, $('#ozCasustype').value, 'Alle casustypen');
@@ -147,14 +147,18 @@ function renderStapmetingenTabel(f) {
 function renderFrequentiesTabel(f) {
   const lijst = staat.frequentiemetingen
     .filter((x) => (!f.procesId || x.procesId === f.procesId) && (!f.meetwijze || x.meetwijze === f.meetwijze))
-    .filter((x) => bevatZoekterm([x.frequentieId, x.procesId, procesNaam(x.procesId), x.meetperiode, x.aantalUitvoeringen, x.totaalVolume, ...EENHEID_VELDEN.map((k) => x[k]), x.meetwijze, x.bron], f.zoek))
+    .filter((x) => !f.medewerker || (f.medewerker === '__leeg__' ? !x.medewerkerId : x.medewerkerId === f.medewerker))
+    .filter((x) => bevatZoekterm([x.frequentieId, x.procesId, procesNaam(x.procesId), x.meetperiode, x.aantalUitvoeringen, x.totaalVolume, ...EENHEID_VELDEN.map((k) => x[k]), x.meetwijze, x.bron,
+      x.medewerkerId, x.periodeEenheid, x.bereik, x.afbakening, meetellenTekst(x)], f.zoek))
     .sort((a, b) => vergelijkTekst(b.frequentieId, a.frequentieId));
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.frequentiemetingen.length} frequentiemetingen`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen frequentiemetingen gevonden.</p>'; return; }
   $('#overzichtTabel').innerHTML = `<table>
-    <thead><tr><th>FrequentieID</th><th>ProcesID</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th><th>Bron of toelichting</th><th></th></tr></thead>
+    <thead><tr><th>FrequentieID</th><th>ProcesID</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th><th>Bron of toelichting</th><th>Medewerker</th><th>Periode</th><th>Bereik</th><th>Afbakening</th><th>Meetellen in totaal</th><th></th></tr></thead>
     <tbody>${lijst.map((x) => `<tr><td class="mono">${esc(x.frequentieId)}${demoLabel(x)}</td><td>${esc(x.procesId)}${zoekProces(x.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td><td>${htmlTekst(x.meetperiode)}</td>
       <td class="getal">${htmlMetEenheid(x.aantalUitvoeringen, eenhedenVan(x), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(x.totaalVolume, eenhedenVan(x), 'omvang')}</td><td>${meetwijzeHtml(x.meetwijze)}</td><td>${esc(x.bron || '')}</td>
+      <td>${htmlTekst(x.medewerkerId)}</td><td>${x.periodeEenheid ? 'per ' + esc(x.periodeEenheid.toLowerCase()) : '<span class="onbekend">Nog niet bepaald</span>'}</td>
+      <td>${x.bereik ? esc(x.bereik) : '<span class="onbekend">Nog niet bepaald</span>'}</td><td class="klein">${esc(x.afbakening || '')}</td><td>${esc(meetellenTekst(x))}</td>
       <td class="acties">
         <button type="button" class="klein" data-actie="frequentie-openen" data-id="${esc(x.frequentieId)}">Openen</button>
         <button type="button" class="klein" data-actie="frequentie-bewerken" data-id="${esc(x.frequentieId)}">Aanpassen</button>
@@ -251,7 +255,12 @@ async function openFrequentie(frequentieId) {
       <dt>Meetperiode</dt><dd>${htmlTekst(f.meetperiode)}</dd>
       <dt>Aantal uitvoeringen</dt><dd>${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</dd>
       <dt>Totale omvang</dt><dd>${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</dd>
-      <dt>Meetwijze</dt><dd>${meetwijzeHtml(f.meetwijze)}</dd>
+      <dt>Meetwijze / bron</dt><dd>${meetwijzeHtml(f.meetwijze)}</dd>
+      <dt>MedewerkerID</dt><dd>${htmlTekst(f.medewerkerId)}</dd>
+      <dt>Periode</dt><dd>${f.periodeEenheid ? 'per ' + esc(f.periodeEenheid.toLowerCase()) : 'Nog niet bepaald'}</dd>
+      <dt>Bereik</dt><dd>${f.bereik ? esc(f.bereik) : 'Nog niet bepaald'}</dd>
+      <dt>Afbakening / toelichting</dt><dd>${esc(f.afbakening || '—')}</dd>
+      <dt>Meetellen in totaal</dt><dd>${esc(meetellenTekst(f))}</dd>
       <dt>Bron of toelichting</dt><dd>${esc(f.bron || '—')}</dd>
       <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(f.aangemaakt))}</dd>
       <dt>Laatst gewijzigd</dt><dd>${f.gewijzigd ? esc(fmtTijdstip(f.gewijzigd)) : 'Niet gewijzigd'}</dd>

@@ -17,7 +17,10 @@
 // stapmetingen:       { metingId, stapId, volgorde, stapnaam, actieveTijd, wachttijd,
 //                       redenWachttijd, opmerking, tijdvastlegging, demo }
 // frequentiemetingen: { frequentieId, procesId, meetperiode, aantalUitvoeringen, totaalVolume,
-//                       ...EENHEID_VELDEN, meetwijze, bron, demo, aangemaakt, gewijzigd }
+//                       ...EENHEID_VELDEN, meetwijze, bron, demo, aangemaakt, gewijzigd,
+//                       medewerkerId, periodeEenheid, bereik, afbakening, meetellenInTotaal }
+// De laatste vijf velden bestaan sinds versie 1.3 en ontbreken bij oudere frequentiemetingen.
+// meetellenInTotaal: true / false; ontbreekt (of null) = 'nog niet bepaald' en telt dan niet mee.
 //
 // procesnaam, stapnaam en de eenheden bij een meting zijn een kopie op het moment van
 // meten, zodat metingen leesbaar blijven als een proces later wordt gewijzigd of verwijderd.
@@ -354,6 +357,15 @@ function valideerFrequentie(f, origineelId) {
   if (f.aantalUitvoeringen === null && f.totaalVolume === null) fouten.push('Vul het aantal uitvoeringen en/of het totale volume in.');
   if (f.aantalUitvoeringen !== null && f.aantalUitvoeringen < 0) fouten.push('Aantal uitvoeringen mag niet negatief zijn.');
   if (f.totaalVolume !== null && f.totaalVolume < 0) fouten.push('Totaal volume mag niet negatief zijn.');
+  if (f.periodeEenheid && !PERIODE_EENHEDEN.includes(f.periodeEenheid)) fouten.push('Kies een geldige periode (dag, week, maand, kwartaal of jaar).');
+  if (f.bereik && !BEREIKEN.includes(f.bereik)) fouten.push('Kies een geldig bereik.');
+  if (f.meetellenInTotaal === true) {
+    // Een frequentie die in het totaal meetelt, moet vergelijkbaar en optelbaar zijn.
+    if (!f.periodeEenheid) fouten.push('Meetellen in totaal: kies de periode waarop de frequentie betrekking heeft (bijv. per week).');
+    if (!f.bereik) fouten.push('Meetellen in totaal: kies het bereik van de frequentie (eigen werkzaamheden, team, gehele afdeling of anders).');
+    if (f.aantalUitvoeringen === null) fouten.push('Meetellen in totaal: vul het aantal uitvoeringen in.');
+    if (f.bereik === 'Eigen werkzaamheden' && !f.medewerkerId) fouten.push('Meetellen in totaal met bereik "Eigen werkzaamheden": vul de MedewerkerID in, zodat dubbele tellingen herkend kunnen worden.');
+  }
   return fouten;
 }
 
