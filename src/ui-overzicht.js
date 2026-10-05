@@ -77,7 +77,8 @@ function renderProcesmetingenTabel(f) {
     .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
       ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
-  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen`;
+  const nTest = lijst.filter(isTestmeting).length;
+  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen (${lijst.length - nTest} echt, ${nTest} test/fictief)`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen procesmetingen gevonden.</p>'; return; }
   const rijen = lijst.map((m) => {
     const b = berekenMeting(m);
@@ -85,21 +86,22 @@ function renderProcesmetingenTabel(f) {
     const stappen = stapmetingenVan(m.metingId);
     let html = `<tr>
       <td><button type="button" class="klein" data-actie="meting-uitklappen" data-id="${esc(m.metingId)}" aria-expanded="${open}" title="Stapmetingen tonen of verbergen">${open ? '▾' : '▸'} ${stappen.length}</button></td>
-      <td class="mono">${esc(m.metingId)}${demoLabel(m)}</td>
-      <td>${esc(fmtDatum(m.datum))}</td>
+      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}</td>
+      <td>${esc(fmtDatum(m.datum))}<br><span class="klein zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
       <td>${esc(m.casustype)}</td>
       <td class="getal">${htmlMetEenheid(m.aantalUitvoeringen, eenhedenVan(m), 'uitvoering')}</td>
       <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}</td>
       <td>${meetwijzeHtml(m.meetwijze)}</td>
-      <td class="getal berekend">${htmlGetal(b.totaalActief)}</td>
+      <td class="getal berekend">${htmlGetal(b.totaalActief)}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
       <td class="getal berekend">${htmlGetal(b.totaalWacht)}</td>
       <td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}<span class="klein"> /${esc(eenhedenVan(m).uitvoeringseenheid)}</span></td>
       <td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}<span class="klein"> /${esc(eenhedenVan(m).omvangseenheid)}</span></td>
       <td class="acties">
         <button type="button" class="klein" data-actie="meting-openen" data-id="${esc(m.metingId)}">Openen</button>
         <button type="button" class="klein" data-actie="meting-bewerken" data-id="${esc(m.metingId)}">Aanpassen</button>
+        <button type="button" class="klein" data-actie="meting-dupliceren" data-id="${esc(m.metingId)}" title="Nieuwe meting op basis van deze meting">Meting dupliceren</button>
         <button type="button" class="klein gevaar" data-actie="meting-verwijderen" data-id="${esc(m.metingId)}">Verwijderen</button>
       </td>
     </tr>`;
@@ -137,7 +139,7 @@ function renderStapmetingenTabel(f) {
     <thead><tr><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th></th></tr></thead>
     <tbody>${lijst.map((s) => {
       const m = metingen.get(s.metingId);
-      return `<tr><td class="mono">${esc(s.metingId)}${demoLabel(s)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${esc(m.procesId)}</td><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td>
+      return `<tr><td class="mono">${esc(s.metingId)}${demoLabel(s)}${testLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${esc(m.procesId)}</td><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td>
         <td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td><td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td>
         <td class="acties"><button type="button" class="klein" data-actie="meting-openen" data-id="${esc(s.metingId)}">Meting openen</button></td></tr>`;
     }).join('')}</tbody></table>
@@ -151,11 +153,12 @@ function renderFrequentiesTabel(f) {
     .filter((x) => bevatZoekterm([x.frequentieId, x.procesId, procesNaam(x.procesId), x.meetperiode, x.aantalUitvoeringen, x.totaalVolume, ...EENHEID_VELDEN.map((k) => x[k]), x.meetwijze, x.bron,
       x.medewerkerId, x.periodeEenheid, x.bereik, x.afbakening, meetellenTekst(x)], f.zoek))
     .sort((a, b) => vergelijkTekst(b.frequentieId, a.frequentieId));
-  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.frequentiemetingen.length} frequentiemetingen`;
+  const nFTest = lijst.filter(isTestmeting).length;
+  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.frequentiemetingen.length} frequentiemetingen (${lijst.length - nFTest} echt, ${nFTest} test/fictief)`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen frequentiemetingen gevonden.</p>'; return; }
   $('#overzichtTabel').innerHTML = `<table>
     <thead><tr><th>FrequentieID</th><th>ProcesID</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th><th>Bron of toelichting</th><th>Medewerker</th><th>Periode</th><th>Bereik</th><th>Afbakening</th><th>Meetellen in totaal</th><th></th></tr></thead>
-    <tbody>${lijst.map((x) => `<tr><td class="mono">${esc(x.frequentieId)}${demoLabel(x)}</td><td>${esc(x.procesId)}${zoekProces(x.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td><td>${htmlTekst(x.meetperiode)}</td>
+    <tbody>${lijst.map((x) => `<tr><td class="mono">${esc(x.frequentieId)}${demoLabel(x)}${testLabel(x)}</td><td>${esc(x.procesId)}${zoekProces(x.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td><td>${htmlTekst(x.meetperiode)}${x.meetdatum ? `<br><span class="klein zacht">${esc(kalenderweekTekst(x.meetdatum, true))}</span>` : ''}</td>
       <td class="getal">${htmlMetEenheid(x.aantalUitvoeringen, eenhedenVan(x), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(x.totaalVolume, eenhedenVan(x), 'omvang')}</td><td>${meetwijzeHtml(x.meetwijze)}</td><td>${esc(x.bron || '')}</td>
       <td>${htmlTekst(x.medewerkerId)}</td><td>${x.periodeEenheid ? 'per ' + esc(x.periodeEenheid.toLowerCase()) : '<span class="onbekend">Nog niet bepaald</span>'}</td>
       <td>${x.bereik ? esc(x.bereik) : '<span class="onbekend">Nog niet bepaald</span>'}</td><td class="klein">${esc(x.afbakening || '')}</td><td>${esc(meetellenTekst(x))}</td>
@@ -175,7 +178,9 @@ function metingDetailHtml(m) {
       ${m.demo ? '<div class="melding neutraal"><span class="demolabel">DEMO</span> Dit is een fictieve demometing.</div>' : ''}
       <dl class="gegevens">
         <dt>MetingID</dt><dd class="mono">${esc(m.metingId)}</dd>
-        <dt>Datum</dt><dd>${esc(fmtDatum(m.datum))}</dd>
+        <dt>Meetdatum</dt><dd>${esc(fmtDatum(m.datum))}</dd>
+        <dt>Meetmoment ${infoHtml('kalenderweek')}</dt><dd>${esc(kalenderweekTekst(m.datum) || ONBEKEND)}</dd>
+        <dt>Test/fictief</dt><dd>${isTestmeting(m) ? '<strong>Ja</strong> – telt standaard niet mee in resultaten' : 'Nee'}</dd>
         <dt>Proces</dt><dd>${esc(m.procesId)} – ${htmlTekst(m.procesnaam)}${zoekProces(m.procesId) ? '' : ' <span class="zacht">(proces is inmiddels verwijderd)</span>'}</dd>
         <dt>MedewerkerID</dt><dd>${htmlTekst(m.medewerkerId)}</dd>
         <dt>Casustype</dt><dd>${esc(m.casustype)}</dd>
@@ -196,6 +201,7 @@ function metingDetailHtml(m) {
       <dl class="gegevens">
         <dt>Totale actieve tijd</dt><dd>${htmlGetal(b.totaalActief, 2, ' min')}</dd>
         <dt>Totale wachttijd</dt><dd>${htmlGetal(b.totaalWacht, 2, ' min')}</dd>
+        <dt>Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</dt><dd>${htmlGetal(isGetal(b.totaalActief) && isGetal(b.totaalWacht) ? b.totaalActief + b.totaalWacht : null, 2, ' min')}</dd>
         <dt><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</dt><dd><strong>${htmlGetal(b.actiefPerUitvoering, 2, ' min')}</strong></dd>
         <dt>Wachttijd per ${esc(e.uitvoeringseenheid)}</dt><dd>${htmlGetal(b.wachtPerUitvoering, 2, ' min')}</dd>
         <dt>Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</dt><dd>${htmlGetal(b.actiefPerOmvang, 2, ' min')}</dd>
@@ -206,6 +212,7 @@ function metingDetailHtml(m) {
       ${isGetal(b.actiefPerOmvang) ? `<div class="formule">Actieve tijd per ${esc(e.omvangseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.omvang))} = ${fmtGetal(b.actiefPerOmvang)}</div>` : ''}
       ${b.ontbrekendActief.length ? `<div class="klein">Actieve tijd ontbreekt bij: ${esc(b.ontbrekendActief.join(', '))}</div>` : ''}
       ${b.ontbrekendWacht.length ? `<div class="klein">Wachttijd ontbreekt bij: ${esc(b.ontbrekendWacht.join(', '))}</div>` : ''}
+      ${controleHtml(controleProcesStap(m, stappen))}
       ${!b.aantalBekend ? `<div class="klein">Aantal ${esc(e.uitvoeringseenheidMeervoud)} ontbreekt; tijd per ${esc(e.uitvoeringseenheid)} is niet berekend.</div>` : ''}
       ${!b.omvangBekend ? `<div class="klein">Omvang (aantal ${esc(e.omvangseenheidMeervoud)}) ontbreekt; tijd per ${esc(e.omvangseenheid)} is niet berekend.</div>` : ''}
     </div>`;
@@ -219,11 +226,13 @@ async function openMeting(metingId) {
     inhoud: metingDetailHtml(m),
     knoppen: [
       { label: 'Verwijderen', waarde: 'verwijderen', soort: 'gevaar' },
+      { label: 'Meting dupliceren', waarde: 'dupliceren' },
       { label: 'Aanpassen', waarde: 'bewerken' },
       { label: 'Sluiten', waarde: null, soort: 'primair' },
     ],
   });
   if (keuze === 'bewerken') bewerkMeting(metingId);
+  if (keuze === 'dupliceren') dupliceerMeting(metingId);
   if (keuze === 'verwijderen') verwijderMetingMetBevestiging(metingId);
 }
 
@@ -252,7 +261,9 @@ async function openFrequentie(frequentieId) {
       <dl class="gegevens">
       <dt>FrequentieID</dt><dd class="mono">${esc(f.frequentieId)}</dd>
       <dt>Proces</dt><dd>${esc(procesLabel(f.procesId))}</dd>
-      <dt>Meetperiode</dt><dd>${htmlTekst(f.meetperiode)}</dd>
+      <dt>Meetperiode (omschrijving)</dt><dd>${htmlTekst(f.meetperiode)}</dd>
+      <dt>Meetdatum / meetmoment</dt><dd>${f.meetdatum ? esc(fmtDatum(f.meetdatum) + ' – ' + kalenderweekTekst(f.meetdatum)) : 'Niet vastgelegd'}</dd>
+      <dt>Test/fictief</dt><dd>${isTestmeting(f) ? '<strong>Ja</strong>' : 'Nee'}</dd>
       <dt>Aantal uitvoeringen</dt><dd>${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</dd>
       <dt>Totale omvang</dt><dd>${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</dd>
       <dt>Meetwijze / bron</dt><dd>${meetwijzeHtml(f.meetwijze)}</dd>

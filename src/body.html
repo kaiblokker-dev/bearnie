@@ -54,8 +54,9 @@
             <span class="hint">Wordt automatisch toegekend.</span>
           </div>
           <div class="veld">
-            <label for="mDatum" class="verplicht">Datum</label>
+            <label for="mDatum" class="verplicht">Meetdatum</label>
             <input type="date" id="mDatum">
+            <span class="hint" id="mKalenderweek"></span>
           </div>
           <div class="veld">
             <label for="mProces" class="verplicht">ProcesID</label>
@@ -74,12 +75,12 @@
             </div>
           </div>
           <div class="veld">
-            <label for="mAantal" class="verplicht" id="mAantalLabel">Aantal uitvoeringen</label>
+            <span class="label verplicht"><label for="mAantal" id="mAantalLabel">Aantal uitvoeringen</label> <span data-uitleg="uitvoeringseenheid"></span></span>
             <input type="text" id="mAantal" inputmode="decimal" placeholder="bijv. 1">
             <span class="hint" id="mAantalHint">Uitvoeringseenheid volgt uit het proces.</span>
           </div>
           <div class="veld">
-            <label for="mOmvang" id="mOmvangLabel">Omvang</label>
+            <span class="label"><label for="mOmvang" id="mOmvangLabel">Omvang</label> <span data-uitleg="omvang"></span></span>
             <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 7">
             <span class="hint" id="mOmvangHint">Positief getal. Leeg laten als onbekend.</span>
           </div>
@@ -90,6 +91,19 @@
           <div class="veld breed">
             <label for="mToelichting">Algemene toelichting</label>
             <textarea id="mToelichting" placeholder="Optioneel"></textarea>
+          </div>
+          <div class="veld">
+            <label for="mActiefTotaal">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
+            <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+            <span class="hint">Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.</span>
+          </div>
+          <div class="veld">
+            <label for="mWachtTotaal">Totale wachttijd volgens procesmeting (min) <span data-uitleg="wacht"></span></label>
+            <input type="text" id="mWachtTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+          </div>
+          <div class="veld">
+            <span class="label">Test/fictief <span data-uitleg="test"></span></span>
+            <label class="keuzes" style="font-weight:400"><input type="checkbox" id="mTest"> Test/fictieve meting</label>
           </div>
         </div>
       </div>
@@ -109,6 +123,8 @@
       <div class="knoppen">
         <button type="submit" class="primair" id="mOpslaan">Meting opslaan</button>
         <button type="button" data-actie="meting-annuleren" id="mAnnuleren">Formulier leegmaken</button>
+        <button type="button" class="klein" data-actie="concept-meting-verwijderen" id="mConceptVerwijderen" hidden>Concept verwijderen</button>
+        <span class="conceptstatus" id="mConceptStatus" aria-live="polite"></span>
       </div>
     </form>
   </section>
@@ -141,12 +157,17 @@
             <input type="text" id="fPeriode" placeholder="bijv. maart 2026 of week 12">
           </div>
           <div class="veld">
-            <label for="fPeriodeEenheid">Periode (frequentie per …)</label>
+            <label for="fDatum">Meetdatum (meetmoment) <span data-uitleg="kalenderweek"></span></label>
+            <input type="date" id="fDatum">
+            <span class="hint" id="fKalenderweek">Optioneel. De kalenderweek wordt automatisch berekend.</span>
+          </div>
+          <div class="veld">
+            <label for="fPeriodeEenheid">Frequentieperiode (per …) <span data-uitleg="frequentieperiode"></span></label>
             <select id="fPeriodeEenheid"></select>
             <span class="hint">Alleen frequenties met dezelfde periode worden bij elkaar opgeteld.</span>
           </div>
           <div class="veld">
-            <label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label>
+            <span class="label"><label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label> <span data-uitleg="frequentie"></span></span>
             <input type="text" id="fAantal" inputmode="decimal" placeholder="bijv. 120">
             <span class="hint" id="fAantalHint">Nodig voor de geschatte tijdsbelasting.</span>
           </div>
@@ -169,9 +190,13 @@
             <textarea id="fAfbakening" placeholder="Optioneel: op welke dossiers of werkzaamheden heeft deze frequentie betrekking? Bijv. alleen eigen dossiers van PZ01, zonder bezwaarzaken."></textarea>
           </div>
           <div class="veld breed">
-            <label class="keuzes" style="font-weight:600"><input type="checkbox" id="fMeetellen"> Meetellen in totaal</label>
+            <label class="keuzes" style="font-weight:600"><input type="checkbox" id="fMeetellen"> Meetellen in totaal <span data-uitleg="meetellen"></span></label>
             <span class="hint">Vink alleen aan als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Verschillende schattingen van hetzelfde volume (bijv. twee schattingen voor de hele afdeling) mogen niet allebei meetellen.</span>
             <span class="hint" id="fMeetellenStatus"></span>
+          </div>
+          <div class="veld">
+            <span class="label">Test/fictief <span data-uitleg="test"></span></span>
+            <label class="keuzes" style="font-weight:400"><input type="checkbox" id="fTest"> Test/fictieve meting</label>
           </div>
           <div class="veld breed">
             <label for="fBron">Bron of toelichting</label>
@@ -183,6 +208,8 @@
       <div class="knoppen">
         <button type="submit" class="primair">Frequentie opslaan</button>
         <button type="button" data-actie="frequentie-annuleren" id="fAnnuleren">Formulier leegmaken</button>
+        <button type="button" class="klein" data-actie="concept-frequentie-verwijderen" id="fConceptVerwijderen" hidden>Concept verwijderen</button>
+        <span class="conceptstatus" id="fConceptStatus" aria-live="polite"></span>
       </div>
     </form>
     <div class="kaart mt">
@@ -228,6 +255,7 @@
         <div class="veld" style="width:200px"><label for="rMedewerker">Medewerker</label><select id="rMedewerker"></select></div>
         <div class="veld"><label for="rVan">Datum vanaf</label><input type="date" id="rVan"></div>
         <div class="veld"><label for="rTot">Datum tot en met</label><input type="date" id="rTot"></div>
+        <div class="veld" style="width:auto"><span class="label">Testmetingen</span><label class="keuzes" style="font-weight:400"><input type="checkbox" id="rMetTest"> Testmetingen meenemen <span data-uitleg="test"></span></label></div>
       </div>
     </div>
     <div id="resultatenInhoud"></div>
@@ -255,11 +283,11 @@
         </div>
       </div>
       <div class="kaart">
-        <h3>Back-up</h3>
-        <p class="klein zacht">Een JSON-back-up bevat alle processen, processtappen, procesmetingen, stapmetingen, frequentiemetingen en het versienummer van de tool.</p>
+        <h3>Volledige back-up (JSON)</h3>
+        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
         <div class="knoppen">
-          <button type="button" class="primair" data-actie="backup-download">Back-up downloaden (JSON)</button>
-          <button type="button" data-actie="backup-import">Back-up importeren (JSON)</button>
+          <button type="button" class="primair" data-actie="backup-download">Volledige back-up downloaden</button>
+          <button type="button" data-actie="backup-import">Back-up herstellen</button>
           <input type="file" id="backupBestand" accept=".json,application/json" hidden>
         </div>
       </div>

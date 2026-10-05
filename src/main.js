@@ -10,18 +10,37 @@ const ACTIES = {
   'stap-verwijderen': (el) => { procesBewerking.stappen.splice(Number(el.dataset.index), 1); renderProcesEditor(); },
   'processen-csv-export': () => exporteerProcessenCsv(),
   'processen-csv-import': () => $('#processenCsvBestand').click(),
-  'meting-annuleren': () => { const was = !!metingBewerkId; resetMetingFormulier(false); if (was) toonTab('overzicht'); },
-  'frequentie-annuleren': () => { const was = !!frequentieBewerkId; resetFrequentieFormulier(); if (was) toonTab('overzicht'); },
+  'meting-annuleren': () => { const was = !!metingBewerkId; verwijderConcept('meting'); resetMetingFormulier(false); if (was) toonTab('overzicht'); },
+  'frequentie-annuleren': () => { const was = !!frequentieBewerkId; verwijderConcept('frequentie'); resetFrequentieFormulier(); if (was) toonTab('overzicht'); },
+  'concept-meting-verwijderen': () => verwijderMetingConceptMetBevestiging(),
+  'concept-frequentie-verwijderen': () => verwijderFrequentieConceptMetBevestiging(),
+  'meting-dupliceren': (el) => dupliceerMeting(el.dataset.id),
   'meting-uitklappen': (el) => {
     const id = el.dataset.id;
     if (uitgeklapteMetingen.has(id)) uitgeklapteMetingen.delete(id); else uitgeklapteMetingen.add(id);
     renderOverzichtTabel();
   },
   'meting-openen': (el) => openMeting(el.dataset.id),
-  'meting-bewerken': (el) => bewerkMeting(el.dataset.id),
+  'meting-bewerken': async (el) => {
+    const c = laadConcept('meting');
+    if (c && c.gegevens && c.gegevens.bewerkId !== el.dataset.id) {
+      const ok = await bevestig('Niet-opgeslagen concept', '<p>Het formulier Nieuwe procesmeting bevat een niet-opgeslagen concept. Als u deze meting gaat aanpassen, wordt dat concept vervangen.</p>', 'Toch aanpassen', true);
+      if (!ok) return;
+      verwijderConcept('meting');
+    }
+    bewerkMeting(el.dataset.id);
+  },
   'meting-verwijderen': (el) => verwijderMetingMetBevestiging(el.dataset.id),
   'frequentie-openen': (el) => openFrequentie(el.dataset.id),
-  'frequentie-bewerken': (el) => bewerkFrequentie(el.dataset.id),
+  'frequentie-bewerken': async (el) => {
+    const c = laadConcept('frequentie');
+    if (c && c.gegevens && c.gegevens.bewerkId !== el.dataset.id) {
+      const ok = await bevestig('Niet-opgeslagen concept', '<p>Het formulier Frequentie registreren bevat een niet-opgeslagen concept. Als u deze frequentiemeting gaat aanpassen, wordt dat concept vervangen.</p>', 'Toch aanpassen', true);
+      if (!ok) return;
+      verwijderConcept('frequentie');
+    }
+    bewerkFrequentie(el.dataset.id);
+  },
   'frequentie-verwijderen': (el) => verwijderFrequentieMetBevestiging(el.dataset.id),
   'filters-wissen': () => wisOverzichtFilters(),
   'onderliggende-metingen': (el) => toonOnderliggendeMetingen(el.dataset.casustype),
@@ -82,10 +101,24 @@ async function start() {
   initResultaten();
   renderAlles();
   werkOpslagStatusBij();
+  // Uitleg-icoontjes in de vaste HTML
+  for (const el of $$('[data-uitleg]')) el.outerHTML = infoHtml(el.dataset.uitleg);
+  const herstelMeting = herstelMetingConcept();
+  const herstelFrequentie = herstelFrequentieConcept();
+  // Concepten direct wegschrijven bij sluiten of wegklikken van de pagina.
+  const bewaarOpenConcepten = () => {
+    if (metingConceptTimer) bewaarMetingConcept();
+    if (frequentieConceptTimer) bewaarFrequentieConcept();
+  };
+  window.addEventListener('pagehide', bewaarOpenConcepten);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') bewaarOpenConcepten(); });
 
   let starttab = staat.processen.length ? 'meting' : 'processen';
   try { starttab = sessionStorage.getItem('meettool-tab') || starttab; } catch (e) { /* niet kritiek */ }
+  if (herstelMeting) starttab = 'meting';
+  else if (herstelFrequentie) starttab = 'frequentie';
   toonTab(starttab);
+  if (herstelMeting || herstelFrequentie) toonMelding('Niet-afgerond concept hersteld.');
 
   window.addEventListener('beforeunload', (e) => {
     // Waarschuw bij sluiten als er nog een timer loopt of een wijziging nog wordt opgeslagen.
@@ -107,6 +140,9 @@ async function start() {
     berekenTijdsbelasting,
     kiesFrequentie,
     leesGetal,
+    kalenderweek,
+    kalenderweekTekst,
+    controleProcesStap,
     isGeldigeDatum,
     mediaan,
     wachtOpOpslag: () => Opslag.wachtrij.then(() => true, () => false),

@@ -257,29 +257,29 @@ const num = (t) => Number(String(t).replace(',', '.'));
 
   // Filters in overzicht
   await page.selectOption('#ozCasustype', 'Uitzondering');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '1 van 4 procesmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '1 van 4 procesmetingen');
   await page.selectOption('#ozCasustype', '');
   await page.selectOption('#ozMeetwijze', 'Geschat door medewerker');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '1 van 4 procesmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '1 van 4 procesmetingen');
   await page.click('[data-actie="filters-wissen"]');
   await page.fill('#ozZoek', 'scan');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '1 van 4 procesmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '1 van 4 procesmetingen');
   await page.fill('#ozVan', '2026-03-03');
   await page.fill('#ozTot', '2026-03-04');
   await page.fill('#ozZoek', '');
   await page.dispatchEvent('#ozTot', 'change');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '2 van 4 procesmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '2 van 4 procesmetingen');
   await page.click('[data-actie="filters-wissen"]');
   // MedewerkerID blijft na opslaan staan voor de volgende meting; alle vier de metingen hebben M01.
   await page.selectOption('#ozMedewerker', 'M01');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '4 van 4 procesmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '4 van 4 procesmetingen');
   await page.selectOption('#ozMedewerker', '__leeg__');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '0 van 4 procesmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '0 van 4 procesmetingen');
   await page.click('[data-actie="filters-wissen"]');
   await page.click('[data-actie="meting-uitklappen"][data-id="M-PR24-001"]');
   assert.ok((await page.textContent('#overzichtTabel')).includes('Wachten op scan'));
   await page.click('#overzichtSubtabs button[data-subtab="stapmetingen"]');
-  assert.strictEqual(await page.textContent('#overzichtTelling'), '12 van 12 stapmetingen');
+  assert.strictEqual((await page.textContent('#overzichtTelling')).replace(/ \(.*\)$/, ''), '12 van 12 stapmetingen');
   await page.click('#overzichtSubtabs button[data-subtab="procesmetingen"]');
   ok('4 (weergave)', 'Zoeken en filteren op proces, datum, medewerker, casustype en meetwijze werken; stapmetingen per procesmeting zichtbaar');
 
@@ -633,7 +633,8 @@ k = next(i for i, r in enumerate(ws) if r and r[0] == "ProcesID")
 kop = ws[k]
 sam = {r[3]: [r[kop.index("Aantal metingen")], r[kop.index("Gemiddelde actieve tijd per uitvoering (min)")], r[kop.index("Minimum actieve tijd per uitvoering (min)")], r[kop.index("Maximum actieve tijd per uitvoering (min)")], r[kop.index("n actieve tijd")]] for r in ws[k+1:] if r and r[0] == "PR24"}
 j = next(i for i, r in enumerate(ws) if r and r[0] == "MetingID")
-ind = [[r[0], r[4], r[11]] for r in ws[j+1:] if r and r[0]]
+ik = ws[j]
+ind = [[r[0], r[ik.index("MedewerkerID")], r[ik.index("Actieve tijd per uitvoering (min)")]] for r in ws[j+1:] if r and r[0]]
 pm = [r for r in wb["Procesmetingen"].iter_rows(values_only=True)]
 print(json.dumps({"bladen": wb.sheetnames, "sam": sam, "ind": ind, "pm_kop": "MedewerkerID" in pm[0]}))`]).toString());
     assert.ok(pm.bladen.includes('Per medewerker'));

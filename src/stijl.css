@@ -300,3 +300,19 @@ td.mono { white-space: nowrap; }
 
 tr.totaalrij > td { border-top: 2px solid var(--berekend-rand); }
 tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
+
+/* Korte uitleg bij begrippen */
+.uitleg-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 4px;
+  border-radius: 50%; border: 1px solid var(--berekend-rand);
+  color: var(--berekend-tekst); background: #fff;
+  font: italic 600 10px Georgia, serif; cursor: help; vertical-align: middle;
+}
+.uitleg-i:focus { outline: 2px solid var(--groen); }
+.testlabel {
+  display: inline-block; background: #fdeaea; color: #8a1c1c; border: 1px solid #efc2bf;
+  border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; vertical-align: middle;
+}
+.conceptstatus { font-size: 13px; color: var(--tekst-zacht); }
+.afwijking { color: var(--waarschuwing); font-weight: 600; cursor: help; }

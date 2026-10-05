@@ -53,18 +53,27 @@ function initMetingFormulier() {
     const rij = e.target.closest('tr[data-stap]');
     if (rij && (e.target.dataset.veld === 'actieveTijd' || e.target.dataset.veld === 'wachttijd')) {
       const s = formulierStappen.find((x) => x.stapId === rij.dataset.stap);
-      if (s && s.tijdvastlegging === 'Timer') { s.tijdvastlegging = 'Timer, handmatig aangepast'; werkBronLabelBij(rij, s); }
+      if (s && (s.tijdvastlegging === 'Timer' || s.tijdvastlegging === 'Gekopieerd')) { s.tijdvastlegging += ', handmatig aangepast'; werkBronLabelBij(rij, s); }
       if (e.target.dataset.veld === 'wachttijd') werkRedenZichtbaarheidBij(rij);
     }
+    werkKalenderweekBij();
     werkBerekeningBij();
+    planMetingConcept();
   });
-  $('#metingFormulier').addEventListener('change', werkBerekeningBij);
+  $('#metingFormulier').addEventListener('change', () => { werkKalenderweekBij(); werkBerekeningBij(); planMetingConcept(); });
   $('#metingFormulier').addEventListener('submit', (e) => { e.preventDefault(); slaMetingOp(); });
   $('#mStappen').addEventListener('click', (e) => {
     const knop = e.target.closest('button[data-timer]');
     if (knop) timerActie(knop.closest('tr').dataset.stap, knop.dataset.timer);
   });
   renderMetingStappen();
+  werkKalenderweekBij();
+}
+
+/** Toont onder de meetdatum de kalenderweek, bijv. "Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)". */
+function werkKalenderweekBij() {
+  const tekst = kalenderweekTekst($('#mDatum').value);
+  $('#mKalenderweek').innerHTML = tekst ? `Meetmoment: ${esc(tekst)} ${infoHtml('kalenderweek')}` : '';
 }
 
 function laadProcesStappenInFormulier(procesId) {
@@ -87,8 +96,8 @@ function renderMetingStappen(waarden = {}) {
     return `<tr data-stap="${esc(s.stapId)}">
       <td class="mono">${esc(s.stapId)}</td>
       <td>${esc(s.stapnaam)}<span class="bronlabel" data-bron></span></td>
-      <td><input type="text" class="tijd" data-veld="actieveTijd" inputmode="decimal" value="${esc(naarInvoer(w.actieveTijd))}" aria-label="Actieve tijd in minuten voor ${esc(s.stapId)}"></td>
-      <td><input type="text" class="tijd" data-veld="wachttijd" inputmode="decimal" value="${esc(naarInvoer(w.wachttijd))}" aria-label="Wachttijd in minuten voor ${esc(s.stapId)}"></td>
+      <td><input type="text" class="tijd" data-veld="actieveTijd" inputmode="decimal" value="${esc(typeof w.actieveTijd === 'string' ? w.actieveTijd : naarInvoer(w.actieveTijd))}" aria-label="Actieve tijd in minuten voor ${esc(s.stapId)}"></td>
+      <td><input type="text" class="tijd" data-veld="wachttijd" inputmode="decimal" value="${esc(typeof w.wachttijd === 'string' ? w.wachttijd : naarInvoer(w.wachttijd))}" aria-label="Wachttijd in minuten voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="redenWachttijd" value="${esc(w.redenWachttijd || '')}" placeholder="Verplicht bij wachttijd" aria-label="Reden wachttijd voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="opmerking" value="${esc(w.opmerking || '')}" placeholder="Optioneel" aria-label="Opmerking voor ${esc(s.stapId)}"></td>
       <td class="timer">
@@ -98,7 +107,7 @@ function renderMetingStappen(waarden = {}) {
     </tr>`;
   }).join('');
   houder.innerHTML = `<div class="tabelhouder"><table class="stappen">
-    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min)</th><th>Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th class="timer">Timer</th></tr></thead>
+    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min) ${infoHtml('actief')}</th><th>Wachttijd (min) ${infoHtml('wacht')}</th><th>Reden wachttijd</th><th>Opmerking</th><th class="timer">Timer</th></tr></thead>
     <tbody>${rijen}</tbody></table></div>
     <p class="klein zacht">Tijden in minuten; decimalen met komma of punt. Vul 0 in als er geen wachttijd was. De timer vult de velden pas na <em>Afronden</em>; controleer en corrigeer de waarden altijd vóór het opslaan.</p>`;
   for (const rij of $$('tr[data-stap]', houder)) {
@@ -133,6 +142,14 @@ function leesMetingFormulier() {
   const omvang = leesGetal($('#mOmvang').value);
   if (omvang.fout) invoerFouten.push(`Omvang (aantal ${e.omvangseenheidMeervoud}): ` + omvang.fout);
   $('#mOmvang').classList.toggle('ongeldig', !!omvang.fout || (isGetal(omvang.waarde) && omvang.waarde <= 0));
+  const leesControle = (id, label) => {
+    const r = leesGetal($(id).value);
+    if (r.fout) invoerFouten.push(`${label}: ${r.fout}`);
+    $(id).classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && r.waarde < 0));
+    return r.fout ? NaN : r.waarde;
+  };
+  const actieveTijdTotaal = leesControle('#mActiefTotaal', 'Totale actieve tijd volgens procesmeting');
+  const wachttijdTotaal = leesControle('#mWachtTotaal', 'Totale wachttijd volgens procesmeting');
   const casus = $('input[name="casustype"]:checked');
   const pid = metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
   const meting = {
@@ -147,7 +164,11 @@ function leesMetingFormulier() {
     ...formulierEenheden,
     meetwijze: $('#mMeetwijze').value,
     toelichting: $('#mToelichting').value.trim(),
+    actieveTijdTotaal,
+    wachttijdTotaal,
   };
+  // Alleen vastleggen als het een test/fictieve meting is; ontbreken = geen testmeting.
+  if ($('#mTest').checked) meting.testmeting = true;
   const stapmetingen = formulierStappen.map((s) => {
     const rij = $(`tr[data-stap="${CSS.escape(s.stapId)}"]`, $('#mStappen'));
     const lees = (veld) => {
@@ -195,12 +216,16 @@ function werkBerekeningBij() {
       <div><div class="klein"><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</div><strong>${htmlGetal(deel(totaalActief, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
       <div><div class="klein">Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</div><strong>${htmlGetal(deel(totaalActief, omvangOk, meting.omvang), 2, ' min')}</strong></div>
       <div><div class="klein">Wachttijd per ${esc(e.uitvoeringseenheid)}</div><strong>${htmlGetal(deel(totaalWacht, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
+      <div><div class="klein">Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</div><strong>${htmlGetal(isGetal(totaalActief) && isGetal(totaalWacht) ? totaalActief + totaalWacht : null, 2, ' min')}</strong></div>
     </div>
+    ${controleHtml(controleProcesStap(meting, stapmetingen))}
     ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
 }
 
 async function slaMetingOp() {
   const { meting, stapmetingen, invoerFouten } = leesMetingFormulier();
+  // Een nieuwe meting krijgt bij opslaan altijd een vrij MetingID (nooit een bestaande overschrijven).
+  if (!metingBewerkId && meting.procesId) meting.metingId = volgendeId('meting', meting.procesId).id;
   const { fouten, waarschuwingen } = invoerFouten.length ? { fouten: invoerFouten, waarschuwingen: [] } : valideerMeting(meting, stapmetingen, metingBewerkId);
   $('#mFouten').innerHTML = foutenHtml(fouten, 'De meting is nog niet opgeslagen. Controleer het volgende:');
   if (fouten.length) { $('#mFouten').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
@@ -212,8 +237,18 @@ async function slaMetingOp() {
       `<ul>${waarschuwingen.map((w) => `<li>${esc(w)}</li>`).join('')}</ul><p>Wilt u de meting toch opslaan?</p>`, 'Toch opslaan');
     if (!ok) return;
   }
+  if (metingBewerkId && metingConceptBasis !== null) {
+    const huidig = zoekMeting(metingBewerkId);
+    if (huidig && (huidig.gewijzigd || huidig.aangemaakt || '') !== metingConceptBasis) {
+      const ok = await bevestig('Meting is intussen gewijzigd',
+        `<div class="melding waarschuwing">Meting ${esc(metingBewerkId)} is opgeslagen gewijzigd nadat dit concept is begonnen (laatst gewijzigd: ${esc(fmtTijdstip(huidig.gewijzigd || huidig.aangemaakt))}). Als u nu opslaat, vervangt dit concept die versie.</div><p>Wilt u het concept toch opslaan?</p>`,
+        'Concept toch opslaan', true);
+      if (!ok) return;
+    }
+  }
   const wasBewerking = !!metingBewerkId;
   const record = bewaarMeting(meting, stapmetingen, metingBewerkId);
+  verwijderConcept('meting');
   resetMetingFormulier(true);
   await naWijziging(`Meting ${record.metingId} is ${wasBewerking ? 'bijgewerkt' : 'opgeslagen'}.`);
   if (wasBewerking) toonTab('overzicht');
@@ -238,6 +273,11 @@ function resetMetingFormulier(behoudAlgemeen) {
   $$('input[name="casustype"]').forEach((r) => { r.checked = false; });
   $('#mAantal').value = '';
   $('#mOmvang').value = '';
+  $('#mActiefTotaal').value = '';
+  $('#mWachtTotaal').value = '';
+  $('#mTest').checked = false;
+  metingConceptBasis = null;
+  annuleerMetingConceptTimer();
   $('#mToelichting').value = '';
   vulMetingProcesKeuze();
   const p = zoekProces($('#mProces').value);
@@ -245,6 +285,7 @@ function resetMetingFormulier(behoudAlgemeen) {
   werkEenheidLabelsBij();
   laadProcesStappenInFormulier(p ? p.procesId : null);
   werkMetingIdBij();
+  werkKalenderweekBij();
 }
 
 /** Laadt een bestaande meting in het formulier om aan te passen. */
@@ -263,6 +304,10 @@ function bewerkMeting(metingId) {
   $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === m.casustype; });
   $('#mAantal').value = 'aantalUitvoeringen' in m ? naarInvoer(m.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(m.omvang);
+  $('#mActiefTotaal').value = naarInvoer(m.actieveTijdTotaal);
+  $('#mWachtTotaal').value = naarInvoer(m.wachttijdTotaal);
+  $('#mTest').checked = isTestmeting(m);
+  metingConceptBasis = m.gewijzigd || m.aangemaakt || '';
   // Vastgelegde eenheden van de meting; ontbrekende (meting uit versie 1.0) aangevuld vanuit het proces.
   const kopie = eenhedenKopie(m.procesId);
   formulierEenheden = Object.fromEntries(EENHEID_VELDEN.map((k) => [k, m[k] || kopie[k] || '']));
@@ -279,6 +324,7 @@ function bewerkMeting(metingId) {
   $('#mAnnuleren').textContent = 'Aanpassen annuleren';
   $('#mFouten').innerHTML = '';
   renderMetingStappen(waarden);
+  werkKalenderweekBij();
   toonTab('meting');
 }
 
@@ -385,4 +431,159 @@ function werkEenheidLabelsBij() {
   $('#mAantalHint').textContent = `Uitvoeringseenheid: ${e.uitvoeringseenheid}. Eén uitvoering = één ${e.uitvoeringseenheid}.`;
   $('#mOmvangLabel').textContent = `Omvang: aantal ${e.omvangseenheidMeervoud}`;
   $('#mOmvangHint').textContent = `Omvangseenheid: ${e.omvangseenheid}. Positief getal; leeg laten als onbekend.`;
+}
+
+/** Niet-blokkerende waarschuwing bij een verschil tussen procesmeting en stapmetingen. */
+function controleHtml(c) {
+  if (!c.actief && !c.wacht) return '';
+  const regel = (label, x) => (x ? `<tr><td>${label}</td><td class="getal">${esc(fmtGetal(x.procesmeting))}</td><td class="getal">${esc(fmtGetal(x.stapmetingen))}</td><td class="getal${x.afwijking ? ' afwijking' : ''}">${esc(fmtGetal(x.verschil))}</td></tr>` : '');
+  const tabel = `<table class="klein" style="max-width:560px;margin-top:6px"><thead><tr><th>Controle</th><th class="getal">Procesmeting (min)</th><th class="getal">Som stapmetingen (min)</th><th class="getal">Verschil (min)</th></tr></thead>
+    <tbody>${regel('Actieve tijd', c.actief)}${regel('Wachttijd', c.wacht)}</tbody></table>`;
+  if (!c.heeftAfwijking) return `<div class="klein mt">Controle proces- en stapmetingen: geen verschil (tolerantie ${fmtGetal(CONTROLE_TOLERANTIE)} min).</div>${tabel}`;
+  return `<div class="melding waarschuwing mt">${controleTekst(c).map(esc).join('<br>')}<br><span class="klein">U kunt de meting toch opslaan; de afwijking wordt vastgelegd in de export. Voor de berekeningen wordt de som van de stapmetingen gebruikt.</span>${tabel}</div>`;
+}
+
+// ---------- Meting dupliceren ----------
+
+/** Laadt een kopie van een bestaande meting als NIEUWE meting in het formulier (pas opgeslagen na controle). */
+async function dupliceerMeting(metingId) {
+  const bron = zoekMeting(metingId);
+  if (!bron) return;
+  if (!zoekProces(bron.procesId)) {
+    await informeer('Dupliceren niet mogelijk', `<p>Proces ${esc(bron.procesId)} bestaat niet meer, dus er kan geen nieuwe meting voor worden aangemaakt.</p>`);
+    return;
+  }
+  if (heeftConcept('meting')) {
+    const ok = await bevestig('Huidige invoer vervangen?', '<p>Het formulier Nieuwe procesmeting bevat een niet-opgeslagen concept. Dit wordt vervangen door de kopie.</p>', 'Vervangen door kopie', true);
+    if (!ok) return;
+  }
+  resetMetingFormulier(false);
+  $('#mProces').value = bron.procesId;
+  formulierEenheden = eenhedenKopie(bron.procesId);
+  werkEenheidLabelsBij();
+  // Stappen volgens de huidige procesdefinitie; waarden overnemen waar de StapID overeenkomt.
+  laadProcesStappenInFormulier(bron.procesId);
+  const waarden = {};
+  for (const s of stapmetingenVan(metingId)) {
+    const stap = formulierStappen.find((x) => x.stapId === s.stapId);
+    if (!stap) continue;
+    waarden[s.stapId] = { actieveTijd: s.actieveTijd, wachttijd: s.wachttijd, redenWachttijd: s.redenWachttijd, opmerking: s.opmerking };
+    stap.tijdvastlegging = 'Gekopieerd';
+  }
+  $('#mDatum').value = vandaagIso();
+  $('#mMedewerker').value = bron.medewerkerId || '';
+  $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === bron.casustype; });
+  $('#mAantal').value = 'aantalUitvoeringen' in bron ? naarInvoer(bron.aantalUitvoeringen) : '';
+  $('#mOmvang').value = naarInvoer(bron.omvang);
+  $('#mMeetwijze').value = bron.meetwijze || '';
+  $('#mToelichting').value = bron.toelichting || '';
+  $('#mActiefTotaal').value = naarInvoer(bron.actieveTijdTotaal);
+  $('#mWachtTotaal').value = naarInvoer(bron.wachttijdTotaal);
+  $('#mTest').checked = isTestmeting(bron);
+  renderMetingStappen(waarden);
+  werkMetingIdBij();
+  werkKalenderweekBij();
+  $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Kopie van meting ${esc(metingId)} – nog niet opgeslagen.</strong>
+    De meetdatum is op vandaag gezet en de meting krijgt een nieuw MetingID. Controleer en pas zo nodig medewerker, omvang, tijden, casustype en toelichting aan, en sla daarna op.
+    Gekopieerde tijden zijn gemarkeerd als "Gekopieerd".</div>`;
+  toonTab('meting');
+  bewaarMetingConcept();
+}
+
+// ---------- Concept: automatisch tussentijds opslaan ----------
+
+let metingConceptBasis = null; // bij aanpassen: 'gewijzigd'-tijdstip van de meting bij het begin van het concept
+let metingConceptTimer = null;
+
+function planMetingConcept() {
+  clearTimeout(metingConceptTimer);
+  metingConceptTimer = setTimeout(() => { metingConceptTimer = null; bewaarMetingConcept(); }, 400);
+}
+
+function annuleerMetingConceptTimer() {
+  clearTimeout(metingConceptTimer);
+  metingConceptTimer = null;
+}
+
+/** Alleen echte invoer is een concept waard (niet alleen een gekozen proces). */
+function metingConceptHeeftInhoud(g) {
+  const v = g.velden;
+  return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
+    || Object.values(g.waarden).some((w) => Object.values(w).some((x) => String(x).trim() !== ''))
+    || /Kopie van meting/.test(g.melding || ''));
+}
+
+function metingConceptGegevens() {
+  const waarden = {};
+  for (const rij of $$('tr[data-stap]', $('#mStappen'))) {
+    waarden[rij.dataset.stap] = Object.fromEntries(['actieveTijd', 'wachttijd', 'redenWachttijd', 'opmerking'].map((v) => [v, $(`[data-veld="${v}"]`, rij).value]));
+  }
+  const casus = $('input[name="casustype"]:checked');
+  return {
+    bewerkId: metingBewerkId,
+    basis: metingConceptBasis,
+    melding: $('#metingBewerkMelding').innerHTML,
+    procesId: metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value,
+    velden: {
+      datum: $('#mDatum').value, medewerker: $('#mMedewerker').value, casustype: casus ? casus.value : '',
+      aantal: $('#mAantal').value, omvang: $('#mOmvang').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
+      actiefTotaal: $('#mActiefTotaal').value, wachtTotaal: $('#mWachtTotaal').value, test: $('#mTest').checked,
+    },
+    stappen: formulierStappen,
+    waarden,
+  };
+}
+
+function bewaarMetingConcept() {
+  annuleerMetingConceptTimer();
+  const g = metingConceptGegevens();
+  if (!g.procesId || !metingConceptHeeftInhoud(g)) { if (heeftConcept('meting') && !g.bewerkId) verwijderConcept('meting'); return; }
+  if (bewaarConcept('meting', g)) toonConceptStatus('m', true);
+  else toonConceptStatus('m', false);
+}
+
+function herstelMetingConcept() {
+  const c = laadConcept('meting');
+  if (!c || !c.gegevens || !c.gegevens.procesId) return false;
+  const g = c.gegevens;
+  if (g.bewerkId) {
+    if (!zoekMeting(g.bewerkId)) { verwijderConcept('meting'); return false; }
+    bewerkMeting(g.bewerkId);
+    metingConceptBasis = g.basis;
+  } else {
+    if (!zoekProces(g.procesId)) { verwijderConcept('meting'); return false; }
+    resetMetingFormulier(false);
+    $('#mProces').value = g.procesId;
+    formulierEenheden = eenhedenKopie(g.procesId);
+    werkEenheidLabelsBij();
+  }
+  const v = g.velden;
+  $('#mDatum').value = v.datum || '';
+  $('#mMedewerker').value = v.medewerker || '';
+  $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === v.casustype; });
+  $('#mAantal').value = v.aantal || '';
+  $('#mOmvang').value = v.omvang || '';
+  $('#mMeetwijze').value = v.meetwijze || '';
+  $('#mToelichting').value = v.toelichting || '';
+  $('#mActiefTotaal').value = v.actiefTotaal || '';
+  $('#mWachtTotaal').value = v.wachtTotaal || '';
+  $('#mTest').checked = !!v.test;
+  formulierStappen = Array.isArray(g.stappen) ? g.stappen : formulierStappen;
+  renderMetingStappen(g.waarden || {});
+  werkMetingIdBij();
+  werkKalenderweekBij();
+  $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Niet-afgerond concept hersteld</strong> (automatisch opgeslagen op ${esc(fmtTijdstip(c.opgeslagen))}).
+    Controleer de invoer en sla de meting op, of verwijder het concept.${g.bewerkId ? ` Dit is een concept voor het aanpassen van meting ${esc(g.bewerkId)}.` : ''}</div>`;
+  toonConceptStatus('m', true, c.opgeslagen);
+  return true;
+}
+
+async function verwijderMetingConceptMetBevestiging() {
+  const ok = await bevestig('Concept verwijderen', '<p>Het automatisch opgeslagen concept en de niet-opgeslagen invoer in het formulier worden verwijderd. Opgeslagen metingen blijven ongewijzigd.</p>', 'Concept verwijderen', true);
+  if (!ok) return;
+  const wasBewerking = !!metingBewerkId;
+  verwijderConcept('meting');
+  resetMetingFormulier(false);
+  toonMelding('Concept verwijderd.');
+  if (wasBewerking) toonTab('overzicht');
 }

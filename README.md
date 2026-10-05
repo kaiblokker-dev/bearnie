@@ -79,8 +79,20 @@ Test uitvoeren (alleen nodig voor ontwikkeling):
 
 ```
 node build.js
-NODE_PATH=$(npm root -g) node tests/acceptatietest.js   # vereist playwright en python3 met openpyxl en pillow
+NODE_PATH=$(npm root -g) node tests/acceptatietest.js         # vereist playwright en python3 met openpyxl en pillow
+NODE_PATH=$(npm root -g) node tests/betrouwbaarheidstest.js   # controletests versie 1.4
 ```
+
+## Versie 1.4: gebruiksvriendelijkheid en betrouwbaarheid
+
+- **Meetmoment en kalenderweek:** uit de meetdatum worden kalenderjaar, ISO-kalenderweek en begin- en einddatum van de week berekend (maandag t/m zondag), bijvoorbeeld *Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)*. Dit wordt niet opgeslagen, maar telkens uit de datum afgeleid, dus het werkt ook voor bestaande metingen. Frequentiemetingen hebben een optionele meetdatum. Het meetmoment staat los van de *frequentieperiode* (per dag/week/maand/jaar).
+- **Eenheden:** alle uitkomsten tonen hun eenheid (bijv. *55 dossiers per week*). Een ontbrekende of nietszeggende eenheid ("n.v.t.") geeft een waarschuwing; de tool toont dan "uitvoeringen" en blokkeert niets.
+- **Test/fictieve metingen:** een vinkje bij procesmetingen en frequentiemetingen. Testmetingen blijven zichtbaar in de ruwe gegevens, maar tellen standaard niet mee. Met de schakelaar *Testmetingen meenemen* bij de resultaten tellen ze wel mee. Stapmetingen volgen hun procesmeting. Bestaande metingen gelden als echt.
+- **Controle proces- en stapmetingen:** optioneel kan bij een procesmeting de totale actieve tijd en wachttijd worden genoteerd. Een verschil met de som van de stappen groter dan 0,05 minuut geeft een waarschuwing, maar opslaan blijft mogelijk. Berekeningen gebruiken de som van de stappen.
+- **Meting dupliceren:** maakt een nieuwe meting met een nieuw MetingID, de datum van vandaag en gekopieerde stapmetingen (gemarkeerd als "Gekopieerd"). De kopie wordt pas opgeslagen na controle.
+- **Concept:** het meetformulier en het frequentieformulier worden tijdens het invullen automatisch lokaal bewaard. Na vernieuwen of sluiten wordt het concept hersteld; het is te verwijderen en verdwijnt na opslaan. Een concept overschrijft nooit ongemerkt een intussen gewijzigde meting.
+- **Uitleg** bij begrippen via kleine i-icoontjes.
+- **Volledige back-up en herstel:** bevat ook medewerker-ID's, instellingen, koppelingen, teststatussen, schemaversie (3) en tijdstip. Herstellen controleert eerst het bestand, toont een samenvatting en laat kiezen tussen samenvoegen en vervangen. Vóór vervangen wordt automatisch een veiligheidsback-up gedownload.
 
 ## Overgang van versie 1.0 naar 1.1
 

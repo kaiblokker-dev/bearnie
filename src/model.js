@@ -25,6 +25,14 @@
 // procesnaam, stapnaam en de eenheden bij een meting zijn een kopie op het moment van
 // meten, zodat metingen leesbaar blijven als een proces later wordt gewijzigd of verwijderd.
 // Ontbrekende getallen worden als null opgeslagen, nooit als 0.
+// Schemaversie 3 (versie 1.4) voegt optionele velden toe, die bij oudere records ontbreken:
+// - procesmetingen:     testmeting (true = test/fictief), actieveTijdTotaal en wachttijdTotaal
+//                       (optionele controlewaarden: totaal volgens de procesmeting zelf);
+// - frequentiemetingen: testmeting, meetdatum (meetmoment, JJJJ-MM-DD).
+// Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
+// van de week worden nooit opgeslagen maar altijd uit de datum berekend.
+// Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
+//
 // Metingen uit schemaversie 1 hebben geen veld aantalUitvoeringen (de sleutel ontbreekt);
 // dit wordt nooit automatisch ingevuld, alleen na expliciete bevestiging door de gebruiker.
 
@@ -32,7 +40,7 @@ let staat = legeStaat();
 
 function legeStaat() {
   return {
-    schemaversie: 2,
+    schemaversie: 3,
     processen: [],
     processtappen: [],
     procesmetingen: [],
@@ -81,7 +89,9 @@ function migreerEenheidVelden(record) {
  */
 function eenhedenVan(record, procesId) {
   const p = zoekProces(procesId || (record && record.procesId));
-  const kies = (veld, standaard) => (record && record[veld]) || (p && p[veld]) || standaard;
+  // Lege of nietszeggende eenheden (zoals "n.v.t.") worden overgeslagen.
+  const geldig = (bron, veld) => (bron && !isOntbrekendeEenheid(bron[veld]) ? bron[veld] : '');
+  const kies = (veld, standaard) => geldig(record, veld) || geldig(p, veld) || standaard;
   return {
     uitvoeringseenheid: kies('uitvoeringseenheid', 'uitvoering'),
     uitvoeringseenheidMeervoud: kies('uitvoeringseenheidMeervoud', 'uitvoeringen'),
@@ -95,6 +105,53 @@ function eenhedenKopie(procesId) {
   const r = {};
   for (const k of EENHEID_VELDEN) r[k] = p ? p[k] || '' : '';
   return r;
+}
+
+/** Waarschuwingstekst als de eenheden van een proces ontbreken of nietszeggend zijn (blokkeert niets). */
+function eenheidWaarschuwing(procesId) {
+  const p = zoekProces(procesId);
+  if (!p) return '';
+  const mist = [];
+  if (isOntbrekendeEenheid(p.uitvoeringseenheid) || isOntbrekendeEenheid(p.uitvoeringseenheidMeervoud)) mist.push('uitvoeringseenheid (bijv. dossier / dossiers)');
+  if (isOntbrekendeEenheid(p.omvangseenheid) || isOntbrekendeEenheid(p.omvangseenheidMeervoud)) mist.push('omvangseenheid (bijv. diensttijdregistratie / diensttijdregistraties)');
+  return mist.length ? `Bij proces ${procesId} ontbreekt de ${mist.join(' en de ')}. Er wordt een algemene omschrijving getoond; vul de eenheid aan bij Processen beheren.` : '';
+}
+
+function isTestmeting(record) {
+  return !!(record && record.testmeting === true);
+}
+
+/** Stapmetingen erven de teststatus van hun procesmeting. */
+function isTestStapmeting(s) {
+  return isTestmeting(zoekMeting(s.metingId));
+}
+
+// Afrondingstolerantie (minuten) voor de controle tussen proces- en stapmetingen.
+const CONTROLE_TOLERANTIE = 0.05;
+
+/**
+ * Controle tussen de (optionele) totalen bij de procesmeting en de som van de stapmetingen.
+ * Geeft per soort { procesmeting, stapmetingen, verschil, afwijking } of null als er niets te controleren valt.
+ */
+function controleProcesStap(meting, stapmetingen) {
+  const uit = {};
+  for (const [soort, totaalVeld, stapVeld] of [['actief', 'actieveTijdTotaal', 'actieveTijd'], ['wacht', 'wachttijdTotaal', 'wachttijd']]) {
+    const totaal = meting[totaalVeld];
+    const waarden = stapmetingen.map((s) => s[stapVeld]);
+    if (!isGetal(totaal) || !waarden.length || !waarden.every(isGetal)) { uit[soort] = null; continue; }
+    const somStappen = som(waarden);
+    const verschil = somStappen - totaal;
+    uit[soort] = { procesmeting: totaal, stapmetingen: somStappen, verschil, afwijking: Math.abs(verschil) > CONTROLE_TOLERANTIE };
+  }
+  uit.heeftAfwijking = !!((uit.actief && uit.actief.afwijking) || (uit.wacht && uit.wacht.afwijking));
+  return uit;
+}
+
+function controleTekst(c) {
+  const delen = [];
+  if (c.actief && c.actief.afwijking) delen.push(`Let op: de actieve tijd van de stapmetingen is samen ${fmtGetal(c.actief.stapmetingen)} minuten, terwijl bij de procesmeting ${fmtGetal(c.actief.procesmeting)} minuten staat (verschil ${fmtGetal(Math.abs(c.actief.verschil))} minuut).`);
+  if (c.wacht && c.wacht.afwijking) delen.push(`Let op: de wachttijd van de stapmetingen is samen ${fmtGetal(c.wacht.stapmetingen)} minuten, terwijl bij de procesmeting ${fmtGetal(c.wacht.procesmeting)} minuten staat (verschil ${fmtGetal(Math.abs(c.wacht.verschil))} minuut).`);
+  return delen;
 }
 
 /** Metingen uit een eerdere versie waarbij het aantal uitvoeringen nooit is vastgelegd. */
@@ -313,6 +370,10 @@ function valideerMeting(meting, stapmetingen, origineelId) {
     if (s.wachttijd !== null && s.wachttijd < 0) fouten.push(`${label}: wachttijd mag niet negatief zijn.`);
     if (s.wachttijd > 0 && !(s.redenWachttijd || '').trim()) fouten.push(`${label}: er is wachttijd ingevuld. Geef ook de reden van de wachttijd op.`);
   }
+  for (const [veld, label] of [['actieveTijdTotaal', 'Totale actieve tijd volgens procesmeting'], ['wachttijdTotaal', 'Totale wachttijd volgens procesmeting']]) {
+    if (isGetal(meting[veld]) && meting[veld] < 0) fouten.push(`${label} mag niet negatief zijn.`);
+  }
+  waarschuwingen.push(...controleTekst(controleProcesStap(meting, stapmetingen)));
   const zonderActief = stapmetingen.filter((s) => s.actieveTijd === null).map((s) => s.stapId);
   const zonderWacht = stapmetingen.filter((s) => s.wachttijd === null).map((s) => s.stapId);
   if (zonderActief.length) waarschuwingen.push(`Actieve tijd is niet ingevuld bij: ${zonderActief.join(', ')}. Deze waarden blijven Onbekend en worden niet als nul geteld; de totale actieve tijd van deze meting wordt daardoor Onbekend.`);

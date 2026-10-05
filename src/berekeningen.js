@@ -10,10 +10,12 @@ const MEDEWERKER_LEEG = '__leeg__';
 
 /**
  * Filtert procesmetingen.
- * filters: { procesId, meetwijze ('alle' | groepcode), van, tot, medewerker ('' = alle | MEDEWERKER_LEEG | MedewerkerID) }
+ * filters: { procesId, meetwijze ('alle' | groepcode), van, tot, medewerker ('' = alle | MEDEWERKER_LEEG | MedewerkerID),
+ *            metTest (true = test/fictieve metingen meenemen; standaard uitgesloten) }
  */
 function metingVoldoetAanFilters(m, filters) {
   if (filters.procesId && m.procesId !== filters.procesId) return false;
+  if (isTestmeting(m) && !filters.metTest) return false;
   if (filters.medewerker === MEDEWERKER_LEEG && m.medewerkerId) return false;
   if (filters.medewerker && filters.medewerker !== MEDEWERKER_LEEG && m.medewerkerId !== filters.medewerker) return false;
   if (filters.meetwijze && filters.meetwijze !== 'alle') {
@@ -234,10 +236,12 @@ function totaalPeriodenVanProces(procesId) {
  * Geschatte actieve tijd (min) = totale frequentie × gemiddelde actieve tijd per uitvoering
  * (normale gevallen, binnen de filters inclusief het medewerkerfilter). Wachttijd telt niet mee.
  */
-function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
+function berekenTotaalOverzicht(procesId, filters, periodeEenheid, weekSleutel) {
   const e = eenhedenVan(null, procesId);
   const alle = frequentiesVanProces(procesId).slice().sort((a, b) => vergelijkTekst(a.frequentieId, b.frequentieId));
-  const aangevinkt = alle.filter((f) => f.meetellenInTotaal === true);
+  // Uitgesloten vóór de selectie: testmetingen (tenzij meegenomen) en, bij een gekozen kalenderweek, andere weken.
+  const binnenFilters = (f) => (!isTestmeting(f) || filters.metTest) && (!weekSleutel || kalenderweekSleutel(f.meetdatum) === weekSleutel);
+  const aangevinkt = alle.filter((f) => f.meetellenInTotaal === true && binnenFilters(f));
   const geselecteerd = aangevinkt.filter((f) => f.periodeEenheid === periodeEenheid);
   const frequentieBlokkades = [];
   const tijdBlokkades = [];
@@ -246,7 +250,10 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
   // Status per frequentiemeting, voor de herleidbaarheid.
   const status = alle.map((f) => {
     let reden = '';
-    if (f.meetellenInTotaal !== true) reden = typeof f.meetellenInTotaal === 'boolean' ? 'Meetellen in totaal staat uit' : 'Meetellen in totaal nog niet bepaald';
+    if (isTestmeting(f) && !filters.metTest) reden = 'test/fictieve meting (uitgesloten)';
+    else if (weekSleutel && !f.meetdatum) reden = 'geen meetdatum, dus kalenderweek onbekend';
+    else if (weekSleutel && kalenderweekSleutel(f.meetdatum) !== weekSleutel) reden = `andere kalenderweek (${kalenderweekTekst(f.meetdatum, true)})`;
+    else if (f.meetellenInTotaal !== true) reden = typeof f.meetellenInTotaal === 'boolean' ? 'Meetellen in totaal staat uit' : 'Meetellen in totaal nog niet bepaald';
     else if (!f.periodeEenheid) reden = 'periode niet bepaald';
     else if (f.periodeEenheid !== periodeEenheid) reden = `andere periode (per ${f.periodeEenheid.toLowerCase()})`;
     return { frequentie: f, geselecteerd: !reden, reden };
@@ -285,10 +292,17 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
     }
   }
   const meetperioden = uniek(geselecteerd.map((f) => (f.meetperiode || '').trim()).filter(Boolean));
-  if (meetperioden.length > 1) {
+  const kalenderweken = uniek(geselecteerd.map((f) => kalenderweekSleutel(f.meetdatum)).filter(Boolean)).sort();
+  if (kalenderweken.length > 1) {
+    waarschuwingen.push(`De geselecteerde frequenties komen uit verschillende kalenderweken (${kalenderweken.map(kalenderweekSleutelTekst).join(', ')}). Kies zo nodig één kalenderweek, zodat dezelfde medewerker niet voor meerdere weken wordt opgeteld.`);
+  } else if (!kalenderweken.length && meetperioden.length > 1) {
     waarschuwingen.push(`De geselecteerde frequenties noemen verschillende meetperioden (${meetperioden.join(', ')}). Controleer of het om hetzelfde soort tijdvak gaat en of samen optellen klopt.`);
   }
-  const andereEenheid = geselecteerd.filter((f) => f.uitvoeringseenheid && f.uitvoeringseenheid !== e.uitvoeringseenheid);
+  const eenheidMelding = eenheidWaarschuwing(procesId);
+  if (eenheidMelding) waarschuwingen.push(eenheidMelding);
+  const testInTotaal = geselecteerd.filter(isTestmeting);
+  if (testInTotaal.length) waarschuwingen.push(`Testmetingen zijn meegenomen in de totale frequentie: ${testInTotaal.map((f) => f.frequentieId).join(', ')}.`);
+  const andereEenheid = geselecteerd.filter((f) => !isOntbrekendeEenheid(f.uitvoeringseenheid) && f.uitvoeringseenheid !== e.uitvoeringseenheid);
   if (andereEenheid.length) {
     waarschuwingen.push(`Let op: ${andereEenheid.map((f) => `${f.frequentieId} (${f.uitvoeringseenheid})`).join(', ')} gebruikt een andere uitvoeringseenheid dan het proces (${e.uitvoeringseenheid}).`);
   }
@@ -328,10 +342,18 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
     meetwijzenTijd: uniek(gebruikteMetingen.map((m) => m.meetwijze)),
     bronnen: uniek(geselecteerd.map((f) => f.meetwijze)),
     meetperioden,
+    kalenderweken,
+    weekSleutel: weekSleutel || '',
+    mogelijkeOverlap: frequentieBlokkades.some((b) => /overlap|dubbele telling/i.test(b)),
     frequentieBlokkades,
     tijdBlokkades,
     waarschuwingen,
   };
+}
+
+/** Kalenderweken (sleutels) van de frequentiemetingen van een proces met 'Meetellen in totaal'. */
+function totaalWekenVanProces(procesId) {
+  return uniek(frequentiesVanProces(procesId).filter((f) => f.meetellenInTotaal === true && f.meetdatum).map((f) => kalenderweekSleutel(f.meetdatum)).filter(Boolean)).sort();
 }
 
 function keuzeGemiddeldeTekst(filters) {
@@ -345,6 +367,7 @@ function filtersAlsTekst(filters) {
   delen.push('Medewerker: ' + (!filters.medewerker ? 'alle medewerkers' : filters.medewerker === MEDEWERKER_LEEG ? 'zonder MedewerkerID' : filters.medewerker));
   const groep = MEETWIJZE_GROEPEN.find((g) => g.code === filters.meetwijze);
   delen.push('Meetwijze: ' + (groep ? groep.label : 'alle meetwijzen (gemengd)'));
+  delen.push('Testmetingen: ' + (filters.metTest ? 'meegenomen' : 'uitgesloten'));
   delen.push('Datum vanaf: ' + (filters.van ? fmtDatum(filters.van) : 'geen'));
   delen.push('Datum tot en met: ' + (filters.tot ? fmtDatum(filters.tot) : 'geen'));
   return delen.join('; ');
