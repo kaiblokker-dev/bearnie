@@ -33,6 +33,46 @@ function KALENDER_KOLOMMEN(datum) {
   ];
 }
 
+function knelpuntTekst(s) {
+  return s.knelpunt === true ? 'Ja' : s.knelpunt === false ? 'Nee' : 'Niet ingevuld';
+}
+
+const KNELPUNT_KOLOMMEN = [
+  ['Knelpunt aanwezig', (s) => knelpuntTekst(s)],
+  ['Knelpunt: categorie', (s) => (s.knelpunt ? s.knelpuntCategorie || '' : '')],
+  ['Knelpunt: omschrijving', (s) => (s.knelpunt ? s.knelpuntOmschrijving || '' : '')],
+  ['Knelpunt: gevolg(en)', (s) => (s.knelpunt ? (s.knelpuntGevolgen || []).join('; ') : '')],
+  ['Knelpunt: geschatte extra actieve tijd (min)', (s) => (s.knelpunt && isGetal(s.knelpuntExtraActief) ? s.knelpuntExtraActief : null)],
+  ['Knelpunt: geschatte extra wachttijd (min)', (s) => (s.knelpunt && isGetal(s.knelpuntExtraWacht) ? s.knelpuntExtraWacht : null)],
+  ['Knelpunt: bron', (s) => (s.knelpunt ? s.knelpuntBron || '' : '')],
+];
+
+/** Eén rij per knelpunt, herleidbaar naar proces, meting, stap, medewerker, datum, kalenderweek, meetwijze en casustype. */
+const KOLOMMEN_KNELPUNTEN = [
+  ['ProcesID', ({ m }) => m.procesId],
+  ['Procesnaam (bij meting)', ({ m }) => m.procesnaam || ''],
+  ['MetingID', ({ m }) => m.metingId],
+  ['StapID', ({ s }) => s.stapId],
+  ['Processtap (bij meting)', ({ s }) => s.stapnaam],
+  ['MedewerkerID', ({ m }) => m.medewerkerId || ''],
+  ['Meetdatum', ({ m }) => m.datum],
+  ['Kalenderjaar (ISO-week)', ({ k }) => (k ? k.jaar : null)],
+  ['Kalenderweek', ({ k }) => (k ? k.week : null)],
+  ['Meetwijze', ({ m }) => m.meetwijze],
+  ['Casustype', ({ m }) => m.casustype],
+  ['Test/fictief', ({ m }) => (isTestmeting(m) ? 'Ja' : 'Nee')],
+  ['Categorie', ({ s }) => s.knelpuntCategorie || ''],
+  ['Omschrijving', ({ s }) => s.knelpuntOmschrijving || ''],
+  ['Gevolg(en)', ({ s }) => (s.knelpuntGevolgen || []).join('; ')],
+  ['Geschatte extra actieve tijd (min)', ({ s }) => (isGetal(s.knelpuntExtraActief) ? s.knelpuntExtraActief : null)],
+  ['Geschatte extra wachttijd (min)', ({ s }) => (isGetal(s.knelpuntExtraWacht) ? s.knelpuntExtraWacht : null)],
+  ['Bron', ({ s }) => s.knelpuntBron || ''],
+  ['Gemeten actieve tijd stap (min)', ({ s }) => s.actieveTijd],
+  ['Gemeten wachttijd stap (min)', ({ s }) => s.wachttijd],
+  ['Belangrijkste knelpunt (procesmeting)', ({ m }) => m.belangrijksteKnelpunt || ''],
+  ['Bijzonderheden of uitzonderingen (procesmeting)', ({ m }) => m.bijzonderheden || ''],
+];
+
 const KOLOMMEN_PROCESMETINGEN = [
   ['MetingID', (m) => m.metingId],
   ['Meetdatum', (m) => m.datum],
@@ -57,6 +97,9 @@ const KOLOMMEN_PROCESMETINGEN = [
   ...KALENDER_KOLOMMEN((m) => m.datum),
   // Sinds versie 1.5
   ['Aantal resulterende diensttijdblokken', (m) => (isGetal(m.aantalBlokken) ? m.aantalBlokken : null)],
+  // Sinds versie 1.6
+  ['Belangrijkste knelpunt', (m) => m.belangrijksteKnelpunt || ''],
+  ['Bijzonderheden of uitzonderingen', (m) => m.bijzonderheden || ''],
 ];
 
 const KOLOMMEN_STAPMETINGEN = [
@@ -71,6 +114,8 @@ const KOLOMMEN_STAPMETINGEN = [
   ['Tijdvastlegging', (s) => s.tijdvastlegging || ''],
   ['Demogegevens', (s) => (s.demo ? 'Ja' : 'Nee')],
   ['Test/fictief (via procesmeting)', (s) => (isTestStapmeting(s) ? 'Ja' : 'Nee')],
+  // Sinds versie 1.6
+  ...KNELPUNT_KOLOMMEN,
 ];
 
 const KOLOMMEN_FREQUENTIE = [
@@ -116,6 +161,7 @@ async function exporteerCsv(soort) {
     procesmetingen: [KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), 'Meettool_procesmetingen'],
     stapmetingen: [KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), 'Meettool_stapmetingen'],
     frequentie: [KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), 'Meettool_frequentiemetingen'],
+    knelpunten: [KOLOMMEN_KNELPUNTEN, alleKnelpuntRijen(), 'Meettool_knelpunten'],
   }[soort];
   const [kolommen, records, naam] = def;
   const csv = maakCsv(kolommen.map((k) => k[0]), records.map((r) => kolommen.map((k) => k[1](r))), bevatDemo() ? [DEMO_WAARSCHUWING] : []);
@@ -214,6 +260,45 @@ function resultatenBlad(filters) {
     }
   }
   return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 16, 16, 40, 28, 10, 12, 20, 24, 8, 18, 16, 16, 16, 10, 16, 16, 24, 8, 18, 16, 16, 16, 16, 16, 14, 14, 20, 18, 18, 50, 40, 30, 30, 50], kopRij };
+}
+
+/** Tabblad 'Knelpuntenanalyse': samenvatting per proces en casustype, per stap, per categorie en per medewerker. */
+function knelpuntBlad(filters) {
+  const rijen = [];
+  rijen.push([{ v: 'Knelpuntenanalyse – automatisch berekend uit de geregistreerde knelpunten per processtap', s: 'titel' }]);
+  if (bevatDemo()) rijen.push([{ v: DEMO_WAARSCHUWING, s: 'waarschuwing' }]);
+  rijen.push(['Gebruikte filters', filtersAlsTekst(filters)]);
+  rijen.push(['Let op', 'De geschatte extra tijd is verklarend en zit al in de gemeten actieve tijd en wachttijd. Ze is NIET opgeteld bij procesduur, gemiddelden of tijdsbelasting. Iedere knelpunt staat afzonderlijk in het tabblad Knelpunten.']);
+  rijen.push([]);
+  rijen.push([{ v: 'Samenvatting per proces en casustype', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'Metingen', 'Metingen met minimaal één knelpunt', 'Percentage metingen met knelpunt', 'Metingen zonder knelpuntregistratie', 'Aantal knelpunten',
+    'Totaal geschatte extra actieve tijd (min)', 'Gemiddelde geschatte extra actieve tijd per knelpunt (min)', 'n extra actief',
+    'Totaal geschatte extra wachttijd (min)', 'Gemiddelde geschatte extra wachttijd per knelpunt (min)', 'n extra wacht', 'MetingID\'s met knelpunt'].map(kop));
+  const kopRij = rijen.length;
+  const analyses = [];
+  for (const procesId of alleProcesIds()) {
+    for (const c of CASUSTYPEN) {
+      const a = knelpuntAnalyse(procesId, filters, c);
+      if (!a.aantalMetingen) continue;
+      analyses.push([procesId, a]);
+      rijen.push([procesId, c, a.aantalMetingen, a.metingenMetKnelpunt.length, getalOfLeeg(a.percentageMetKnelpunt), a.metingenZonderRegistratie.length, a.aantalKnelpunten,
+        getalOfLeeg(a.extraActief.totaal), getalOfLeeg(a.extraActief.gemiddelde), a.extraActief.n, getalOfLeeg(a.extraWacht.totaal), getalOfLeeg(a.extraWacht.gemiddelde), a.extraWacht.n,
+        a.metingenMetKnelpunt.join(', ')]);
+    }
+  }
+  rijen.push([]);
+  rijen.push([{ v: 'Voorkomens per processtap', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'StapID', 'Processtap', 'Waarnemingen', 'Waarvan ja/nee ingevuld', 'Aantal knelpunten', 'Totaal extra actief (min)', 'Totaal extra wacht (min)', 'MetingID\'s'].map(kop));
+  for (const [procesId, a] of analyses) for (const r of a.perStap) rijen.push([procesId, a.casustype, r.stapId, r.naam, r.waarnemingen, r.geregistreerd, r.aantal, getalOfLeeg(r.extraActief.totaal), getalOfLeeg(r.extraWacht.totaal), r.metingIds.join(', ')]);
+  rijen.push([]);
+  rijen.push([{ v: 'Voorkomens per categorie', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'Categorie', 'Aantal knelpunten', 'Knelpunten (MetingID/StapID)'].map(kop));
+  for (const [procesId, a] of analyses) for (const r of a.perCategorie) rijen.push([procesId, a.casustype, r.categorie, r.aantal, r.ids.join(', ')]);
+  rijen.push([]);
+  rijen.push([{ v: 'Uitsplitsing per medewerker', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'MedewerkerID', 'Metingen', 'Metingen met knelpunt', 'Aantal knelpunten', 'Totaal extra actief (min)', 'Totaal extra wacht (min)'].map(kop));
+  for (const [procesId, a] of analyses) for (const r of a.perMedewerker) rijen.push([procesId, a.casustype, medewerkerLabel(r.medewerkerId), r.metingen, r.metKnelpunt, r.aantal, getalOfLeeg(r.extraActief.totaal), getalOfLeeg(r.extraWacht.totaal)]);
+  return { naam: 'Knelpuntenanalyse', rijen, kolombreedtes: [14, 14, 22, 30, 14, 16, 14, 18, 18, 10, 18, 18, 10, 40], kopRij };
 }
 
 /** Tabblad 'Totaaloverzicht': totale frequentie en geschatte actieve tijdsbelasting per proces en periode. */
@@ -377,6 +462,7 @@ function methodeBlad(filters) {
   r.push(['Controle proces- en stapmetingen', `Als bij een procesmeting een totale actieve tijd of wachttijd is genoteerd, wordt die vergeleken met de som van de stapmetingen. Een verschil groter dan ${fmtGetal(CONTROLE_TOLERANTIE)} minuut geeft een waarschuwing (opslaan blijft mogelijk) en staat in het tabblad Per medewerker. Voor alle berekeningen wordt de som van de stapmetingen gebruikt.`]);
   r.push(['Gekopieerde tijden', 'Tijdvastlegging "Gekopieerd" = waarde overgenomen bij het dupliceren van een eerdere meting; "Gekopieerd, handmatig aangepast" = daarna door de gebruiker gewijzigd.']);
   r.push(['Diensttijdblokken', 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd (optioneel, geheel getal ≥ 0). Berekeningen (totaal ÷ totaal, normale gevallen, binnen de filters): dienstperioden per dossier = Σ dienstperioden ÷ Σ dossiers; diensttijdblokken per dossier = Σ blokken ÷ Σ dossiers; actieve tijd per diensttijdblok = Σ actieve tijd ÷ Σ blokken; geschat aantal blokken per periode = blokken per dossier × totale frequentie; verhouding = Σ blokken ÷ Σ dienstperioden. Metingen zonder aantal blokken tellen alleen niet mee in de berekeningen per blok. De geschatte actieve tijdsbelasting wordt NIET met het aantal blokken vermenigvuldigd: de tijd voor de blokken zit al in de actieve tijd per dossier.']);
+  r.push(['Knelpunten', 'Per processtap kan worden vastgelegd of er een knelpunt was (ja/nee; leeg = niet geregistreerd), met categorie, korte omschrijving, gevolg(en), geschatte extra actieve tijd en wachttijd en bron. Per procesmeting kunnen het belangrijkste knelpunt en bijzonderheden worden vastgelegd. Analyse (binnen de filters, normale gevallen en uitzonderingen apart): aantal en percentage metingen met minimaal één knelpunt (van alle metingen), voorkomens per stap, per categorie en per medewerker, en totale en gemiddelde geschatte extra tijd (gemiddelde per knelpunt met een schatting). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd en wachttijd en wordt NIET opgeteld bij procesduur, gemiddelden of tijdsbelasting (geen dubbeltelling).']);
   r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
   r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
   r.push(['Meetellen in totaal', 'Ja / Nee door de gebruiker gekozen. Bij frequentiemetingen uit eerdere versies is dit "Nog niet bepaald"; die tellen niet mee in het totaal, zodat oude frequenties niet automatisch dubbel worden geteld.']);
@@ -409,8 +495,10 @@ async function exporteerExcel() {
     resultatenBlad(filters),
     totaalBlad(filters),
     medewerkerBlad(filters),
+    knelpuntBlad(filters),
     ruwBlad('Procesmetingen', KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), [16, 11, 12, 34, 13, 13, 9, 14, 24, 40, 22, 22, 13]),
     ruwBlad('Stapmetingen', KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), [16, 16, 9, 34, 16, 16, 34, 34, 24, 13]),
+    ruwBlad('Knelpunten', KOLOMMEN_KNELPUNTEN, alleKnelpuntRijen(), [12, 26, 16, 16, 28, 12, 12, 10, 10, 18, 12, 10, 28, 40, 34, 14, 14, 22, 14, 14, 34, 34]),
     ruwBlad('Frequentie', KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), [18, 12, 20, 18, 14, 14, 24, 40, 22, 22, 13]),
     methodeBlad(filters),
   ]);
@@ -510,6 +598,11 @@ function controleerBackup(json) {
     if (!getalOfNull(s.actieveTijd) || s.actieveTijd < 0) fouten.push(`${l}: actieve tijd is ongeldig.`);
     if (!getalOfNull(s.wachttijd) || s.wachttijd < 0) fouten.push(`${l}: wachttijd is ongeldig.`);
     if (s.wachttijd > 0 && !tekst(s.redenWachttijd)) fouten.push(`${l}: wachttijd zonder reden.`);
+    if (s.knelpunt !== undefined && typeof s.knelpunt !== 'boolean') fouten.push(`${l}: "knelpunt aanwezig" is ongeldig.`);
+    if (s.knelpuntCategorie && !KNELPUNT_CATEGORIEEN.includes(s.knelpuntCategorie)) fouten.push(`${l}: knelpuntcategorie is ongeldig.`);
+    if (s.knelpuntBron && !KNELPUNT_BRONNEN.includes(s.knelpuntBron)) fouten.push(`${l}: bron van het knelpunt is ongeldig.`);
+    if (s.knelpuntGevolgen !== undefined && (!Array.isArray(s.knelpuntGevolgen) || s.knelpuntGevolgen.some((g) => !KNELPUNT_GEVOLGEN.includes(g)))) fouten.push(`${l}: gevolg(en) van het knelpunt zijn ongeldig.`);
+    for (const v of ['knelpuntExtraActief', 'knelpuntExtraWacht']) if (s[v] !== undefined && s[v] !== null && !(isGetal(s[v]) && s[v] >= 0)) fouten.push(`${l}: geschatte extra tijd van het knelpunt is ongeldig.`);
   });
   json.frequentiemetingen.forEach((f, i) => {
     const l = `Frequentiemeting ${f.frequentieId || i + 1}`;

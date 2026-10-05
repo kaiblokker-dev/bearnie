@@ -32,6 +32,11 @@
 // Versie 1.5: procesmetingen kunnen aantalBlokken hebben (aantal resulterende diensttijdblokken,
 // geheel getal ≥ 0; null of ontbrekend = onbekend). Processen kunnen blokkenVastleggen hebben
 // (true/false); ontbreekt het, dan staat het veld alleen bij PR24 standaard aan.
+// Versie 1.6: stapmetingen kunnen een knelpunt hebben: knelpunt (true/false; ontbreekt = niet
+// geregistreerd) en bij true knelpuntCategorie, knelpuntOmschrijving, knelpuntGevolgen (lijst),
+// knelpuntExtraActief, knelpuntExtraWacht (minuten, null = onbekend) en knelpuntBron.
+// Procesmetingen kunnen belangrijksteKnelpunt en bijzonderheden (tekst) hebben.
+// Geschatte extra tijd is verklarend: die zit al in de gemeten tijd en wordt nergens opgeteld.
 // Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
 // van de week worden nooit opgeslagen maar altijd uit de datum berekend.
 // Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
@@ -392,6 +397,15 @@ function valideerMeting(meting, stapmetingen, origineelId) {
     if (isGetal(meting[veld]) && meting[veld] < 0) fouten.push(`${label} mag niet negatief zijn.`);
   }
   waarschuwingen.push(...controleTekst(controleProcesStap(meting, stapmetingen)));
+  for (const s of stapmetingen.filter((x) => x.knelpunt === true)) {
+    const label = `${s.stapId} (${s.stapnaam})`;
+    for (const [veld, naam, gemeten, gemetenNaam] of [['knelpuntExtraActief', 'geschatte extra actieve tijd', s.actieveTijd, 'actieve tijd'], ['knelpuntExtraWacht', 'geschatte extra wachttijd', s.wachttijd, 'wachttijd']]) {
+      if (isGetal(s[veld]) && s[veld] < 0) fouten.push(`${label}: ${naam} van het knelpunt mag niet negatief zijn.`);
+      else if (isGetal(s[veld]) && isGetal(gemeten) && s[veld] > gemeten) {
+        waarschuwingen.push(`${label}: de ${naam} van het knelpunt (${fmtGetal(s[veld])} min) is groter dan de gemeten ${gemetenNaam} van deze stap (${fmtGetal(gemeten)} min). De extra tijd hoort een deel van de gemeten tijd te zijn.`);
+      }
+    }
+  }
   const zonderActief = stapmetingen.filter((s) => s.actieveTijd === null).map((s) => s.stapId);
   const zonderWacht = stapmetingen.filter((s) => s.wachttijd === null).map((s) => s.stapId);
   if (zonderActief.length) waarschuwingen.push(`Actieve tijd is niet ingevuld bij: ${zonderActief.join(', ')}. Deze waarden blijven Onbekend en worden niet als nul geteld; de totale actieve tijd van deze meting wordt daardoor Onbekend.`);

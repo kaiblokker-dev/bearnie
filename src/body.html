@@ -97,6 +97,14 @@
             <label for="mToelichting">Algemene toelichting</label>
             <textarea id="mToelichting" placeholder="Optioneel"></textarea>
           </div>
+          <div class="veld breed">
+            <label for="mBelangrijksteKnelpunt">Belangrijkste knelpunt tijdens deze uitvoering <span data-uitleg="knelpunt"></span></label>
+            <input type="text" id="mBelangrijksteKnelpunt" maxlength="300" placeholder="Optioneel">
+          </div>
+          <div class="veld breed">
+            <label for="mBijzonderheden">Bijzonderheden of uitzonderingen</label>
+            <textarea id="mBijzonderheden" placeholder="Optioneel"></textarea>
+          </div>
           <div class="veld">
             <label for="mActiefTotaal">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
             <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
@@ -274,7 +282,7 @@
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Knelpunten, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>
@@ -285,6 +293,7 @@
           <button type="button" data-actie="csv-procesmetingen">Procesmetingen (CSV)</button>
           <button type="button" data-actie="csv-stapmetingen">Stapmetingen (CSV)</button>
           <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
+          <button type="button" data-actie="csv-knelpunten">Knelpunten (CSV)</button>
         </div>
       </div>
       <div class="kaart">

@@ -11,6 +11,7 @@ const JS_BESTANDEN = [
   'opslag.js',
   'model.js',
   'berekeningen.js',
+  'knelpunten.js',
   'xlsx.js',
   'grafiek.js',
   'demo.js',

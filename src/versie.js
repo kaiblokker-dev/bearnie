@@ -1,5 +1,5 @@
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.5.0';
+const VERSIE = '1.6.0';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
@@ -25,3 +25,8 @@ const MEETWIJZE_GROEPEN = [
   { code: 'geschat', label: 'Geschat door medewerker', meting: 'Geschat door medewerker', frequentie: 'Geschat door medewerker' },
   { code: 'systeem', label: 'Uit systeemgegevens', meting: 'Uit systeemgegevens', frequentie: 'Uit systeemgegevens' },
 ];
+
+// Knelpunten per processtap (versie 1.6). Alle velden zijn optioneel.
+const KNELPUNT_CATEGORIEEN = ['Wachten', 'Systeem', 'Ontbrekende of onduidelijke informatie', 'Handmatige invoer', 'Controle of herstelwerk', 'Overdracht tussen personen of afdelingen', 'Afwijkende werkwijze', 'Anders'];
+const KNELPUNT_GEVOLGEN = ['Extra actieve tijd', 'Extra wachttijd', 'Verhoogde foutkans', 'Herstelwerk', 'Vertraging in de doorlooptijd', 'Anders'];
+const KNELPUNT_BRONNEN = ['Geobserveerd', 'Door medewerker aangegeven', 'Uit systeemgegevens', 'Eigen inschatting'];

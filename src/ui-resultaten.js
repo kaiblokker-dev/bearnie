@@ -119,6 +119,10 @@ function renderResultaten() {
       <h3>Resultaten per medewerker</h3>
       ${medewerkerTabelHtml(procesId, filters, e)}
     </div>
+    <div class="kaart" id="rKnelpunten">
+      <h3>Knelpuntenanalyse ${infoHtml('knelpunt')}</h3>
+      ${knelpuntenHtml(procesId, filters)}
+    </div>
     <div class="kaart" id="rTotaal">
       <h3>Totale frequentie en geschatte tijdsbelasting</h3>
       ${totaalOverzichtHtml(procesId, filters)}
@@ -244,6 +248,70 @@ function totaalOverzichtHtml(procesId, filters) {
       <div class="tabelhouder"><table class="klein">
         <thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Periode</th><th>Meetmoment</th><th class="getal">Aantal</th><th>Bron</th><th>Meetellen</th><th>In dit totaal</th><th></th></tr></thead>
         <tbody>${statusRijen}</tbody></table></div>` : '<p class="zacht klein mt">Er zijn voor dit proces nog geen frequentiemetingen.</p>'}`;
+}
+
+/** Onderdeel 'Knelpuntenanalyse': normale gevallen en uitzonderingen naast elkaar. */
+function knelpuntenHtml(procesId, filters) {
+  const N = knelpuntAnalyse(procesId, filters, 'Normaal');
+  const U = knelpuntAnalyse(procesId, filters, 'Uitzondering');
+  if (!N.aantalMetingen && !U.aantalMetingen) return '<p class="zacht klein">Geen metingen binnen de filters.</p>';
+  const tijd = (x) => (x.n ? `${esc(fmtGetal(x.totaal))} min totaal · ${esc(fmtGetal(x.gemiddelde))} min gem. <span class="klein zacht">(n = ${x.n})</span>` : `<span class="onbekend">${ONBEKEND}</span> <span class="klein zacht">(n = 0)</span>`);
+  const rij = (label, fn) => `<tr><th>${label}</th><td class="getal berekend">${fn(N)}</td><td class="getal berekend">${fn(U)}</td></tr>`;
+  const stapIds = uniek([...N.perStap, ...U.perStap].map((r) => r.stapId));
+  const stapRij = (id) => {
+    const n = N.perStap.find((r) => r.stapId === id);
+    const u = U.perStap.find((r) => r.stapId === id);
+    const cel = (r) => (r ? `${r.aantal} <span class="klein zacht">van ${r.waarnemingen}</span>` : '–');
+    return `<tr><td class="mono">${esc(id)}</td><td>${esc((n || u).naam)}</td><td class="getal berekend">${cel(n)}</td><td class="getal berekend">${cel(u)}</td></tr>`;
+  };
+  const categorieen = uniek([...N.perCategorie, ...U.perCategorie].map((r) => r.categorie));
+  const catRij = (c) => {
+    const tel = (g) => (g.perCategorie.find((r) => r.categorie === c) || { aantal: 0 }).aantal;
+    return `<tr><td>${esc(c)}</td><td class="getal berekend">${tel(N)}</td><td class="getal berekend">${tel(U)}</td></tr>`;
+  };
+  const mwRijen = [N, U].flatMap((g) => g.perMedewerker.map((r) => `<tr><td>${esc(medewerkerLabel(r.medewerkerId))}</td><td>${esc(g.casustype)}</td>
+      <td class="getal">${r.metingen}</td><td class="getal berekend">${r.metKnelpunt} <span class="klein zacht">(${esc(fmtGetal(r.metingen ? (r.metKnelpunt / r.metingen) * 100 : null, 0))}%)</span></td>
+      <td class="getal berekend">${r.aantal}</td><td class="getal berekend">${r.extraActief.n ? esc(fmtGetal(r.extraActief.totaal)) : '–'}</td><td class="getal berekend">${r.extraWacht.n ? esc(fmtGetal(r.extraWacht.totaal)) : '–'}</td></tr>`)).join('');
+  return `<p class="klein zacht">Knelpunten worden per processtap geregistreerd. De geschatte extra tijd is <strong>verklarend</strong>: die zit al in de gemeten actieve tijd en wachttijd en wordt <strong>niet</strong> opgeteld bij de procesduur, de gemiddelden of de tijdsbelasting (geen dubbeltelling).
+      Binnen de filters bovenaan (incl. medewerker en testmetingen).</p>
+    <div class="tabelhouder"><table>
+      <thead><tr><th></th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+      <tbody>
+        ${rij('Metingen', (g) => String(g.aantalMetingen))}
+        ${rij('Metingen met minimaal één knelpunt', (g) => `${g.metingenMetKnelpunt.length} <span class="klein zacht">(${esc(fmtGetal(g.percentageMetKnelpunt, 1))}%)</span>`)}
+        ${rij('Metingen zonder knelpuntregistratie', (g) => `${g.metingenZonderRegistratie.length} <span class="klein zacht">(bij geen enkele stap ja/nee ingevuld)</span>`)}
+        ${rij('Aantal knelpunten (stappen met knelpunt)', (g) => String(g.aantalKnelpunten))}
+        ${rij('Geschatte extra actieve tijd', (g) => tijd(g.extraActief))}
+        ${rij('Geschatte extra wachttijd', (g) => tijd(g.extraWacht))}
+      </tbody></table></div>
+    <p class="klein zacht">Gemiddelde extra tijd = per knelpunt waarvoor een schatting is ingevuld. Het percentage is ten opzichte van alle metingen binnen de filters.</p>
+    <div class="twee-kolommen">
+      <div><h4>Voorkomens per processtap</h4>
+        <div class="tabelhouder"><table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+        <tbody>${stapIds.map(stapRij).join('')}</tbody></table></div>
+        <p class="klein zacht">"3 van 5" = 3 knelpunten bij 5 waarnemingen van die stap.</p></div>
+      <div><h4>Voorkomens per categorie</h4>
+        ${categorieen.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>Categorie</th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+        <tbody>${categorieen.map(catRij).join('')}</tbody></table></div>` : '<p class="zacht klein">Nog geen knelpunten geregistreerd.</p>'}</div>
+    </div>
+    <h4>Uitsplitsing per medewerker</h4>
+    <div class="tabelhouder"><table class="klein">
+      <thead><tr><th>MedewerkerID</th><th>Casustype</th><th class="getal">Metingen</th><th class="getal">Met knelpunt</th><th class="getal">Knelpunten</th><th class="getal">Extra actief (min, totaal)</th><th class="getal">Extra wacht (min, totaal)</th></tr></thead>
+      <tbody>${mwRijen}</tbody></table></div>
+    <div class="knoppen"><button type="button" class="klein" data-actie="knelpunten-bekijken">Alle knelpunten bekijken</button></div>`;
+}
+
+/** Herleidbaarheid: iedere knelpunt met proces, meting, stap, medewerker, datum, kalenderweek, meetwijze en casustype. */
+function toonKnelpunten() {
+  const procesId = $('#rProces').value;
+  const filters = resultaatFilters();
+  const rijen = alleKnelpuntRijen().filter(({ m }) => m.procesId === procesId && metingVoldoetAanFilters(m, { ...filters, procesId }));
+  informeer(`Knelpunten – ${procesId}`, `<p class="klein">Filters: ${esc(filtersAlsTekst(filters))}</p>
+    ${rijen.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>MetingID</th><th>StapID</th><th>Medewerker</th><th>Datum / week</th><th>Casustype</th><th>Meetwijze</th><th>Categorie</th><th>Omschrijving</th><th>Gevolg</th><th class="getal">Extra actief</th><th class="getal">Extra wacht</th><th>Bron</th></tr></thead><tbody>
+    ${rijen.map(({ m, s }) => `<tr><td class="mono">${esc(m.metingId)}${testLabel(m)}</td><td class="mono">${esc(s.stapId)}</td><td>${htmlTekst(m.medewerkerId)}</td><td>${esc(fmtDatum(m.datum))}<br><span class="zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
+      <td>${esc(m.casustype)}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td>${htmlTekst(s.knelpuntCategorie)}</td><td>${esc(s.knelpuntOmschrijving || '')}</td><td>${esc((s.knelpuntGevolgen || []).join('; '))}</td>
+      <td class="getal">${htmlGetal(s.knelpuntExtraActief)}</td><td class="getal">${htmlGetal(s.knelpuntExtraWacht)}</td><td>${htmlTekst(s.knelpuntBron)}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="zacht">Geen knelpunten binnen de filters.</p>'}`);
 }
 
 /** Diensttijdblokken (informatief): telt niet mee in de tijdsbelasting, omdat die tijd al in de tijd per dossier zit. */
