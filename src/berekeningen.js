@@ -215,6 +215,131 @@ function medewerkerLabel(id) {
   return id ? id : '(niet ingevuld)';
 }
 
+/** Periode-eenheden waarvoor bij een proces frequentiemetingen zijn aangevinkt voor het totaal. */
+function totaalPeriodenVanProces(procesId) {
+  const aanwezig = frequentiesVanProces(procesId).filter((f) => f.meetellenInTotaal === true && f.periodeEenheid).map((f) => f.periodeEenheid);
+  return PERIODE_EENHEDEN.filter((p) => aanwezig.includes(p));
+}
+
+/**
+ * Totale frequentie en geschatte actieve tijdsbelasting voor één proces en één periode-eenheid.
+ *
+ * Totale frequentie = som van het aantal uitvoeringen van de frequentiemetingen die
+ *   - bij dit proces horen,
+ *   - door de gebruiker zijn aangevinkt voor 'Meetellen in totaal',
+ *   - dezelfde periode-eenheid hebben (bijv. per week),
+ *   - en niet (mogelijk) overlappen.
+ * Bij mogelijke overlap of ontbrekende waarden wordt het totaal NIET berekend.
+ *
+ * Geschatte actieve tijd (min) = totale frequentie × gemiddelde actieve tijd per uitvoering
+ * (normale gevallen, binnen de filters inclusief het medewerkerfilter). Wachttijd telt niet mee.
+ */
+function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
+  const e = eenhedenVan(null, procesId);
+  const alle = frequentiesVanProces(procesId).slice().sort((a, b) => vergelijkTekst(a.frequentieId, b.frequentieId));
+  const aangevinkt = alle.filter((f) => f.meetellenInTotaal === true);
+  const geselecteerd = aangevinkt.filter((f) => f.periodeEenheid === periodeEenheid);
+  const frequentieBlokkades = [];
+  const tijdBlokkades = [];
+  const waarschuwingen = [];
+
+  // Status per frequentiemeting, voor de herleidbaarheid.
+  const status = alle.map((f) => {
+    let reden = '';
+    if (f.meetellenInTotaal !== true) reden = typeof f.meetellenInTotaal === 'boolean' ? 'Meetellen in totaal staat uit' : 'Meetellen in totaal nog niet bepaald';
+    else if (!f.periodeEenheid) reden = 'periode niet bepaald';
+    else if (f.periodeEenheid !== periodeEenheid) reden = `andere periode (per ${f.periodeEenheid.toLowerCase()})`;
+    return { frequentie: f, geselecteerd: !reden, reden };
+  });
+
+  if (!periodeEenheid) frequentieBlokkades.push('Er is geen periode gekozen. Vink bij een frequentiemeting "Meetellen in totaal" aan en kies een periode (bijv. per week).');
+  else if (!geselecteerd.length) frequentieBlokkades.push(`Er is voor dit proces geen frequentiemeting per ${periodeEenheid.toLowerCase()} met "Meetellen in totaal" aangevinkt.`);
+
+  const anderePeriode = aangevinkt.filter((f) => f.periodeEenheid && f.periodeEenheid !== periodeEenheid);
+  if (anderePeriode.length) {
+    waarschuwingen.push(`Niet meegeteld omdat de periode verschilt (perioden worden niet omgerekend): ${anderePeriode.map((f) => `${f.frequentieId} (per ${f.periodeEenheid.toLowerCase()})`).join(', ')}.`);
+  }
+  const nietBepaald = alle.filter((f) => typeof f.meetellenInTotaal !== 'boolean');
+  if (nietBepaald.length) {
+    waarschuwingen.push(`Bij ${nietBepaald.length} frequentiemeting(en) is "Meetellen in totaal" nog niet bepaald; deze tellen niet mee: ${nietBepaald.map((f) => f.frequentieId).join(', ')}.`);
+  }
+
+  const zonderAantal = geselecteerd.filter((f) => !isGetal(f.aantalUitvoeringen));
+  if (zonderAantal.length) frequentieBlokkades.push(`Het aantal ${e.uitvoeringseenheidMeervoud} ontbreekt bij: ${zonderAantal.map((f) => f.frequentieId).join(', ')}. Het totaal wordt niet berekend (ontbrekende waarden tellen niet als nul).`);
+
+  // Mogelijke overlap (dubbele telling) bij twee of meer geselecteerde frequenties.
+  if (geselecteerd.length >= 2) {
+    const lijst = geselecteerd.map((f) => `${f.frequentieId} (${f.bereik || 'bereik onbekend'}${f.medewerkerId ? ', ' + f.medewerkerId : ''})`).join('; ');
+    const afdeling = geselecteerd.filter((f) => f.bereik === 'Gehele afdeling');
+    const nietEigen = geselecteerd.filter((f) => f.bereik !== 'Eigen werkzaamheden');
+    const ids = geselecteerd.map((f) => f.medewerkerId || '');
+    const dubbeleIds = uniek(ids.filter((id, i) => id && ids.indexOf(id) !== i));
+    if (afdeling.length) {
+      frequentieBlokkades.push(`Mogelijke overlap: ${afdeling.map((f) => f.frequentieId).join(', ')} ${afdeling.length > 1 ? 'zijn schattingen' : 'is een schatting'} voor de gehele afdeling en ${afdeling.length > 1 ? 'mogen' : 'mag'} niet worden opgeteld bij andere frequenties. Controleer de selectie: laat voor de afdeling maar één frequentie meetellen. Geselecteerd: ${lijst}.`);
+    } else if (nietEigen.length) {
+      frequentieBlokkades.push(`Mogelijke overlap: de bereiken van de geselecteerde frequenties kunnen elkaar overlappen (${nietEigen.map((f) => `${f.frequentieId}: ${f.bereik || 'bereik onbekend'}`).join('; ')}). Alleen frequenties voor eigen werkzaamheden van verschillende medewerkers worden automatisch opgeteld. Controleer de selectie. Geselecteerd: ${lijst}.`);
+    } else if (dubbeleIds.length) {
+      frequentieBlokkades.push(`Mogelijke dubbele telling: meer dan één frequentie voor de eigen werkzaamheden van ${dubbeleIds.join(', ')}. Controleer de selectie. Geselecteerd: ${lijst}.`);
+    } else if (ids.some((id) => !id)) {
+      frequentieBlokkades.push(`Mogelijke dubbele telling: bij een of meer frequenties voor eigen werkzaamheden ontbreekt de MedewerkerID, zodat overlap niet is uit te sluiten. Geselecteerd: ${lijst}.`);
+    }
+  }
+  const meetperioden = uniek(geselecteerd.map((f) => (f.meetperiode || '').trim()).filter(Boolean));
+  if (meetperioden.length > 1) {
+    waarschuwingen.push(`De geselecteerde frequenties noemen verschillende meetperioden (${meetperioden.join(', ')}). Controleer of het om hetzelfde soort tijdvak gaat en of samen optellen klopt.`);
+  }
+  const andereEenheid = geselecteerd.filter((f) => f.uitvoeringseenheid && f.uitvoeringseenheid !== e.uitvoeringseenheid);
+  if (andereEenheid.length) {
+    waarschuwingen.push(`Let op: ${andereEenheid.map((f) => `${f.frequentieId} (${f.uitvoeringseenheid})`).join(', ')} gebruikt een andere uitvoeringseenheid dan het proces (${e.uitvoeringseenheid}).`);
+  }
+  const schattingen = geselecteerd.filter((f) => f.meetwijze === 'Geschat door medewerker');
+  if (schattingen.length) waarschuwingen.push(`De totale frequentie bevat schattingen door medewerkers: ${schattingen.map((f) => f.frequentieId).join(', ')}.`);
+
+  // Gemiddelde actieve tijd per uitvoering uit de individuele (normale) procesmetingen.
+  const sam = procesSamenvatting(procesId, filters);
+  const groep = sam.perCasustype.Normaal;
+  const actief = groep.actiefPerUitvoering;
+  if (!actief.n) tijdBlokkades.push(`Er is (binnen de filters) geen normale procesmeting met een bekende actieve tijd per ${e.uitvoeringseenheid}.`);
+  if (actief.n && actief.n < 3) waarschuwingen.push('Er zijn nog weinig metingen beschikbaar. Interpreteer de uitkomsten voorzichtig.');
+  const gebruikteMetingen = actief.metingIds.map((id) => zoekMeting(id)).filter(Boolean);
+
+  const totaleFrequentie = frequentieBlokkades.length ? null : som(geselecteerd.map((f) => f.aantalUitvoeringen));
+  const gemiddeldeActief = actief.n ? actief.gemiddelde : null;
+  const minuten = isGetal(totaleFrequentie) && isGetal(gemiddeldeActief) ? totaleFrequentie * gemiddeldeActief : null;
+  return {
+    procesId,
+    periodeEenheid,
+    eenheden: e,
+    filters,
+    frequenties: geselecteerd,
+    status,
+    totaleFrequentie,
+    gemiddeldeActief,
+    minimumActief: actief.minimum,
+    maximumActief: actief.maximum,
+    gemiddeldeWacht: groep.wachtPerUitvoering.n ? groep.wachtPerUitvoering.gemiddelde : null,
+    nWacht: groep.wachtPerUitvoering.n,
+    minuten,
+    uren: isGetal(minuten) ? minuten / 60 : null,
+    aantalProcesmetingen: actief.n,
+    metingIds: actief.metingIds,
+    gebruikteMetingen,
+    medewerkerIds: uniek(gebruikteMetingen.map((m) => m.medewerkerId || '(niet ingevuld)')),
+    meetwijzenTijd: uniek(gebruikteMetingen.map((m) => m.meetwijze)),
+    bronnen: uniek(geselecteerd.map((f) => f.meetwijze)),
+    meetperioden,
+    frequentieBlokkades,
+    tijdBlokkades,
+    waarschuwingen,
+  };
+}
+
+function keuzeGemiddeldeTekst(filters) {
+  return !filters.medewerker ? 'gemiddelde van alle medewerkers'
+    : filters.medewerker === MEDEWERKER_LEEG ? 'gemiddelde van metingen zonder MedewerkerID'
+      : `gemiddelde van medewerker ${filters.medewerker}`;
+}
+
 function filtersAlsTekst(filters) {
   const delen = [];
   delen.push('Medewerker: ' + (!filters.medewerker ? 'alle medewerkers' : filters.medewerker === MEDEWERKER_LEEG ? 'zonder MedewerkerID' : filters.medewerker));

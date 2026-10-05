@@ -48,8 +48,14 @@ function maakDemogegevens() {
   }
 
   const frequentiemetingen = [
-    { frequentieId: 'F-DEMO-PR01-001', procesId: 'DEMO-PR01', meetperiode: 'maart 2026', aantalUitvoeringen: 140, totaalVolume: null, meetwijze: 'Uit systeemgegevens', bron: 'Fictief: rapport uit zaaksysteem; aantal dienstperioden onbekend' },
-    { frequentieId: 'F-DEMO-PR02-001', procesId: 'DEMO-PR02', meetperiode: 'week 10 2026', aantalUitvoeringen: 35, totaalVolume: 41, meetwijze: 'Geschat door medewerker', bron: 'Fictief: inschatting teamleider' },
+    { frequentieId: 'F-DEMO-PR01-001', procesId: 'DEMO-PR01', meetperiode: 'maart 2026', aantalUitvoeringen: 140, totaalVolume: null, meetwijze: 'Uit systeemgegevens', bron: 'Fictief: rapport uit zaaksysteem; aantal dienstperioden onbekend',
+      medewerkerId: '', periodeEenheid: 'Maand', bereik: 'Gehele afdeling', afbakening: 'Alle herberekeningen van de afdeling', meetellenInTotaal: false },
+    { frequentieId: 'F-DEMO-PR01-002', procesId: 'DEMO-PR01', meetperiode: 'week 10 2026', aantalUitvoeringen: 25, totaalVolume: null, meetwijze: 'Geschat door medewerker', bron: 'Fictief: eigen inschatting',
+      medewerkerId: 'PZ01', periodeEenheid: 'Week', bereik: 'Eigen werkzaamheden', afbakening: 'Eigen dossiers PZ01', meetellenInTotaal: true },
+    { frequentieId: 'F-DEMO-PR01-003', procesId: 'DEMO-PR01', meetperiode: 'week 10 2026', aantalUitvoeringen: 15, totaalVolume: null, meetwijze: 'Geteld', bron: 'Fictief: turflijst',
+      medewerkerId: 'PZ02', periodeEenheid: 'Week', bereik: 'Eigen werkzaamheden', afbakening: 'Eigen dossiers PZ02 (andere dossiers dan PZ01)', meetellenInTotaal: true },
+    { frequentieId: 'F-DEMO-PR02-001', procesId: 'DEMO-PR02', meetperiode: 'week 10 2026', aantalUitvoeringen: 35, totaalVolume: 41, meetwijze: 'Geschat door medewerker', bron: 'Fictief: inschatting teamleider',
+      medewerkerId: '', periodeEenheid: 'Week', bereik: 'Team', afbakening: 'Hele team', meetellenInTotaal: true },
   ].map((f) => ({ ...f, ...eenhedenUit(processen.find((p) => p.procesId === f.procesId)), demo: true, aangemaakt: tijd, gewijzigd: null }));
 
   return {

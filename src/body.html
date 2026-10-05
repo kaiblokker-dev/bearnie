@@ -132,8 +132,18 @@
             <select id="fProces"></select>
           </div>
           <div class="veld">
+            <label for="fMedewerker">MedewerkerID</label>
+            <input type="text" id="fMedewerker" placeholder="bijv. PZ01" maxlength="20">
+            <span class="hint">Optioneel; anonieme code van wie de frequentie heeft opgegeven of op wie die betrekking heeft.</span>
+          </div>
+          <div class="veld">
             <label for="fPeriode" class="verplicht">Meetperiode</label>
             <input type="text" id="fPeriode" placeholder="bijv. maart 2026 of week 12">
+          </div>
+          <div class="veld">
+            <label for="fPeriodeEenheid">Periode (frequentie per …)</label>
+            <select id="fPeriodeEenheid"></select>
+            <span class="hint">Alleen frequenties met dezelfde periode worden bij elkaar opgeteld.</span>
           </div>
           <div class="veld">
             <label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label>
@@ -146,8 +156,22 @@
             <span class="hint" id="fVolumeHint">Mag onbekend blijven.</span>
           </div>
           <div class="veld">
-            <label for="fMeetwijze" class="verplicht">Meetwijze</label>
+            <label for="fMeetwijze" class="verplicht">Meetwijze / bron van de frequentie</label>
             <select id="fMeetwijze"></select>
+          </div>
+          <div class="veld">
+            <label for="fBereik">Bereik van de frequentie</label>
+            <select id="fBereik"></select>
+            <span class="hint">Op welk deel van het werk heeft dit aantal betrekking?</span>
+          </div>
+          <div class="veld breed">
+            <label for="fAfbakening">Afbakening / toelichting</label>
+            <textarea id="fAfbakening" placeholder="Optioneel: op welke dossiers of werkzaamheden heeft deze frequentie betrekking? Bijv. alleen eigen dossiers van PZ01, zonder bezwaarzaken."></textarea>
+          </div>
+          <div class="veld breed">
+            <label class="keuzes" style="font-weight:600"><input type="checkbox" id="fMeetellen"> Meetellen in totaal</label>
+            <span class="hint">Vink alleen aan als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Verschillende schattingen van hetzelfde volume (bijv. twee schattingen voor de hele afdeling) mogen niet allebei meetellen.</span>
+            <span class="hint" id="fMeetellenStatus"></span>
           </div>
           <div class="veld breed">
             <label for="fBron">Bron of toelichting</label>
@@ -217,7 +241,7 @@
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Per medewerker, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>

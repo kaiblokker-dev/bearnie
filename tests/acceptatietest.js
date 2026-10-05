@@ -381,7 +381,7 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   await tab('importexport');
   const xlsx = await download(() => page.click('[data-actie="excel-export"]'), 'export.xlsx');
   const xlsxInfo = JSON.parse(execFileSync('python3', [path.join(__dirname, 'controleer_xlsx.py'), xlsx.pad]).toString());
-  assert.deepStrictEqual(xlsxInfo.bladen, ['Resultaten', 'Per medewerker', 'Procesmetingen', 'Stapmetingen', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(xlsxInfo.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Procesmetingen', 'Stapmetingen', 'Frequentie', 'Methode']);
   assert.strictEqual(xlsxInfo.procesmetingen, 4);
   assert.strictEqual(xlsxInfo.stapmetingen, 12);
   assert.strictEqual(xlsxInfo.frequentie, 1);
@@ -531,6 +531,22 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   b10 = await page.evaluate(() => window.__meettool.berekenMeting(window.__meettool.staat().procesmetingen.find((m) => m.metingId === 'M-PR10-001')));
   assert.ok(bijna(b10.actiefPerUitvoering, 12));
   assert.strictEqual(await page.textContent('#overzichtLegacy'), '');
+  // Oude frequentiemeting (zonder nieuwe velden): blijft werken, telt niet mee in het totaal
+  const t10 = await page.evaluate(() => window.__meettool.berekenTotaalOverzicht('PR10', { meetwijze: 'alle' }, null));
+  assert.ok(t10.totaleFrequentie === null && t10.status[0].reden === 'Meetellen in totaal nog niet bepaald', JSON.stringify(t10.status));
+  const tbOud = await page.evaluate(() => { const t = window.__meettool; return t.berekenTijdsbelasting(t.kiesFrequentie('PR10'), t.procesSamenvatting('PR10', { meetwijze: 'alle' }).perCasustype.Normaal, 'PR10'); });
+  assert.ok(bijna(tbOud.waarde, 10 * 12), 'bestaande tijdsbelasting per frequentie-ID blijft werken');
+  // Aanpassen zonder het vinkje aan te raken laat 'nog niet bepaald' staan
+  await tab('overzicht');
+  await page.click('#overzichtSubtabs button[data-subtab="frequentiemetingen"]');
+  await page.click('[data-actie="frequentie-bewerken"][data-id="F-PR10-001"]');
+  assert.ok(await page.evaluate(() => document.querySelector('#fMeetellen').indeterminate));
+  await page.fill('#fBron', 'Turflijst (aangevuld)');
+  await page.click('#frequentieFormulier button[type="submit"]');
+  await page.waitForFunction(() => window.__meettool.staat().frequentiemetingen.find((f) => f.frequentieId === 'F-PR10-001').bron === 'Turflijst (aangevuld)');
+  const f10 = (await staat()).frequentiemetingen.find((f) => f.frequentieId === 'F-PR10-001');
+  assert.ok(!('meetellenInTotaal' in f10) && f10.aantalUitvoeringen === 10 && f10.meetwijze === 'Geteld', JSON.stringify(f10));
+  await page.click('#overzichtSubtabs button[data-subtab="procesmetingen"]');
   ok('versie 1.0', 'Back-up uit versie 1.0 geïmporteerd: oude eenheid wordt omvangseenheid (waarde ongewijzigd), aantal uitvoeringen blijft ontbreken (tijd per uitvoering Onbekend) tot de gebruiker expliciet bevestigt; daarna aantal = 1 met vastgelegde herkomst');
 
   await tab('meting');
@@ -626,6 +642,105 @@ print(json.dumps({"bladen": wb.sheetnames, "sam": sam, "ind": ind, "pm_kop": "Me
     assert.deepStrictEqual(pm.sam['Alle medewerkers (gecombineerd)'], [2, 19.5, 17, 22, 2]);
     assert.deepStrictEqual(pm.ind, [['M-PR24-001', 'PZ01', 22], ['M-PR24-002', 'PZ02', 17]]);
     assert.ok(pm.pm_kop);
+    // ---------- Totaaloverzicht: controlevoorbeeld ----------
+    const vulFrequentie = async ({ mw, aantal, periode, bereik, afbakening, meetellen, meetwijze }) => {
+      await p2.click('#tabs button[data-tab="frequentie"]');
+      await p2.selectOption('#fProces', 'PR24');
+      await p2.fill('#fMedewerker', mw);
+      await p2.fill('#fPeriode', 'week 40 2026');
+      await p2.selectOption('#fPeriodeEenheid', periode);
+      await p2.fill('#fAantal', String(aantal));
+      await p2.selectOption('#fMeetwijze', meetwijze || 'Geschat door medewerker');
+      await p2.selectOption('#fBereik', bereik);
+      await p2.fill('#fAfbakening', afbakening);
+      if (meetellen) await p2.check('#fMeetellen'); else await p2.uncheck('#fMeetellen');
+      await p2.click('#frequentieFormulier button[type="submit"]');
+    };
+    // Validatie: meetellen zonder periode/bereik wordt geweigerd
+    await p2.click('#tabs button[data-tab="frequentie"]');
+    await p2.selectOption('#fProces', 'PR24');
+    await p2.fill('#fPeriode', 'week 40 2026');
+    await p2.fill('#fAantal', '25');
+    await p2.selectOption('#fMeetwijze', 'Geteld');
+    await p2.check('#fMeetellen');
+    await p2.click('#frequentieFormulier button[type="submit"]');
+    const fv = await p2.textContent('#fFouten');
+    assert.ok(fv.includes('kies de periode') && fv.includes('kies het bereik'), fv);
+    await p2.click('[data-actie="frequentie-annuleren"]');
+    await vulFrequentie({ mw: 'PZ01', aantal: 25, periode: 'Week', bereik: 'Eigen werkzaamheden', afbakening: 'Eigen dossiers PZ01', meetellen: true });
+    await vulFrequentie({ mw: 'PZ02', aantal: 15, periode: 'Week', bereik: 'Eigen werkzaamheden', afbakening: 'Andere dossiers, eigen werk PZ02', meetellen: true, meetwijze: 'Geteld' });
+    await p2.waitForFunction(() => window.__meettool.staat().frequentiemetingen.length === 2);
+    const t = await p2.evaluate(() => window.__meettool.berekenTotaalOverzicht('PR24', { meetwijze: 'alle' }, 'Week'));
+    assert.ok(t.totaleFrequentie === 40 && bijna(t.gemiddeldeActief, 19.5) && bijna(t.minuten, 780) && bijna(t.uren, 13) && t.aantalProcesmetingen === 2, JSON.stringify(t));
+    assert.deepStrictEqual(t.frequenties.map((f) => f.frequentieId), ['F-PR24-001', 'F-PR24-002']);
+    assert.deepStrictEqual(t.frequentieBlokkades, []);
+    await p2.click('#tabs button[data-tab="resultaten"]');
+    await p2.selectOption('#rProces', 'PR24');
+    const tot = await p2.textContent('#rTotaal');
+    assert.ok(tot.includes('40 dossiers per week') && tot.includes('19,50 min per dossier') && tot.includes('780,00 minuten per week') && tot.includes('13,00 uur per week'), tot);
+    assert.ok(tot.includes('F-PR24-001, F-PR24-002') && tot.includes('M-PR24-001, M-PR24-002') && tot.includes('PZ01, PZ02') && tot.includes('gemiddelde van alle medewerkers'), 'herleidbaarheid');
+    assert.ok(tot.includes('Geteld (daadwerkelijke telling)') && tot.includes('Geschat door medewerker (inschatting)'), 'bronnen');
+    await p2.click('[data-actie="totaal-onderliggend"]');
+    const ond2 = await p2.textContent('#dialoogInhoud');
+    assert.ok(ond2.includes('Eigen dossiers PZ01') && ond2.includes('M-PR24-002') && ond2.includes('PZ02') && ond2.includes('Gemeten'));
+    await knop2('Sluiten');
+    // Keuze gemiddelde: één medewerker
+    await p2.selectOption('#rMedewerker', 'PZ01');
+    const totPZ01 = await p2.textContent('#rTotaal');
+    assert.ok(totPZ01.includes('880,00 minuten per week') && totPZ01.includes('gemiddelde van medewerker PZ01'), totPZ01);
+    await p2.selectOption('#rMedewerker', '');
+    await p2.screenshot({ path: path.join(UIT, 'scherm_totaaloverzicht.png'), fullPage: true });
+    // Excel-tabblad Totaaloverzicht
+    await p2.click('#tabs button[data-tab="importexport"]');
+    const [dl3] = await Promise.all([p2.waitForEvent('download'), p2.click('[data-actie="excel-export"]')]);
+    const xlsx3 = path.join(UIT, 'export_totaal.xlsx');
+    await dl3.saveAs(xlsx3);
+    const tb = JSON.parse(execFileSync('python3', ['-c', `
+import json, openpyxl
+wb = openpyxl.load_workbook(${JSON.stringify(xlsx3)})
+ws = list(wb["Totaaloverzicht"].iter_rows(values_only=True))
+k = next(i for i, r in enumerate(ws) if r and r[0] == "ProcesID")
+kop = ws[k]
+r = next(r for r in ws[k+1:] if r and r[0] == "PR24")
+g = lambda n: r[kop.index(n)]
+fk = [c for c in list(wb["Frequentie"].iter_rows(values_only=True))[0]]
+print(json.dumps({"bladen": wb.sheetnames, "periode": g("Periode"), "freq": g("Totale frequentie"), "gem": g("Gemiddelde actieve tijd per uitvoering (min)"), "min": g("Geschatte actieve tijdsbelasting (min)"),
+  "uur": g("Geschatte actieve tijdsbelasting (uur)"), "nproc": g("Aantal procesmetingen"), "nfreq": g("Aantal frequentiemetingen"), "mw": g("Gebruikte medewerker-ID's"), "fids": g("Gebruikte frequentie-ID's"),
+  "bron": g("Bronnen frequentie"), "procesnaam": g("Procesnaam"), "fk": fk}))`]).toString());
+    assert.ok(['Procesmetingen', 'Stapmetingen', 'Frequentie', 'Totaaloverzicht'].every((b) => tb.bladen.includes(b)));
+    assert.ok(tb.periode === 'per week' && tb.freq === 40 && tb.gem === 19.5 && tb.min === 780 && tb.uur === 13 && tb.nproc === 2 && tb.nfreq === 2, JSON.stringify(tb));
+    assert.ok(tb.mw === 'PZ01, PZ02' && tb.fids === 'F-PR24-001, F-PR24-002' && tb.bron.includes('Geteld') && tb.procesnaam === 'Herberekening dossier');
+    assert.ok(['FrequentieID', 'Meetwijze', 'MedewerkerID', 'Periode', 'Bereik', 'Afbakening / toelichting', 'Meetellen in totaal'].every((k) => tb.fk.includes(k)));
+    ok('totaal', 'Controlevoorbeeld totaaloverzicht: 25 + 15 = 40 dossiers per week (F-PR24-001 PZ01 + F-PR24-002 PZ02, eigen werkzaamheden); gemiddelde 19,5 min per dossier (n = 2); 40 × 19,5 = 780 min = 13 uur per week; keuze PZ01 geeft 40 × 22 = 880 min; onderliggende proces- en frequentiemetingen herleidbaar; Excel-tabblad Totaaloverzicht klopt');
+
+    // ---------- Tegenvoorbeeld: twee schattingen voor de gehele afdeling ----------
+    await vulFrequentie({ mw: 'PZ01', aantal: 40, periode: 'Week', bereik: 'Gehele afdeling', afbakening: 'Hele afdeling (schatting PZ01)', meetellen: true });
+    await vulFrequentie({ mw: 'PZ02', aantal: 35, periode: 'Week', bereik: 'Gehele afdeling', afbakening: 'Hele afdeling (schatting PZ02)', meetellen: true });
+    await vulFrequentie({ mw: 'PZ01', aantal: 100, periode: 'Maand', bereik: 'Eigen werkzaamheden', afbakening: 'Eigen dossiers per maand', meetellen: true });
+    await p2.waitForFunction(() => window.__meettool.staat().frequentiemetingen.length === 5);
+    const t2 = await p2.evaluate(() => window.__meettool.berekenTotaalOverzicht('PR24', { meetwijze: 'alle' }, 'Week'));
+    assert.strictEqual(t2.totaleFrequentie, null);
+    assert.strictEqual(t2.minuten, null);
+    assert.ok(t2.frequentieBlokkades.some((b) => b.includes('Mogelijke overlap') && b.includes('gehele afdeling')), JSON.stringify(t2.frequentieBlokkades));
+    assert.ok(t2.waarschuwingen.some((w) => w.includes('F-PR24-005 (per maand)')), 'andere periode');
+    await p2.click('#tabs button[data-tab="resultaten"]');
+    const tot2 = await p2.textContent('#rTotaal');
+    assert.ok(tot2.includes('Mogelijke overlap') && tot2.includes('Controleer de selectie') && !tot2.includes('115') && !tot2.includes('75 dossiers'), tot2);
+    // Na uitvinken van de afdelingsschattingen klopt het totaal weer
+    for (const id of ['F-PR24-003', 'F-PR24-004']) {
+      await p2.click(`#rTotaal [data-actie="frequentie-bewerken"][data-id="${id}"]`);
+      await p2.uncheck('#fMeetellen');
+      await p2.click('#frequentieFormulier button[type="submit"]');
+      await p2.click('#tabs button[data-tab="resultaten"]');
+    }
+    const t3 = await p2.evaluate(() => window.__meettool.berekenTotaalOverzicht('PR24', { meetwijze: 'alle' }, 'Week'));
+    assert.ok(t3.totaleFrequentie === 40 && bijna(t3.minuten, 780));
+    // Periode per maand apart
+    await p2.selectOption('#rTotaalPeriode', 'Maand');
+    assert.ok((await p2.textContent('#rTotaal')).includes('100 dossiers per maand'));
+    assert.strictEqual((await p2.evaluate(() => window.__meettool.staat().frequentiemetingen.length)), 5, 'afzonderlijke frequentiemetingen blijven bestaan');
+    ok('tegenvoorbeeld', 'Twee schattingen voor de gehele afdeling (40 en 35 per week) worden niet opgeteld: totaal niet berekend, waarschuwing "Mogelijke overlap … Controleer de selectie"; een frequentie per maand telt niet mee in het weektotaal (waarschuwing) en heeft een eigen totaal; na uitvinken van de afdelingsschattingen weer 40 per week; alle 5 frequentiemetingen blijven afzonderlijk bewaard');
+
     ok('medewerkers', 'Controlevoorbeeld: PZ01 = 22 min, PZ02 = 17 min; gecombineerd gemiddelde PR24 = 19,5 min (n = 2), bandbreedte 17–22; filter PZ01 toont 22, PZ02 toont 17, Alle toont 19,5; individuele metingen per medewerker zichtbaar; Excel-tabblad "Per medewerker" bevat samenvatting en individuele metingen');
     await ctx2.close();
   }

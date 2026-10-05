@@ -35,6 +35,7 @@ const ACTIES = {
   'demo-laden': () => laadDemo(),
   'demo-verwijderen': () => verwijderDemo(),
   'alles-wissen': () => wisAlleGegevens(),
+  'totaal-onderliggend': () => toonTotaalOnderliggend(),
   'metingen-medewerker': (el) => toonMetingenVanMedewerker(el.dataset.medewerker, el.dataset.casustype),
   'aantal-aanvullen': (el) => vulAantalUitvoeringenAanMetBevestiging(el.dataset.proces || null),
 };
@@ -101,6 +102,7 @@ async function start() {
     procesSamenvatting,
     stapSamenvatting,
     medewerkerSamenvatting,
+    berekenTotaalOverzicht,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,
