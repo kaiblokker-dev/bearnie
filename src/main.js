@@ -35,6 +35,7 @@ const ACTIES = {
   'demo-laden': () => laadDemo(),
   'demo-verwijderen': () => verwijderDemo(),
   'alles-wissen': () => wisAlleGegevens(),
+  'aantal-aanvullen': (el) => vulAantalUitvoeringenAanMetBevestiging(el.dataset.proces || null),
 };
 
 async function start() {
@@ -102,6 +103,7 @@ async function start() {
     berekenTijdsbelasting,
     kiesFrequentie,
     leesGetal,
+    isGeldigeDatum,
     mediaan,
     wachtOpOpslag: () => Opslag.wachtrij.then(() => true, () => false),
     klaar: true,

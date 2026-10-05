@@ -100,6 +100,42 @@ function demoLabel(record) {
   return record && record.demo ? '<span class="demolabel">DEMO</span>' : '';
 }
 
+/** Getal met de juiste eenheid, bijv. "1 dossier" of "7 dienstperioden". soort: 'uitvoering' | 'omvang'. */
+function fmtMetEenheid(n, e, soort) {
+  if (!isGetal(n)) return ONBEKEND;
+  const enk = soort === 'uitvoering' ? e.uitvoeringseenheid : e.omvangseenheid;
+  const mv = soort === 'uitvoering' ? e.uitvoeringseenheidMeervoud : e.omvangseenheidMeervoud;
+  return `${fmtAantal(n)} ${n === 1 ? enk : mv}`;
+}
+
+function htmlMetEenheid(n, e, soort) {
+  return isGetal(n) ? esc(fmtMetEenheid(n, e, soort)) : `<span class="onbekend">${ONBEKEND}</span>`;
+}
+
+/** Melding voor metingen uit versie 1.0 zonder vastgelegd aantal uitvoeringen (optioneel beperkt tot één proces). */
+function legacyMeldingHtml(procesId) {
+  const lijst = metingenZonderAantalUitvoeringen().filter((m) => !procesId || m.procesId === procesId);
+  if (!lijst.length) return '';
+  return `<div class="melding waarschuwing"><strong>${lijst.length} meting(en) zonder vastgelegd aantal uitvoeringen.</strong>
+    Deze metingen zijn vastgelegd met versie 1.0, waarin één procesmeting als één uitvoering gold maar het aantal niet werd opgeslagen.
+    Hun tijd per uitvoering is daarom Onbekend en telt niet mee in de primaire uitkomst. U kunt het aantal per meting aanpassen, of voor al deze metingen in één keer 1 vastleggen.
+    <div class="knoppen" style="margin-top:8px"><button type="button" class="klein" data-actie="aantal-aanvullen" data-proces="${esc(procesId || '')}">Aantal uitvoeringen aanvullen…</button></div></div>`;
+}
+
+async function vulAantalUitvoeringenAanMetBevestiging(procesId) {
+  const lijst = metingenZonderAantalUitvoeringen().filter((m) => !procesId || m.procesId === procesId);
+  if (!lijst.length) return;
+  const ok = await bevestig('Aantal uitvoeringen aanvullen',
+    `<p>Voor de volgende ${lijst.length} meting(en) wordt het aantal uitvoeringen op <strong>1</strong> gezet:</p>
+     <p class="mono klein">${esc(lijst.map((m) => m.metingId).join(', '))}</p>
+     <div class="melding info">Dit volgt de definitie van versie 1.0 (één procesmeting = één uitvoering). Per meting wordt vastgelegd dat dit aantal is aangevuld, door wie (de gebruiker) en wanneer. Deze herkomst staat ook in de exports.</div>
+     <p>Klopt dit niet voor een meting (bijvoorbeeld omdat er meerdere ${esc(eenhedenVan(lijst[0]).uitvoeringseenheidMeervoud)} in één meting zaten)? Annuleer dan en pas die meting afzonderlijk aan.</p>`,
+    'Aantal = 1 vastleggen');
+  if (!ok) return;
+  vulAantalUitvoeringenAan(lijst.map((m) => m.metingId));
+  await naWijziging(`Aantal uitvoeringen aangevuld voor ${lijst.length} meting(en).`);
+}
+
 function meetwijzeHtml(meetwijze) {
   if (!meetwijze) return htmlTekst(meetwijze);
   return /geschat/i.test(meetwijze) ? `<span class="schatting">${esc(meetwijze)}</span>` : esc(meetwijze);

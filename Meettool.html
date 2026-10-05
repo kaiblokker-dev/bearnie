@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Meettool administratieve processen
-  Versie: 1.0.0
+  Versie: 1.1.0
   Gebouwd op: 2026-10-05
 
   Zelfstandig bestand: alle JavaScript en CSS staan hieronder in dit bestand.
@@ -396,13 +396,14 @@ td.mono { white-space: nowrap; }
             </div>
           </div>
           <div class="veld">
-            <label for="mOmvang">Omvang</label>
-            <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 12">
-            <span class="hint">Positief getal. Leeg laten als onbekend.</span>
+            <label for="mAantal" class="verplicht" id="mAantalLabel">Aantal uitvoeringen</label>
+            <input type="text" id="mAantal" inputmode="decimal" placeholder="bijv. 1">
+            <span class="hint" id="mAantalHint">Uitvoeringseenheid volgt uit het proces.</span>
           </div>
           <div class="veld">
-            <label for="mEenheid">Eenheid</label>
-            <input type="text" id="mEenheid" list="eenhedenLijst">
+            <label for="mOmvang" id="mOmvangLabel">Omvang</label>
+            <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 7">
+            <span class="hint" id="mOmvangHint">Positief getal. Leeg laten als onbekend.</span>
           </div>
           <div class="veld">
             <label for="mMeetwijze" class="verplicht">Meetwijze</label>
@@ -457,16 +458,14 @@ td.mono { white-space: nowrap; }
             <input type="text" id="fPeriode" placeholder="bijv. maart 2026 of week 12">
           </div>
           <div class="veld">
-            <label for="fAantal">Aantal uitvoeringen</label>
+            <label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label>
             <input type="text" id="fAantal" inputmode="decimal" placeholder="bijv. 120">
+            <span class="hint" id="fAantalHint">Nodig voor de geschatte tijdsbelasting.</span>
           </div>
           <div class="veld">
-            <label for="fVolume">Totaal volume</label>
-            <input type="text" id="fVolume" inputmode="decimal" placeholder="bijv. 1450">
-          </div>
-          <div class="veld">
-            <label for="fEenheid">Eenheid</label>
-            <input type="text" id="fEenheid" list="eenhedenLijst">
+            <label for="fVolume" id="fVolumeLabel">Totale omvang</label>
+            <input type="text" id="fVolume" inputmode="decimal" placeholder="Leeg laten als onbekend">
+            <span class="hint" id="fVolumeHint">Mag onbekend blijven.</span>
           </div>
           <div class="veld">
             <label for="fMeetwijze" class="verplicht">Meetwijze</label>
@@ -494,6 +493,7 @@ td.mono { white-space: nowrap; }
   <section class="tab" id="tab-overzicht" hidden>
     <h2>Metingen bekijken</h2>
     <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
+    <div id="overzichtLegacy"></div>
     <div class="subtabs" id="overzichtSubtabs">
       <button type="button" data-subtab="procesmetingen" class="actief">Procesmetingen</button>
       <button type="button" data-subtab="stapmetingen">Stapmetingen</button>
@@ -580,15 +580,6 @@ td.mono { white-space: nowrap; }
   </section>
 </main>
 
-<datalist id="eenhedenLijst">
-  <option value="documenten"></option>
-  <option value="dossiers"></option>
-  <option value="regels"></option>
-  <option value="mutaties"></option>
-  <option value="beschikkingen"></option>
-  <option value="facturen"></option>
-  <option value="aanvragen"></option>
-</datalist>
 
 <dialog id="dialoog">
   <div class="dialoog-kop" id="dialoogKop"></div>
@@ -603,7 +594,7 @@ td.mono { white-space: nowrap; }
 'use strict';
 // ===== versie.js =====
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.0.0';
+const VERSIE = '1.1.0';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
@@ -716,8 +707,10 @@ function nuIso() {
 
 function isGeldigeDatum(iso) {
   if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
-  const d = new Date(iso + 'T00:00:00');
-  return !isNaN(d) && d.toISOString().slice(0, 10) === iso;
+  // Volledig in UTC controleren: lokale middernacht valt in UTC+1/+2 op de vorige dag.
+  const [j, m, d] = iso.split('-').map(Number);
+  const datum = new Date(Date.UTC(j, m - 1, d));
+  return datum.getUTCFullYear() === j && datum.getUTCMonth() === m - 1 && datum.getUTCDate() === d;
 }
 
 function bestandsdatum() {
@@ -956,24 +949,32 @@ const Opslag = {
 // identificatievelden. Berekende waarden worden nooit opgeslagen; ze worden
 // telkens opnieuw afgeleid in berekeningen.js.
 //
-// processen:          { procesId, naam, eenheid, demo, aangemaakt, gewijzigd }
+// Ieder proces heeft twee eenheden (elk in enkelvoud en meervoud):
+// - uitvoeringseenheid: wat één uitvoering is (bijv. dossier);
+// - omvangseenheid: waarin de omvang wordt uitgedrukt (bijv. dienstperiode).
+// EENHEID_VELDEN = uitvoeringseenheid, uitvoeringseenheidMeervoud, omvangseenheid, omvangseenheidMeervoud
+//
+// processen:          { procesId, naam, ...EENHEID_VELDEN, demo, aangemaakt, gewijzigd }
 // processtappen:      { stapId, procesId, volgorde, naam, demo }
 // procesmetingen:     { metingId, datum, procesId, procesnaam, medewerkerId, casustype,
-//                       omvang, eenheid, meetwijze, toelichting, demo, aangemaakt, gewijzigd }
+//                       aantalUitvoeringen, aantalUitvoeringenHerkomst, omvang, ...EENHEID_VELDEN,
+//                       meetwijze, toelichting, demo, aangemaakt, gewijzigd }
 // stapmetingen:       { metingId, stapId, volgorde, stapnaam, actieveTijd, wachttijd,
 //                       redenWachttijd, opmerking, tijdvastlegging, demo }
 // frequentiemetingen: { frequentieId, procesId, meetperiode, aantalUitvoeringen, totaalVolume,
-//                       eenheid, meetwijze, bron, demo, aangemaakt, gewijzigd }
+//                       ...EENHEID_VELDEN, meetwijze, bron, demo, aangemaakt, gewijzigd }
 //
-// procesnaam (bij meting) en stapnaam (bij stapmeting) zijn een kopie op het moment van
+// procesnaam, stapnaam en de eenheden bij een meting zijn een kopie op het moment van
 // meten, zodat metingen leesbaar blijven als een proces later wordt gewijzigd of verwijderd.
 // Ontbrekende getallen worden als null opgeslagen, nooit als 0.
+// Metingen uit schemaversie 1 hebben geen veld aantalUitvoeringen (de sleutel ontbreekt);
+// dit wordt nooit automatisch ingevuld, alleen na expliciete bevestiging door de gebruiker.
 
 let staat = legeStaat();
 
 function legeStaat() {
   return {
-    schemaversie: 1,
+    schemaversie: 2,
     processen: [],
     processtappen: [],
     procesmetingen: [],
@@ -989,11 +990,71 @@ function normaliseerStaat(s) {
   for (const k of ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']) {
     n[k] = Array.isArray(s[k]) ? s[k] : [];
   }
+  // Schemaversie 1 -> 2: het enkele veld 'eenheid' was de eenheid van de omvang.
+  // Alleen de veldnaam verandert; de waarde blijft gelijk.
+  n.processen = n.processen.map(migreerEenheidVelden);
+  n.procesmetingen = n.procesmetingen.map(migreerEenheidVelden);
+  n.frequentiemetingen = n.frequentiemetingen.map(migreerEenheidVelden);
   if (s.volgnummers && typeof s.volgnummers === 'object') {
     n.volgnummers.meting = { ...(s.volgnummers.meting || {}) };
     n.volgnummers.frequentie = { ...(s.volgnummers.frequentie || {}) };
   }
   return n;
+}
+
+const EENHEID_VELDEN = ['uitvoeringseenheid', 'uitvoeringseenheidMeervoud', 'omvangseenheid', 'omvangseenheidMeervoud'];
+
+function migreerEenheidVelden(record) {
+  if (!record || typeof record !== 'object') return record;
+  const r = { ...record };
+  if ('eenheid' in r) {
+    const e = typeof r.eenheid === 'string' ? r.eenheid : '';
+    if (r.omvangseenheid === undefined) r.omvangseenheid = e;
+    if (r.omvangseenheidMeervoud === undefined) r.omvangseenheidMeervoud = e;
+    delete r.eenheid;
+  }
+  for (const k of EENHEID_VELDEN) if (typeof r[k] !== 'string') r[k] = '';
+  return r;
+}
+
+/**
+ * Eenheden voor weergave bij een meting of frequentie: eerst de vastgelegde kopie,
+ * anders die van het (huidige) proces, anders een algemene omschrijving.
+ */
+function eenhedenVan(record, procesId) {
+  const p = zoekProces(procesId || (record && record.procesId));
+  const kies = (veld, standaard) => (record && record[veld]) || (p && p[veld]) || standaard;
+  return {
+    uitvoeringseenheid: kies('uitvoeringseenheid', 'uitvoering'),
+    uitvoeringseenheidMeervoud: kies('uitvoeringseenheidMeervoud', 'uitvoeringen'),
+    omvangseenheid: kies('omvangseenheid', 'omvangseenheid'),
+    omvangseenheidMeervoud: kies('omvangseenheidMeervoud', 'omvangseenheden'),
+  };
+}
+
+function eenhedenKopie(procesId) {
+  const p = zoekProces(procesId);
+  const r = {};
+  for (const k of EENHEID_VELDEN) r[k] = p ? p[k] || '' : '';
+  return r;
+}
+
+/** Metingen uit een eerdere versie waarbij het aantal uitvoeringen nooit is vastgelegd. */
+function metingenZonderAantalUitvoeringen() {
+  return staat.procesmetingen.filter((m) => !('aantalUitvoeringen' in m));
+}
+
+/** Vult op verzoek van de gebruiker aantal uitvoeringen = 1 in voor metingen uit versie 1.0.x, met herkomst. */
+function vulAantalUitvoeringenAan(metingIds) {
+  const tijd = nuIso();
+  const herkomst = `Aangevuld met 1 na overgang naar versie ${VERSIE} (definitie in versie 1.0: één procesmeting = één uitvoering); bevestigd door gebruiker op ${fmtTijdstip(tijd)}`;
+  for (const m of staat.procesmetingen) {
+    if (metingIds.includes(m.metingId) && !('aantalUitvoeringen' in m)) {
+      m.aantalUitvoeringen = 1;
+      m.aantalUitvoeringenHerkomst = herkomst;
+      m.gewijzigd = tijd;
+    }
+  }
 }
 
 const ID_PATROON = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
@@ -1094,7 +1155,13 @@ function valideerProces(invoer, origineelId) {
   else if (!ID_PATROON.test(id)) fouten.push('Een ProcesID mag alleen letters, cijfers, - en _ bevatten (geen spaties), bijvoorbeeld PR24.');
   else if (id !== origineelId && zoekProces(id)) fouten.push(`ProcesID ${id} bestaat al. Kies een andere code.`);
   if (!(invoer.naam || '').trim()) fouten.push('Vul een procesnaam in.');
-  if (!(invoer.eenheid || '').trim()) fouten.push('Vul een eenheid in, bijvoorbeeld documenten of dossiers.');
+  const eenheidLabels = {
+    uitvoeringseenheid: 'uitvoeringseenheid (enkelvoud), bijvoorbeeld dossier',
+    uitvoeringseenheidMeervoud: 'uitvoeringseenheid (meervoud), bijvoorbeeld dossiers',
+    omvangseenheid: 'omvangseenheid (enkelvoud), bijvoorbeeld dienstperiode',
+    omvangseenheidMeervoud: 'omvangseenheid (meervoud), bijvoorbeeld dienstperioden',
+  };
+  for (const k of EENHEID_VELDEN) if (!(invoer[k] || '').trim()) fouten.push(`Vul de ${eenheidLabels[k]} in.`);
   const stappen = invoer.stappen || [];
   if (stappen.length === 0) fouten.push('Een proces moet minimaal één processtap hebben.');
   const gezien = new Set();
@@ -1125,7 +1192,10 @@ function bewaarProces(invoer, origineelId) {
   const proces = {
     procesId,
     naam: invoer.naam.trim(),
-    eenheid: invoer.eenheid.trim(),
+    uitvoeringseenheid: invoer.uitvoeringseenheid.trim(),
+    uitvoeringseenheidMeervoud: invoer.uitvoeringseenheidMeervoud.trim(),
+    omvangseenheid: invoer.omvangseenheid.trim(),
+    omvangseenheidMeervoud: invoer.omvangseenheidMeervoud.trim(),
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: nuIso(),
@@ -1168,9 +1238,13 @@ function valideerMeting(meting, stapmetingen, origineelId) {
   else if (!isGeldigeDatum(meting.datum)) fouten.push('De datum is ongeldig.');
   if (!CASUSTYPEN.includes(meting.casustype)) fouten.push('Kies een casustype: Normaal of Uitzondering.');
   if (!MEETWIJZEN_METING.includes(meting.meetwijze)) fouten.push('Kies een meetwijze.');
-  if (meting.omvang !== null && !(meting.omvang > 0)) fouten.push('Omvang moet groter zijn dan nul (of leeg als die onbekend is).');
+  const e = eenhedenVan(meting);
+  if (meting.aantalUitvoeringen === null) fouten.push(`Vul het aantal ${e.uitvoeringseenheidMeervoud} in (aantal uitvoeringen in deze meting).`);
+  else if (!(meting.aantalUitvoeringen > 0)) fouten.push(`Het aantal ${e.uitvoeringseenheidMeervoud} moet groter zijn dan nul.`);
+  else if (!Number.isInteger(meting.aantalUitvoeringen)) waarschuwingen.push(`Het aantal ${e.uitvoeringseenheidMeervoud} (${fmtAantal(meting.aantalUitvoeringen)}) is geen geheel getal.`);
+  if (meting.omvang !== null && !(meting.omvang > 0)) fouten.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) moet groter zijn dan nul, of leeg als die onbekend is.`);
   if (meting.medewerkerId && /\s/.test(meting.medewerkerId.trim())) waarschuwingen.push('MedewerkerID bevat een spatie. Gebruik bij voorkeur een korte anonieme code zoals M01, geen naam.');
-  if (meting.omvang === null) waarschuwingen.push('Omvang is niet ingevuld. Tijd per eenheid wordt voor deze meting als Onbekend getoond.');
+  if (meting.omvang === null) waarschuwingen.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) is niet ingevuld. Actieve tijd per ${e.omvangseenheid} wordt voor deze meting als Onbekend getoond.`);
   if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
   for (const s of stapmetingen) {
     const label = `${s.stapId} (${s.stapnaam})`;
@@ -1187,8 +1261,12 @@ function valideerMeting(meting, stapmetingen, origineelId) {
 
 function bewaarMeting(meting, stapmetingen, origineelId) {
   const bestaand = origineelId ? zoekMeting(origineelId) : null;
+  // Herkomst van het aantal uitvoeringen blijft alleen behouden als de waarde ongewijzigd is.
+  const herkomst = bestaand && bestaand.aantalUitvoeringen === meting.aantalUitvoeringen && bestaand.aantalUitvoeringenHerkomst
+    ? bestaand.aantalUitvoeringenHerkomst : 'Ingevoerd';
   const record = {
     ...meting,
+    aantalUitvoeringenHerkomst: herkomst,
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: bestaand ? nuIso() : null,
@@ -1277,56 +1355,66 @@ function berekenMeting(m) {
   const ontbrekendWacht = stappen.filter((s) => !isGetal(s.wachttijd)).map((s) => s.stapId);
   const totaalActief = stappen.length && !ontbrekendActief.length ? som(stappen.map((s) => s.actieveTijd)) : null;
   const totaalWacht = stappen.length && !ontbrekendWacht.length ? som(stappen.map((s) => s.wachttijd)) : null;
+  const aantalBekend = isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0;
   const omvangBekend = isGetal(m.omvang) && m.omvang > 0;
+  const deel = (teller, noemerBekend, noemer) => (isGetal(teller) && noemerBekend ? teller / noemer : null);
   return {
     aantalStappen: stappen.length,
     totaalActief,
     totaalWacht,
-    actiefPerEenheid: isGetal(totaalActief) && omvangBekend ? totaalActief / m.omvang : null,
-    wachtPerEenheid: isGetal(totaalWacht) && omvangBekend ? totaalWacht / m.omvang : null,
+    // Primair: per uitvoeringseenheid (bijv. per dossier)
+    actiefPerUitvoering: deel(totaalActief, aantalBekend, m.aantalUitvoeringen),
+    wachtPerUitvoering: deel(totaalWacht, aantalBekend, m.aantalUitvoeringen),
+    // Aanvullend: per omvangseenheid (bijv. per dienstperiode)
+    actiefPerOmvang: deel(totaalActief, omvangBekend, m.omvang),
+    wachtPerOmvang: deel(totaalWacht, omvangBekend, m.omvang),
     ontbrekendActief,
     ontbrekendWacht,
+    aantalBekend,
+    aantalNietVastgelegd: !('aantalUitvoeringen' in m),
     omvangBekend,
   };
 }
 
 function redenOntbrekend(m, b, soort) {
+  const e = eenhedenVan(m);
   if (!b.aantalStappen) return 'geen stapmetingen';
-  if (soort === 'actief' && b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
-  if (soort === 'wacht' && b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
-  if (soort === 'actiefPerEenheid') {
-    if (b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
-    if (!b.omvangBekend) return 'omvang ontbreekt';
+  const tijd = soort.startsWith('actief') ? 'actief' : 'wacht';
+  if (tijd === 'actief' && b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
+  if (tijd === 'wacht' && b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
+  if (soort.endsWith('PerUitvoering') && !b.aantalBekend) {
+    return b.aantalNietVastgelegd
+      ? `aantal ${e.uitvoeringseenheidMeervoud} niet vastgelegd (meting uit versie 1.0)`
+      : `aantal ${e.uitvoeringseenheidMeervoud} ontbreekt`;
   }
-  if (soort === 'wachtPerEenheid') {
-    if (b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
-    if (!b.omvangBekend) return 'omvang ontbreekt';
-  }
+  if (soort.endsWith('PerOmvang') && !b.omvangBekend) return `omvang (aantal ${e.omvangseenheidMeervoud}) ontbreekt`;
   return 'onbekend';
 }
+
+const SAMENVATTING_SLEUTELS = ['actiefPerUitvoering', 'wachtPerUitvoering', 'actiefPerOmvang', 'wachtPerOmvang'];
 
 /** Samenvatting van één groep procesmetingen (één casustype). */
 function vatGroepSamen(metingen) {
   const rijen = metingen.map((m) => ({ m, b: berekenMeting(m) }));
-  const reeks = (sleutel) => rijen.map(({ m, b }) => ({ metingId: m.metingId, waarde: b[sleutel] }));
   const meetwijzen = {};
   for (const m of metingen) meetwijzen[m.meetwijze] = (meetwijzen[m.meetwijze] || 0) + 1;
-  return {
+  const groep = {
     aantal: metingen.length,
     metingIds: metingen.map((m) => m.metingId),
     meetwijzen,
-    actief: beschrijf(reeks('totaalActief')),
-    wacht: beschrijf(reeks('totaalWacht')),
-    actiefPerEenheid: beschrijf(reeks('actiefPerEenheid')),
-    wachtPerEenheid: beschrijf(reeks('wachtPerEenheid')),
-    uitgesloten: {
-      actief: rijen.filter(({ b }) => !isGetal(b.totaalActief)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'actief') })),
-      wacht: rijen.filter(({ b }) => !isGetal(b.totaalWacht)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'wacht') })),
-      actiefPerEenheid: rijen.filter(({ b }) => !isGetal(b.actiefPerEenheid)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'actiefPerEenheid') })),
-      wachtPerEenheid: rijen.filter(({ b }) => !isGetal(b.wachtPerEenheid)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'wachtPerEenheid') })),
+    aantalUitvoeringen: som(metingen.filter((m) => isGetal(m.aantalUitvoeringen)).map((m) => m.aantalUitvoeringen)),
+    metingenZonderAantal: metingen.filter((m) => !isGetal(m.aantalUitvoeringen)).map((m) => m.metingId),
+    uitgesloten: {},
+    eenheden: {
+      uitvoering: uniek(metingen.map((m) => eenhedenVan(m).uitvoeringseenheid)),
+      omvang: uniek(metingen.map((m) => eenhedenVan(m).omvangseenheid)),
     },
-    eenheden: uniek(metingen.map((m) => m.eenheid || '').filter(Boolean)),
   };
+  for (const k of SAMENVATTING_SLEUTELS) {
+    groep[k] = beschrijf(rijen.map(({ m, b }) => ({ metingId: m.metingId, waarde: b[k] })));
+    groep.uitgesloten[k] = rijen.filter(({ b }) => !isGetal(b[k])).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, k) }));
+  }
+  return groep;
 }
 
 /** Samenvatting per proces, afzonderlijk voor Normaal en Uitzondering. */
@@ -1341,11 +1429,14 @@ function procesSamenvatting(procesId, filters) {
   return { procesId, aantal: metingen.length, metingen, perCasustype, meetwijzen };
 }
 
-/** Resultaten per processtap voor één casustype. */
+/**
+ * Resultaten per processtap voor één casustype, uitgedrukt per uitvoering:
+ * stapwaarde / aantal uitvoeringen van de meting. Zonder bekend aantal uitvoeringen: Onbekend.
+ */
 function stapSamenvatting(procesId, filters, casustype) {
   const metingen = staat.procesmetingen.filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId }) && m.casustype === casustype);
-  const metingIds = new Set(metingen.map((m) => m.metingId));
-  const stapmetingen = staat.stapmetingen.filter((s) => metingIds.has(s.metingId));
+  const metingPerId = new Map(metingen.map((m) => [m.metingId, m]));
+  const stapmetingen = staat.stapmetingen.filter((s) => metingPerId.has(s.metingId));
   // Volgorde: eerst de huidige stappen van het proces, daarna stappen die alleen in metingen voorkomen.
   const huidige = stappenVanProces(procesId);
   const volgorde = [...huidige.map((s) => s.stapId)];
@@ -1355,12 +1446,18 @@ function stapSamenvatting(procesId, filters, casustype) {
     const vb = stapmetingen.find((s) => s.stapId === b).volgorde;
     return va - vb || vergelijkTekst(a, b);
   });
+  const perUitvoering = (s, veld) => {
+    const m = metingPerId.get(s.metingId);
+    return isGetal(s[veld]) && isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0 ? s[veld] / m.aantalUitvoeringen : null;
+  };
   return [...volgorde, ...extra].map((stapId) => {
     const huidig = huidige.find((s) => s.stapId === stapId);
     const waarnemingen = stapmetingen.filter((s) => s.stapId === stapId);
-    const actief = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: s.actieveTijd })));
-    const wacht = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: s.wachttijd })));
-    const metWacht = wacht.items.filter((i) => i.waarde > 0).length;
+    const actief = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: perUitvoering(s, 'actieveTijd') })));
+    const wacht = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: perUitvoering(s, 'wachttijd') })));
+    // Percentage met wachttijd: op basis van de ruwe stapwaarde (ook zonder bekend aantal uitvoeringen).
+    const bekendeWacht = waarnemingen.filter((s) => isGetal(s.wachttijd));
+    const metWacht = bekendeWacht.filter((s) => s.wachttijd > 0).length;
     return {
       stapId,
       naam: huidig ? huidig.naam : (waarnemingen[0] ? waarnemingen[0].stapnaam : ''),
@@ -1369,30 +1466,34 @@ function stapSamenvatting(procesId, filters, casustype) {
       actief,
       wacht,
       aantalMetWacht: metWacht,
-      percentageMetWacht: wacht.n ? (metWacht / wacht.n) * 100 : null,
+      aantalBekendeWacht: bekendeWacht.length,
+      percentageMetWacht: bekendeWacht.length ? (metWacht / bekendeWacht.length) * 100 : null,
       metingIds: waarnemingen.map((s) => s.metingId),
     };
   });
 }
 
 /**
- * Geschatte actieve tijd per meetperiode = aantal uitvoeringen × mediaan actieve tijd per uitvoering.
- * Gebruikt de mediaan van de normale gevallen. Berekent niets als invoer ontbreekt.
+ * Geschatte actieve tijd per meetperiode = aantal uitvoeringen in de meetperiode
+ * × mediaan actieve tijd per uitvoering (normale gevallen). Het totale volume
+ * (omvang) in de meetperiode wordt hierbij niet gebruikt en mag onbekend zijn.
+ * Berekent niets als invoer ontbreekt.
  */
-function berekenTijdsbelasting(frequentie, groepNormaal) {
+function berekenTijdsbelasting(frequentie, groepNormaal, procesId) {
+  const e = eenhedenVan(frequentie, procesId);
   const ontbreekt = [];
   if (!frequentie) ontbreekt.push('Er is voor dit proces geen frequentiemeting geregistreerd (tabblad Frequentie registreren).');
-  else if (!isGetal(frequentie.aantalUitvoeringen)) ontbreekt.push(`In frequentiemeting ${frequentie.frequentieId} is het aantal uitvoeringen niet ingevuld.`);
-  if (!groepNormaal || !isGetal(groepNormaal.actief.mediaan)) {
-    ontbreekt.push('Er is (binnen de gekozen filters) geen normale procesmeting met een volledig ingevulde actieve tijd, dus er is geen mediaan actieve tijd per uitvoering.');
+  else if (!isGetal(frequentie.aantalUitvoeringen)) ontbreekt.push(`In frequentiemeting ${frequentie.frequentieId} is het aantal ${e.uitvoeringseenheidMeervoud} (aantal uitvoeringen) niet ingevuld.`);
+  if (!groepNormaal || !isGetal(groepNormaal.actiefPerUitvoering.mediaan)) {
+    ontbreekt.push(`Er is (binnen de gekozen filters) geen normale procesmeting met een volledig ingevulde actieve tijd én een bekend aantal ${e.uitvoeringseenheidMeervoud}, dus er is geen mediaan actieve tijd per ${e.uitvoeringseenheid}.`);
   }
   if (ontbreekt.length) return { waarde: null, ontbreekt, frequentie };
   return {
-    waarde: frequentie.aantalUitvoeringen * groepNormaal.actief.mediaan,
+    waarde: frequentie.aantalUitvoeringen * groepNormaal.actiefPerUitvoering.mediaan,
     aantalUitvoeringen: frequentie.aantalUitvoeringen,
-    mediaan: groepNormaal.actief.mediaan,
-    metingIds: groepNormaal.actief.metingIds,
-    n: groepNormaal.actief.n,
+    mediaan: groepNormaal.actiefPerUitvoering.mediaan,
+    metingIds: groepNormaal.actiefPerUitvoering.metingIds,
+    n: groepNormaal.actiefPerUitvoering.n,
     frequentie,
     ontbreekt: [],
   };
@@ -1835,38 +1936,38 @@ function grafiekNaarPng(gegevens, bestandsnaam) {
 function maakDemogegevens() {
   const tijd = nuIso();
   const processen = [
-    { procesId: 'DEMO-PR01', naam: 'Inkomende facturen verwerken (demo)', eenheid: 'facturen' },
-    { procesId: 'DEMO-PR02', naam: 'Adreswijziging verwerken (demo)', eenheid: 'dossiers' },
+    { procesId: 'DEMO-PR01', naam: 'Dossier herberekenen (demo)', uitvoeringseenheid: 'dossier', uitvoeringseenheidMeervoud: 'dossiers', omvangseenheid: 'dienstperiode', omvangseenheidMeervoud: 'dienstperioden' },
+    { procesId: 'DEMO-PR02', naam: 'Adreswijziging verwerken (demo)', uitvoeringseenheid: 'aanvraag', uitvoeringseenheidMeervoud: 'aanvragen', omvangseenheid: 'mutatie', omvangseenheidMeervoud: 'mutaties' },
   ];
   const stappen = [
-    ['DEMO-PR01', 1, 'Factuur registreren'],
-    ['DEMO-PR01', 2, 'Controleren en coderen'],
-    ['DEMO-PR01', 3, 'Goedkeuren en betaalbaar stellen'],
+    ['DEMO-PR01', 1, 'Dossier openen en controleren'],
+    ['DEMO-PR01', 2, 'Dienstperioden beoordelen'],
+    ['DEMO-PR01', 3, 'Besluit vastleggen'],
     ['DEMO-PR02', 1, 'Wijziging ontvangen en controleren'],
     ['DEMO-PR02', 2, 'Gegevens aanpassen in systeem'],
     ['DEMO-PR02', 3, 'Bevestiging versturen'],
   ].map(([procesId, volgorde, naam]) => ({ stapId: `${procesId}-S0${volgorde}`, procesId, volgorde, naam, demo: true }));
 
-  // [procesId, nr, datum, medewerker, casustype, omvang, meetwijze, [[actief, wacht, reden, opmerking], ...]]
+  // [procesId, nr, datum, medewerker, casustype, aantal uitvoeringen, omvang, meetwijze, [[actief, wacht, reden, opmerking], ...]]
   const metingen = [
-    ['DEMO-PR01', 1, '2026-03-02', 'M01', 'Normaal', 10, 'Gemeten', [[6, 0], [12.5, 0], [4, 0]]],
-    ['DEMO-PR01', 2, '2026-03-03', 'M02', 'Normaal', 8, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie budgethouder'], [3.5, 0]]],
-    ['DEMO-PR01', 3, '2026-03-04', 'M01', 'Normaal', 12, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Betaalsysteem traag']]],
-    ['DEMO-PR01', 4, '2026-03-05', 'M03', 'Normaal', 9, 'Geschat door medewerker', [[6, 0], [11, 0], [4, 0]]],
-    ['DEMO-PR01', 5, '2026-03-09', 'M02', 'Uitzondering', 1, 'Gemeten', [[4, 0], [25, 120, 'Ontbrekende inkoopordernummer opgevraagd'], [6, 0]]],
-    ['DEMO-PR01', 6, '2026-03-10', 'M03', 'Uitzondering', 2, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij leverancier'], [5, 0, '', 'Creditnota']]],
-    ['DEMO-PR02', 1, '2026-03-02', 'M04', 'Normaal', 5, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
-    ['DEMO-PR02', 2, '2026-03-06', 'M04', 'Normaal', 4, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
+    ['DEMO-PR01', 1, '2026-03-02', 'M01', 'Normaal', 1, 4, 'Gemeten', [[6, 0], [12.5, 0], [4, 0]]],
+    ['DEMO-PR01', 2, '2026-03-03', 'M02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever'], [3.5, 0]]],
+    ['DEMO-PR01', 3, '2026-03-04', 'M01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag']]],
+    ['DEMO-PR01', 4, '2026-03-05', 'M03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
+    ['DEMO-PR01', 5, '2026-03-09', 'M02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0], [25, 120, 'Ontbrekende loongegevens opgevraagd'], [6, 0]]],
+    ['DEMO-PR01', 6, '2026-03-10', 'M03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
+    ['DEMO-PR02', 1, '2026-03-02', 'M04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
+    ['DEMO-PR02', 2, '2026-03-06', 'M04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
   ];
 
   const procesmetingen = [];
   const stapmetingen = [];
-  for (const [procesId, nr, datum, medewerkerId, casustype, omvang, meetwijze, rijen] of metingen) {
+  for (const [procesId, nr, datum, medewerkerId, casustype, aantalUitvoeringen, omvang, meetwijze, rijen] of metingen) {
     const metingId = `M-${procesId}-${String(nr).padStart(3, '0')}`;
     const proces = processen.find((p) => p.procesId === procesId);
     procesmetingen.push({
-      metingId, datum, procesId, procesnaam: proces.naam, medewerkerId, casustype, omvang,
-      eenheid: proces.eenheid, meetwijze, toelichting: 'Fictieve demometing', demo: true, aangemaakt: tijd, gewijzigd: null,
+      metingId, datum, procesId, procesnaam: proces.naam, medewerkerId, casustype, aantalUitvoeringen, aantalUitvoeringenHerkomst: 'Ingevoerd', omvang,
+      ...eenhedenUit(proces), meetwijze, toelichting: 'Fictieve demometing', demo: true, aangemaakt: tijd, gewijzigd: null,
     });
     const procesStappen = stappen.filter((s) => s.procesId === procesId);
     rijen.forEach(([actief, wacht, reden, opmerking], i) => {
@@ -1879,9 +1980,9 @@ function maakDemogegevens() {
   }
 
   const frequentiemetingen = [
-    { frequentieId: 'F-DEMO-PR01-001', procesId: 'DEMO-PR01', meetperiode: 'maart 2026', aantalUitvoeringen: 140, totaalVolume: 1420, eenheid: 'facturen', meetwijze: 'Uit systeemgegevens', bron: 'Fictief: rapport crediteurenadministratie' },
-    { frequentieId: 'F-DEMO-PR02-001', procesId: 'DEMO-PR02', meetperiode: 'week 10 2026', aantalUitvoeringen: 35, totaalVolume: null, eenheid: 'dossiers', meetwijze: 'Geschat door medewerker', bron: 'Fictief: inschatting teamleider' },
-  ].map((f) => ({ ...f, demo: true, aangemaakt: tijd, gewijzigd: null }));
+    { frequentieId: 'F-DEMO-PR01-001', procesId: 'DEMO-PR01', meetperiode: 'maart 2026', aantalUitvoeringen: 140, totaalVolume: null, meetwijze: 'Uit systeemgegevens', bron: 'Fictief: rapport uit zaaksysteem; aantal dienstperioden onbekend' },
+    { frequentieId: 'F-DEMO-PR02-001', procesId: 'DEMO-PR02', meetperiode: 'week 10 2026', aantalUitvoeringen: 35, totaalVolume: 41, meetwijze: 'Geschat door medewerker', bron: 'Fictief: inschatting teamleider' },
+  ].map((f) => ({ ...f, ...eenhedenUit(processen.find((p) => p.procesId === f.procesId)), demo: true, aangemaakt: tijd, gewijzigd: null }));
 
   return {
     processen: processen.map((p) => ({ ...p, demo: true, aangemaakt: tijd, gewijzigd: tijd })),
@@ -1890,6 +1991,10 @@ function maakDemogegevens() {
     stapmetingen,
     frequentiemetingen,
   };
+}
+
+function eenhedenUit(proces) {
+  return Object.fromEntries(EENHEID_VELDEN.map((k) => [k, proces[k]]));
 }
 
 /** Voegt demogegevens toe zonder bestaande (echte) gegevens te wijzigen. */
@@ -2011,6 +2116,42 @@ function demoLabel(record) {
   return record && record.demo ? '<span class="demolabel">DEMO</span>' : '';
 }
 
+/** Getal met de juiste eenheid, bijv. "1 dossier" of "7 dienstperioden". soort: 'uitvoering' | 'omvang'. */
+function fmtMetEenheid(n, e, soort) {
+  if (!isGetal(n)) return ONBEKEND;
+  const enk = soort === 'uitvoering' ? e.uitvoeringseenheid : e.omvangseenheid;
+  const mv = soort === 'uitvoering' ? e.uitvoeringseenheidMeervoud : e.omvangseenheidMeervoud;
+  return `${fmtAantal(n)} ${n === 1 ? enk : mv}`;
+}
+
+function htmlMetEenheid(n, e, soort) {
+  return isGetal(n) ? esc(fmtMetEenheid(n, e, soort)) : `<span class="onbekend">${ONBEKEND}</span>`;
+}
+
+/** Melding voor metingen uit versie 1.0 zonder vastgelegd aantal uitvoeringen (optioneel beperkt tot één proces). */
+function legacyMeldingHtml(procesId) {
+  const lijst = metingenZonderAantalUitvoeringen().filter((m) => !procesId || m.procesId === procesId);
+  if (!lijst.length) return '';
+  return `<div class="melding waarschuwing"><strong>${lijst.length} meting(en) zonder vastgelegd aantal uitvoeringen.</strong>
+    Deze metingen zijn vastgelegd met versie 1.0, waarin één procesmeting als één uitvoering gold maar het aantal niet werd opgeslagen.
+    Hun tijd per uitvoering is daarom Onbekend en telt niet mee in de primaire uitkomst. U kunt het aantal per meting aanpassen, of voor al deze metingen in één keer 1 vastleggen.
+    <div class="knoppen" style="margin-top:8px"><button type="button" class="klein" data-actie="aantal-aanvullen" data-proces="${esc(procesId || '')}">Aantal uitvoeringen aanvullen…</button></div></div>`;
+}
+
+async function vulAantalUitvoeringenAanMetBevestiging(procesId) {
+  const lijst = metingenZonderAantalUitvoeringen().filter((m) => !procesId || m.procesId === procesId);
+  if (!lijst.length) return;
+  const ok = await bevestig('Aantal uitvoeringen aanvullen',
+    `<p>Voor de volgende ${lijst.length} meting(en) wordt het aantal uitvoeringen op <strong>1</strong> gezet:</p>
+     <p class="mono klein">${esc(lijst.map((m) => m.metingId).join(', '))}</p>
+     <div class="melding info">Dit volgt de definitie van versie 1.0 (één procesmeting = één uitvoering). Per meting wordt vastgelegd dat dit aantal is aangevuld, door wie (de gebruiker) en wanneer. Deze herkomst staat ook in de exports.</div>
+     <p>Klopt dit niet voor een meting (bijvoorbeeld omdat er meerdere ${esc(eenhedenVan(lijst[0]).uitvoeringseenheidMeervoud)} in één meting zaten)? Annuleer dan en pas die meting afzonderlijk aan.</p>`,
+    'Aantal = 1 vastleggen');
+  if (!ok) return;
+  vulAantalUitvoeringenAan(lijst.map((m) => m.metingId));
+  await naWijziging(`Aantal uitvoeringen aangevuld voor ${lijst.length} meting(en).`);
+}
+
 function meetwijzeHtml(meetwijze) {
   if (!meetwijze) return htmlTekst(meetwijze);
   return /geschat/i.test(meetwijze) ? `<span class="schatting">${esc(meetwijze)}</span>` : esc(meetwijze);
@@ -2079,7 +2220,7 @@ function bestandsnaamMetDemo(basis, extensie) {
 // ===== ui-processen.js =====
 // ---------- 1. Processen beheren ----------
 
-let procesBewerking = null; // { origineelId, procesId, naam, eenheid, stappen: [{ stapId, volgorde, naam, bestaand, auto }] }
+let procesBewerking = null; // { origineelId, procesId, naam, ...EENHEID_VELDEN, stappen: [{ stapId, volgorde, naam, bestaand, auto }] }
 
 function voorgesteldeStapId(procesId, nummer) {
   return procesId ? `${procesId}-S${String(nummer).padStart(2, '0')}` : '';
@@ -2098,7 +2239,8 @@ function renderProcessenLijst() {
     return `<tr>
       <td><strong>${esc(p.procesId)}</strong>${demoLabel(p)}</td>
       <td>${esc(p.naam)}</td>
-      <td>${esc(p.eenheid)}</td>
+      <td>${esc(p.uitvoeringseenheid || '—')}</td>
+      <td>${esc(p.omvangseenheid || '—')}</td>
       <td class="klein">${stappen.map((s) => `${esc(s.volgorde)}. ${esc(s.naam)} <span class="zacht mono">(${esc(s.stapId)})</span>`).join('<br>')}</td>
       <td class="getal">${aantalMetingen}</td>
       <td class="getal">${aantalFreq}</td>
@@ -2109,7 +2251,7 @@ function renderProcessenLijst() {
     </tr>`;
   }).join('');
   houder.innerHTML = `<table>
-    <thead><tr><th>ProcesID</th><th>Procesnaam</th><th>Eenheid</th><th>Processtappen</th><th class="getal">Metingen</th><th class="getal">Frequenties</th><th></th></tr></thead>
+    <thead><tr><th>ProcesID</th><th>Procesnaam</th><th>Uitvoeringseenheid</th><th>Omvangseenheid</th><th>Processtappen</th><th class="getal">Metingen</th><th class="getal">Frequenties</th><th></th></tr></thead>
     <tbody>${rijen}</tbody></table>`;
 }
 
@@ -2120,11 +2262,11 @@ function startProcesBewerking(procesId) {
       origineelId: p.procesId,
       procesId: p.procesId,
       naam: p.naam,
-      eenheid: p.eenheid,
+      ...Object.fromEntries(EENHEID_VELDEN.map((k) => [k, p[k] || ''])),
       stappen: stappenVanProces(p.procesId).map((s) => ({ stapId: s.stapId, volgorde: String(s.volgorde), naam: s.naam, bestaand: true, auto: false })),
     };
   } else {
-    procesBewerking = { origineelId: null, procesId: '', naam: '', eenheid: '', stappen: [] };
+    procesBewerking = { origineelId: null, procesId: '', naam: '', uitvoeringseenheid: '', uitvoeringseenheidMeervoud: '', omvangseenheid: '', omvangseenheidMeervoud: '', stappen: [] };
     voegStapToe();
   }
   renderProcesEditor();
@@ -2166,11 +2308,31 @@ function renderProcesEditor(fouten = []) {
         <label for="peNaam" class="verplicht">Procesnaam</label>
         <input type="text" id="peNaam" value="${esc(b.naam)}" placeholder="bijv. Facturen verwerken">
       </div>
+    </div>
+    <h4>Eenheden</h4>
+    <p class="klein zacht" style="margin-top:0">De <strong>uitvoeringseenheid</strong> is wat één uitvoering van het proces is (bijvoorbeeld één dossier). De actieve tijd per uitvoeringseenheid is de primaire uitkomst.
+      De <strong>omvangseenheid</strong> is waarin de omvang van een uitvoering wordt uitgedrukt (bijvoorbeeld het aantal relevante dienstperioden); dit geeft een aanvullende uitkomst.</p>
+    ${b.origineelId && EENHEID_VELDEN.some((k) => !b[k]) ? '<div class="melding waarschuwing">Dit proces is vastgelegd met een eerdere versie van de tool, die maar één eenheid kende (nu de omvangseenheid). Vul de ontbrekende eenheden aan.</div>' : ''}
+    <div class="velden">
       <div class="veld">
-        <label for="peEenheid" class="verplicht">Eenheid</label>
-        <input type="text" id="peEenheid" value="${esc(b.eenheid)}" list="eenhedenLijst" placeholder="bijv. documenten">
+        <label for="peUitvoering" class="verplicht">Uitvoeringseenheid (enkelvoud)</label>
+        <input type="text" id="peUitvoering" data-eenheidveld="uitvoeringseenheid" value="${esc(b.uitvoeringseenheid)}" placeholder="bijv. dossier">
+        <span class="hint">Eén uitvoering = één …</span>
+      </div>
+      <div class="veld">
+        <label for="peUitvoeringMv" class="verplicht">Uitvoeringseenheid (meervoud)</label>
+        <input type="text" id="peUitvoeringMv" data-eenheidveld="uitvoeringseenheidMeervoud" value="${esc(b.uitvoeringseenheidMeervoud)}" placeholder="bijv. dossiers">
+      </div>
+      <div class="veld">
+        <label for="peOmvang" class="verplicht">Omvangseenheid (enkelvoud)</label>
+        <input type="text" id="peOmvang" data-eenheidveld="omvangseenheid" value="${esc(b.omvangseenheid)}" placeholder="bijv. dienstperiode">
+      </div>
+      <div class="veld">
+        <label for="peOmvangMv" class="verplicht">Omvangseenheid (meervoud)</label>
+        <input type="text" id="peOmvangMv" data-eenheidveld="omvangseenheidMeervoud" value="${esc(b.omvangseenheidMeervoud)}" placeholder="bijv. dienstperioden">
       </div>
     </div>
+    ${b.origineelId && staat.procesmetingen.some((m) => m.procesId === b.origineelId) ? '<p class="klein zacht">Bestaande metingen behouden de eenheden die bij het meten zijn vastgelegd. Alleen metingen zonder vastgelegde eenheid (uit een eerdere versie) tonen de eenheden van het proces.</p>' : ''}
     <h4>Processtappen</h4>
     <div class="tabelhouder">
       <table>
@@ -2202,7 +2364,7 @@ function verwerkProcesEditorInvoer(e) {
     });
     b.procesId = nieuw;
   } else if (t.id === 'peNaam') b.naam = t.value;
-  else if (t.id === 'peEenheid') b.eenheid = t.value;
+  else if (t.dataset.eenheidveld) b[t.dataset.eenheidveld] = t.value;
   else if (t.dataset.stapveld) {
     const i = Number(t.closest('tr').dataset.index);
     const s = b.stappen[i];
@@ -2213,7 +2375,7 @@ function verwerkProcesEditorInvoer(e) {
 
 async function slaProcesOp() {
   const b = procesBewerking;
-  const invoer = { procesId: b.procesId.trim(), naam: b.naam, eenheid: b.eenheid, stappen: b.stappen };
+  const invoer = { procesId: b.procesId.trim(), naam: b.naam, ...Object.fromEntries(EENHEID_VELDEN.map((k) => [k, b[k]])), stappen: b.stappen };
   const fouten = valideerProces(invoer, b.origineelId);
   if (!b.origineelId && /^demo-/i.test(invoer.procesId)) fouten.push('ProcesID\'s die beginnen met "DEMO-" zijn gereserveerd voor demogegevens.');
   if (fouten.length) { renderProcesEditor(fouten); return; }
@@ -2251,12 +2413,13 @@ async function verwijderProcesMetBevestiging(procesId) {
 
 // ---------- CSV voor processen ----------
 
-const PROCES_CSV_KOPPEN = ['ProcesID', 'Procesnaam', 'Eenheid', 'StapID', 'Volgorde', 'Processtap'];
+const PROCES_CSV_KOPPEN = ['ProcesID', 'Procesnaam', 'Uitvoeringseenheid', 'Uitvoeringseenheid meervoud', 'Omvangseenheid', 'Omvangseenheid meervoud', 'StapID', 'Volgorde', 'Processtap'];
+const PROCES_CSV_EENHEDEN = [['Uitvoeringseenheid', 'uitvoeringseenheid'], ['Uitvoeringseenheid meervoud', 'uitvoeringseenheidMeervoud'], ['Omvangseenheid', 'omvangseenheid'], ['Omvangseenheid meervoud', 'omvangseenheidMeervoud']];
 
 function exporteerProcessenCsv() {
   const rijen = [];
   for (const p of staat.processen) {
-    for (const s of stappenVanProces(p.procesId)) rijen.push([p.procesId, p.naam, p.eenheid, s.stapId, s.volgorde, s.naam]);
+    for (const s of stappenVanProces(p.procesId)) rijen.push([p.procesId, p.naam, p.uitvoeringseenheid, p.uitvoeringseenheidMeervoud, p.omvangseenheid, p.omvangseenheidMeervoud, s.stapId, s.volgorde, s.naam]);
   }
   const voor = bevatDemo() && staat.processen.some((p) => p.demo) ? ['LET OP: dit bestand bevat demogegevens (processen met ProcesID DEMO-...).'] : [];
   downloadTekst(maakCsv(PROCES_CSV_KOPPEN, rijen, voor), bestandsnaamMetDemo('Meettool_processen', 'csv'), 'text/csv;charset=utf-8');
@@ -2280,7 +2443,7 @@ async function importeerProcessenCsv(bestand) {
   const kolom = (naam) => kop.indexOf(naam.toLowerCase());
   const ontbrekend = PROCES_CSV_KOPPEN.filter((k) => kolom(k) < 0);
   if (ontbrekend.length) {
-    await informeer('Import niet mogelijk', `<div class="melding fout">De volgende kolommen ontbreken: ${esc(ontbrekend.join(', '))}.<br>Verwachte kolommen: <span class="mono">${PROCES_CSV_KOPPEN.join(';')}</span></div>`);
+    await informeer('Import niet mogelijk', `<div class="melding fout">De volgende kolommen ontbreken: ${esc(ontbrekend.join(', '))}.${kolom('Eenheid') >= 0 ? '<br>Dit lijkt een bestand uit versie 1.0 met één kolom Eenheid. Vanaf versie 1.1 heeft ieder proces een uitvoeringseenheid en een omvangseenheid.' : ''}<br>Verwachte kolommen: <span class="mono">${PROCES_CSV_KOPPEN.join(';')}</span></div>`);
     return;
   }
   const perProces = new Map();
@@ -2289,9 +2452,10 @@ async function importeerProcessenCsv(bestand) {
     const waarde = (k) => (r[kolom(k)] || '').trim();
     const pid = waarde('ProcesID');
     if (!pid) { fouten.push(`Regel ${kopIndex + i + 2}: ProcesID ontbreekt.`); return; }
-    if (!perProces.has(pid)) perProces.set(pid, { procesId: pid, naam: waarde('Procesnaam'), eenheid: waarde('Eenheid'), stappen: [] });
+    const eenheden = Object.fromEntries(PROCES_CSV_EENHEDEN.map(([kop, veld]) => [veld, waarde(kop)]));
+    if (!perProces.has(pid)) perProces.set(pid, { procesId: pid, naam: waarde('Procesnaam'), ...eenheden, stappen: [] });
     const p = perProces.get(pid);
-    if (p.naam !== waarde('Procesnaam') || p.eenheid !== waarde('Eenheid')) fouten.push(`Regel ${kopIndex + i + 2}: procesnaam of eenheid van ${pid} verschilt van een eerdere regel.`);
+    if (p.naam !== waarde('Procesnaam') || EENHEID_VELDEN.some((k) => p[k] !== eenheden[k])) fouten.push(`Regel ${kopIndex + i + 2}: procesnaam of eenheden van ${pid} verschillen van een eerdere regel.`);
     p.stappen.push({ stapId: waarde('StapID'), volgorde: waarde('Volgorde'), naam: waarde('Processtap') });
   });
   const nieuw = [];
@@ -2331,6 +2495,8 @@ async function importeerProcessenCsv(bestand) {
 let metingBewerkId = null;
 // Stappen in het formulier: [{ stapId, volgorde, stapnaam, tijdvastlegging }]
 let formulierStappen = [];
+// Eenheden van de meting in het formulier (kopie van het proces, of van de bestaande meting bij aanpassen)
+let formulierEenheden = eenhedenKopieLeeg();
 // Timers per StapID: { status: 'gereed'|'actief'|'wacht'|'afgerond', actiefMs, wachtMs, sinds }
 let timers = {};
 let timerInterval = null;
@@ -2345,7 +2511,12 @@ function vulMetingProcesKeuze() {
     formulierStappen = [];
     renderMetingStappen();
   }
-  if (!metingBewerkId) werkMetingIdBij();
+  if (!metingBewerkId) {
+    werkMetingIdBij();
+    // Eenheden volgen het (mogelijk zojuist aangepaste) proces.
+    formulierEenheden = select.value ? eenhedenKopie(select.value) : eenhedenKopieLeeg();
+    werkEenheidLabelsBij();
+  }
 }
 
 function werkMetingIdBij() {
@@ -2360,7 +2531,8 @@ function initMetingFormulier() {
 
   $('#mProces').addEventListener('change', () => {
     const p = zoekProces($('#mProces').value);
-    $('#mEenheid').value = p ? p.eenheid : '';
+    formulierEenheden = p ? eenhedenKopie(p.procesId) : eenhedenKopieLeeg();
+    werkEenheidLabelsBij();
     laadProcesStappenInFormulier(p ? p.procesId : null);
     werkMetingIdBij();
   });
@@ -2445,8 +2617,12 @@ function werkRedenZichtbaarheidBij(rij) {
 /** Leest het formulier uit. Geeft { meting, stapmetingen, invoerFouten }. */
 function leesMetingFormulier() {
   const invoerFouten = [];
+  const e = eenhedenVan(formulierEenheden, metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value);
+  const aantal = leesGetal($('#mAantal').value);
+  if (aantal.fout) invoerFouten.push(`Aantal ${e.uitvoeringseenheidMeervoud}: ` + aantal.fout);
+  $('#mAantal').classList.toggle('ongeldig', !!aantal.fout || (isGetal(aantal.waarde) && aantal.waarde <= 0));
   const omvang = leesGetal($('#mOmvang').value);
-  if (omvang.fout) invoerFouten.push('Omvang: ' + omvang.fout);
+  if (omvang.fout) invoerFouten.push(`Omvang (aantal ${e.omvangseenheidMeervoud}): ` + omvang.fout);
   $('#mOmvang').classList.toggle('ongeldig', !!omvang.fout || (isGetal(omvang.waarde) && omvang.waarde <= 0));
   const casus = $('input[name="casustype"]:checked');
   const pid = metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
@@ -2457,8 +2633,9 @@ function leesMetingFormulier() {
     procesnaam: metingBewerkId ? zoekMeting(metingBewerkId).procesnaam : procesNaam(pid),
     medewerkerId: $('#mMedewerker').value.trim(),
     casustype: casus ? casus.value : '',
+    aantalUitvoeringen: aantal.fout ? NaN : aantal.waarde,
     omvang: omvang.fout ? NaN : omvang.waarde,
-    eenheid: $('#mEenheid').value.trim(),
+    ...formulierEenheden,
     meetwijze: $('#mMeetwijze').value,
     toelichting: $('#mToelichting').value.trim(),
   };
@@ -2499,16 +2676,18 @@ function werkBerekeningBij() {
   const totaalActief = actief.every(isGetal) ? som(actief) : null;
   const totaalWacht = wacht.every(isGetal) ? som(wacht) : null;
   const omvangOk = isGetal(meting.omvang) && meting.omvang > 0;
-  const eenheid = meting.eenheid || 'eenheid';
-  const enkelvoud = eenheid;
+  const aantalOk = isGetal(meting.aantalUitvoeringen) && meting.aantalUitvoeringen > 0;
+  const e = eenhedenVan(meting);
+  const deel = (t, ok, n) => (ok && isGetal(t) ? t / n : null);
   houder.innerHTML = `<span class="etiket berekend">Automatisch berekend (voorbeeld, wordt niet als invoer opgeslagen)</span>
     <div class="velden">
       <div><div class="klein">Totale actieve tijd</div><strong>${htmlGetal(totaalActief, 2, ' min')}</strong></div>
       <div><div class="klein">Totale wachttijd</div><strong>${htmlGetal(totaalWacht, 2, ' min')}</strong></div>
-      <div><div class="klein">Actieve tijd per eenheid</div><strong>${htmlGetal(omvangOk ? (isGetal(totaalActief) ? totaalActief / meting.omvang : null) : null, 2, ' min per ' + enkelvoud)}</strong></div>
-      <div><div class="klein">Wachttijd per eenheid</div><strong>${htmlGetal(omvangOk ? (isGetal(totaalWacht) ? totaalWacht / meting.omvang : null) : null, 2, ' min per ' + enkelvoud)}</strong></div>
+      <div><div class="klein"><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</div><strong>${htmlGetal(deel(totaalActief, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
+      <div><div class="klein">Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</div><strong>${htmlGetal(deel(totaalActief, omvangOk, meting.omvang), 2, ' min')}</strong></div>
+      <div><div class="klein">Wachttijd per ${esc(e.uitvoeringseenheid)}</div><strong>${htmlGetal(deel(totaalWacht, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
     </div>
-    ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
+    ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
 }
 
 async function slaMetingOp() {
@@ -2546,14 +2725,15 @@ function resetMetingFormulier(behoudAlgemeen) {
     $('#mProces').value = '';
     $('#mMedewerker').value = '';
     $('#mMeetwijze').value = '';
-    $('#mEenheid').value = '';
   }
   $$('input[name="casustype"]').forEach((r) => { r.checked = false; });
+  $('#mAantal').value = '';
   $('#mOmvang').value = '';
   $('#mToelichting').value = '';
   vulMetingProcesKeuze();
   const p = zoekProces($('#mProces').value);
-  if (p && !$('#mEenheid').value) $('#mEenheid').value = p.eenheid;
+  formulierEenheden = p ? eenhedenKopie(p.procesId) : eenhedenKopieLeeg();
+  werkEenheidLabelsBij();
   laadProcesStappenInFormulier(p ? p.procesId : null);
   werkMetingIdBij();
 }
@@ -2572,8 +2752,15 @@ function bewerkMeting(metingId) {
   $('#mDatum').value = m.datum || '';
   $('#mMedewerker').value = m.medewerkerId || '';
   $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === m.casustype; });
+  $('#mAantal').value = 'aantalUitvoeringen' in m ? naarInvoer(m.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(m.omvang);
-  $('#mEenheid').value = m.eenheid || '';
+  // Vastgelegde eenheden van de meting; ontbrekende (meting uit versie 1.0) aangevuld vanuit het proces.
+  const kopie = eenhedenKopie(m.procesId);
+  formulierEenheden = Object.fromEntries(EENHEID_VELDEN.map((k) => [k, m[k] || kopie[k] || '']));
+  werkEenheidLabelsBij();
+  if (!('aantalUitvoeringen' in m)) {
+    $('#metingBewerkMelding').innerHTML += `<div class="melding info">Deze meting is vastgelegd met versie 1.0. Toen was één procesmeting één uitvoering en werd het aantal ${esc(eenhedenVan(m).uitvoeringseenheidMeervoud)} niet apart vastgelegd. Vul het aantal nu zelf in.</div>`;
+  }
   $('#mMeetwijze').value = m.meetwijze || '';
   $('#mToelichting').value = m.toelichting || '';
   const sm = stapmetingenVan(metingId);
@@ -2670,10 +2857,32 @@ function regelTimerInterval() {
   }
 }
 
+function eenhedenKopieLeeg() {
+  return Object.fromEntries(EENHEID_VELDEN.map((k) => [k, '']));
+}
+
+/** Zet de labels van aantal en omvang in het formulier op de eenheden van het proces. */
+function werkEenheidLabelsBij() {
+  const pid = metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
+  if (!pid) {
+    $('#mAantalLabel').textContent = 'Aantal uitvoeringen';
+    $('#mAantalHint').textContent = 'Kies eerst een proces; de eenheden volgen uit het proces.';
+    $('#mOmvangLabel').textContent = 'Omvang';
+    $('#mOmvangHint').textContent = 'Positief getal. Leeg laten als onbekend.';
+    return;
+  }
+  const e = eenhedenVan(formulierEenheden, pid);
+  $('#mAantalLabel').textContent = `Aantal ${e.uitvoeringseenheidMeervoud} (uitvoeringen)`;
+  $('#mAantalHint').textContent = `Uitvoeringseenheid: ${e.uitvoeringseenheid}. Eén uitvoering = één ${e.uitvoeringseenheid}.`;
+  $('#mOmvangLabel').textContent = `Omvang: aantal ${e.omvangseenheidMeervoud}`;
+  $('#mOmvangHint').textContent = `Omvangseenheid: ${e.omvangseenheid}. Positief getal; leeg laten als onbekend.`;
+}
+
 // ===== ui-frequentie.js =====
 // ---------- 3. Frequentie registreren ----------
 
 let frequentieBewerkId = null;
+let frequentieEenheden = null; // kopie van de eenheden van het proces (of van de bestaande frequentiemeting)
 
 function vulFrequentieProcesKeuze() {
   const select = $('#fProces');
@@ -2681,6 +2890,8 @@ function vulFrequentieProcesKeuze() {
   const huidig = select.value;
   vulSelect(select, staat.processen.map((p) => ({ waarde: p.procesId, label: `${p.procesId} – ${p.naam}${p.demo ? ' [DEMO]' : ''}` })), huidig, staat.processen.length ? '— Kies een proces —' : '— Leg eerst een proces vast (tabblad 1) —');
   werkFrequentieIdBij();
+  frequentieEenheden = select.value ? eenhedenKopie(select.value) : null;
+  werkFrequentieLabelsBij();
 }
 
 function werkFrequentieIdBij() {
@@ -2693,7 +2904,8 @@ function initFrequentieFormulier() {
   vulFrequentieProcesKeuze();
   $('#fProces').addEventListener('change', () => {
     const p = zoekProces($('#fProces').value);
-    $('#fEenheid').value = p ? p.eenheid : '';
+    frequentieEenheden = p ? eenhedenKopie(p.procesId) : null;
+    werkFrequentieLabelsBij();
     werkFrequentieIdBij();
   });
   $('#frequentieFormulier').addEventListener('submit', (e) => { e.preventDefault(); slaFrequentieOp(); });
@@ -2703,8 +2915,9 @@ async function slaFrequentieOp() {
   const fouten = [];
   const aantal = leesGetal($('#fAantal').value);
   const volume = leesGetal($('#fVolume').value);
-  if (aantal.fout) fouten.push('Aantal uitvoeringen: ' + aantal.fout);
-  if (volume.fout) fouten.push('Totaal volume: ' + volume.fout);
+  const e = eenhedenVan(frequentieEenheden, frequentieBewerkId ? zoekFrequentie(frequentieBewerkId).procesId : $('#fProces').value);
+  if (aantal.fout) fouten.push(`Aantal ${e.uitvoeringseenheidMeervoud}: ` + aantal.fout);
+  if (volume.fout) fouten.push(`Totale omvang (aantal ${e.omvangseenheidMeervoud}): ` + volume.fout);
   $('#fAantal').classList.toggle('ongeldig', !!aantal.fout);
   $('#fVolume').classList.toggle('ongeldig', !!volume.fout);
   const f = {
@@ -2713,7 +2926,7 @@ async function slaFrequentieOp() {
     meetperiode: $('#fPeriode').value.trim(),
     aantalUitvoeringen: aantal.fout ? NaN : aantal.waarde,
     totaalVolume: volume.fout ? NaN : volume.waarde,
-    eenheid: $('#fEenheid').value.trim(),
+    ...(frequentieEenheden || eenhedenKopie(null)),
     meetwijze: $('#fMeetwijze').value,
     bron: $('#fBron').value.trim(),
   };
@@ -2742,7 +2955,8 @@ function resetFrequentieFormulier() {
   $('#fMeetwijze').value = '';
   vulFrequentieProcesKeuze();
   const p = zoekProces($('#fProces').value);
-  $('#fEenheid').value = p ? p.eenheid : '';
+  frequentieEenheden = p ? eenhedenKopie(p.procesId) : null;
+  werkFrequentieLabelsBij();
 }
 
 function bewerkFrequentie(frequentieId) {
@@ -2757,7 +2971,9 @@ function bewerkFrequentie(frequentieId) {
   $('#fPeriode').value = f.meetperiode || '';
   $('#fAantal').value = naarInvoer(f.aantalUitvoeringen);
   $('#fVolume').value = naarInvoer(f.totaalVolume);
-  $('#fEenheid').value = f.eenheid || '';
+  const kopie = eenhedenKopie(f.procesId);
+  frequentieEenheden = Object.fromEntries(EENHEID_VELDEN.map((k) => [k, f[k] || kopie[k] || '']));
+  werkFrequentieLabelsBij();
   $('#fMeetwijze').value = f.meetwijze || '';
   $('#fBron').value = f.bron || '';
   $('#fAnnuleren').textContent = 'Aanpassen annuleren';
@@ -2768,11 +2984,25 @@ function bewerkFrequentie(frequentieId) {
 function renderFrequentieRecent() {
   const lijst = [...staat.frequentiemetingen].sort((a, b) => String(b.aangemaakt || '').localeCompare(String(a.aangemaakt || ''))).slice(0, 8);
   $('#frequentieRecent').innerHTML = lijst.length
-    ? `<table><thead><tr><th>FrequentieID</th><th>Proces</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totaal volume</th><th>Meetwijze</th></tr></thead><tbody>
+    ? `<table><thead><tr><th>FrequentieID</th><th>Proces</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th></tr></thead><tbody>
       ${lijst.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}${demoLabel(f)}</td><td>${esc(procesLabel(f.procesId))}</td><td>${htmlTekst(f.meetperiode)}</td>
-        <td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(f.totaalVolume)} ${esc(f.eenheid || '')}</td><td>${meetwijzeHtml(f.meetwijze)}</td></tr>`).join('')}
+        <td class="getal">${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</td><td>${meetwijzeHtml(f.meetwijze)}</td></tr>`).join('')}
       </tbody></table><p class="klein zacht">Alle frequentiemetingen staan onder <em>Metingen bekijken</em>.</p>`
     : '<p class="zacht">Nog geen frequentiemetingen.</p>';
+}
+
+function werkFrequentieLabelsBij() {
+  const pid = frequentieBewerkId ? zoekFrequentie(frequentieBewerkId).procesId : $('#fProces').value;
+  if (!pid) {
+    $('#fAantalLabel').textContent = 'Aantal uitvoeringen';
+    $('#fVolumeLabel').textContent = 'Totale omvang';
+    return;
+  }
+  const e = eenhedenVan(frequentieEenheden, pid);
+  $('#fAantalLabel').textContent = `Aantal ${e.uitvoeringseenheidMeervoud} (uitvoeringen) in de meetperiode`;
+  $('#fAantalHint').textContent = `Nodig voor de geschatte tijdsbelasting: aantal ${e.uitvoeringseenheidMeervoud} × mediane actieve tijd per ${e.uitvoeringseenheid}.`;
+  $('#fVolumeLabel').textContent = `Totaal aantal ${e.omvangseenheidMeervoud} in de meetperiode`;
+  $('#fVolumeHint').textContent = 'Mag onbekend blijven (leeg laten). Wordt niet gebruikt in de tijdsbelasting.';
 }
 
 // ===== ui-overzicht.js =====
@@ -2814,6 +3044,7 @@ function wisOverzichtFilters() {
 }
 
 function renderOverzicht() {
+  $('#overzichtLegacy').innerHTML = legacyMeldingHtml(null);
   const isFreq = overzichtSubtab === 'frequentiemetingen';
   for (const el of $$('#overzichtFilters [data-filter]')) el.hidden = isFreq;
   vulSelect($('#ozProces'), alleProcesIds().map((id) => ({ waarde: id, label: procesLabel(id) })), $('#ozProces').value, 'Alle processen');
@@ -2851,7 +3082,7 @@ function renderOverzichtTabel() {
 function renderProcesmetingenTabel(f) {
   const lijst = staat.procesmetingen
     .filter((m) => metingVoldoetAanOverzicht(m, f))
-    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.omvang, m.eenheid, m.meetwijze, m.toelichting,
+    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
       ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen`;
@@ -2867,12 +3098,13 @@ function renderProcesmetingenTabel(f) {
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
       <td>${esc(m.casustype)}</td>
-      <td class="getal">${htmlAantal(m.omvang)}</td>
-      <td>${htmlTekst(m.eenheid)}</td>
+      <td class="getal">${htmlMetEenheid(m.aantalUitvoeringen, eenhedenVan(m), 'uitvoering')}</td>
+      <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}</td>
       <td>${meetwijzeHtml(m.meetwijze)}</td>
       <td class="getal berekend">${htmlGetal(b.totaalActief)}</td>
       <td class="getal berekend">${htmlGetal(b.totaalWacht)}</td>
-      <td class="getal berekend">${htmlGetal(b.actiefPerEenheid)}</td>
+      <td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}<span class="klein"> /${esc(eenhedenVan(m).uitvoeringseenheid)}</span></td>
+      <td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}<span class="klein"> /${esc(eenhedenVan(m).omvangseenheid)}</span></td>
       <td class="acties">
         <button type="button" class="klein" data-actie="meting-openen" data-id="${esc(m.metingId)}">Openen</button>
         <button type="button" class="klein" data-actie="meting-bewerken" data-id="${esc(m.metingId)}">Aanpassen</button>
@@ -2880,13 +3112,13 @@ function renderProcesmetingenTabel(f) {
       </td>
     </tr>`;
     if (open) {
-      html += `<tr class="subrij"><td colspan="13">${stapmetingenMiniTabel(stappen)}</td></tr>`;
+      html += `<tr class="subrij"><td colspan="14">${stapmetingenMiniTabel(stappen)}</td></tr>`;
     }
     return html;
   }).join('');
   $('#overzichtTabel').innerHTML = `<table>
-    <thead><tr><th>Stappen</th><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>Medewerker</th><th>Casustype</th><th class="getal">Omvang</th><th>Eenheid</th><th>Meetwijze</th>
-    <th class="getal berekend">Totale actieve tijd (min)</th><th class="getal berekend">Totale wachttijd (min)</th><th class="getal berekend">Actief per eenheid (min)</th><th></th></tr></thead>
+    <thead><tr><th>Stappen</th><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>Medewerker</th><th>Casustype</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Omvang</th><th>Meetwijze</th>
+    <th class="getal berekend">Totale actieve tijd (min)</th><th class="getal berekend">Totale wachttijd (min)</th><th class="getal berekend">Actief per uitvoering (min, primair)</th><th class="getal berekend">Actief per omvangseenheid (min)</th><th></th></tr></thead>
     <tbody>${rijen}</tbody></table>`;
 }
 
@@ -2923,14 +3155,14 @@ function renderStapmetingenTabel(f) {
 function renderFrequentiesTabel(f) {
   const lijst = staat.frequentiemetingen
     .filter((x) => (!f.procesId || x.procesId === f.procesId) && (!f.meetwijze || x.meetwijze === f.meetwijze))
-    .filter((x) => bevatZoekterm([x.frequentieId, x.procesId, procesNaam(x.procesId), x.meetperiode, x.aantalUitvoeringen, x.totaalVolume, x.eenheid, x.meetwijze, x.bron], f.zoek))
+    .filter((x) => bevatZoekterm([x.frequentieId, x.procesId, procesNaam(x.procesId), x.meetperiode, x.aantalUitvoeringen, x.totaalVolume, ...EENHEID_VELDEN.map((k) => x[k]), x.meetwijze, x.bron], f.zoek))
     .sort((a, b) => vergelijkTekst(b.frequentieId, a.frequentieId));
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.frequentiemetingen.length} frequentiemetingen`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen frequentiemetingen gevonden.</p>'; return; }
   $('#overzichtTabel').innerHTML = `<table>
-    <thead><tr><th>FrequentieID</th><th>ProcesID</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totaal volume</th><th>Eenheid</th><th>Meetwijze</th><th>Bron of toelichting</th><th></th></tr></thead>
+    <thead><tr><th>FrequentieID</th><th>ProcesID</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th><th>Bron of toelichting</th><th></th></tr></thead>
     <tbody>${lijst.map((x) => `<tr><td class="mono">${esc(x.frequentieId)}${demoLabel(x)}</td><td>${esc(x.procesId)}${zoekProces(x.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td><td>${htmlTekst(x.meetperiode)}</td>
-      <td class="getal">${htmlAantal(x.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(x.totaalVolume)}</td><td>${htmlTekst(x.eenheid)}</td><td>${meetwijzeHtml(x.meetwijze)}</td><td>${esc(x.bron || '')}</td>
+      <td class="getal">${htmlMetEenheid(x.aantalUitvoeringen, eenhedenVan(x), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(x.totaalVolume, eenhedenVan(x), 'omvang')}</td><td>${meetwijzeHtml(x.meetwijze)}</td><td>${esc(x.bron || '')}</td>
       <td class="acties">
         <button type="button" class="klein" data-actie="frequentie-openen" data-id="${esc(x.frequentieId)}">Openen</button>
         <button type="button" class="klein" data-actie="frequentie-bewerken" data-id="${esc(x.frequentieId)}">Aanpassen</button>
@@ -2941,7 +3173,7 @@ function renderFrequentiesTabel(f) {
 function metingDetailHtml(m) {
   const b = berekenMeting(m);
   const stappen = stapmetingenVan(m.metingId);
-  const eenheid = m.eenheid || 'eenheid';
+  const e = eenhedenVan(m);
   return `<div class="ruw-kader">
       <span class="etiket ruw">Ruwe invoer</span>
       ${m.demo ? '<div class="melding neutraal"><span class="demolabel">DEMO</span> Dit is een fictieve demometing.</div>' : ''}
@@ -2951,7 +3183,10 @@ function metingDetailHtml(m) {
         <dt>Proces</dt><dd>${esc(m.procesId)} – ${htmlTekst(m.procesnaam)}${zoekProces(m.procesId) ? '' : ' <span class="zacht">(proces is inmiddels verwijderd)</span>'}</dd>
         <dt>MedewerkerID</dt><dd>${htmlTekst(m.medewerkerId)}</dd>
         <dt>Casustype</dt><dd>${esc(m.casustype)}</dd>
-        <dt>Omvang</dt><dd>${htmlAantal(m.omvang)} ${esc(m.eenheid || '')}</dd>
+        <dt>Aantal uitvoeringen</dt><dd><strong>${htmlMetEenheid(m.aantalUitvoeringen, e, 'uitvoering')}</strong>${'aantalUitvoeringen' in m ? '' : ' <span class="zacht">(niet vastgelegd: meting uit versie 1.0)</span>'}</dd>
+        <dt>Herkomst aantal</dt><dd class="klein">${esc(m.aantalUitvoeringenHerkomst || ('aantalUitvoeringen' in m ? 'Ingevoerd' : '—'))}</dd>
+        <dt>Omvang</dt><dd><strong>${htmlMetEenheid(m.omvang, e, 'omvang')}</strong></dd>
+        <dt>Eenheden</dt><dd class="klein">uitvoeringseenheid: ${esc(e.uitvoeringseenheid)} · omvangseenheid: ${esc(e.omvangseenheid)}</dd>
         <dt>Meetwijze</dt><dd>${meetwijzeHtml(m.meetwijze)}</dd>
         <dt>Algemene toelichting</dt><dd>${esc(m.toelichting || '—')}</dd>
         <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(m.aangemaakt))}</dd>
@@ -2965,14 +3200,18 @@ function metingDetailHtml(m) {
       <dl class="gegevens">
         <dt>Totale actieve tijd</dt><dd>${htmlGetal(b.totaalActief, 2, ' min')}</dd>
         <dt>Totale wachttijd</dt><dd>${htmlGetal(b.totaalWacht, 2, ' min')}</dd>
-        <dt>Actieve tijd per eenheid</dt><dd>${htmlGetal(b.actiefPerEenheid, 2, ' min per ' + eenheid)}</dd>
-        <dt>Wachttijd per eenheid</dt><dd>${htmlGetal(b.wachtPerEenheid, 2, ' min per ' + eenheid)}</dd>
+        <dt><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</dt><dd><strong>${htmlGetal(b.actiefPerUitvoering, 2, ' min')}</strong></dd>
+        <dt>Wachttijd per ${esc(e.uitvoeringseenheid)}</dt><dd>${htmlGetal(b.wachtPerUitvoering, 2, ' min')}</dd>
+        <dt>Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</dt><dd>${htmlGetal(b.actiefPerOmvang, 2, ' min')}</dd>
+        <dt>Wachttijd per ${esc(e.omvangseenheid)}</dt><dd>${htmlGetal(b.wachtPerOmvang, 2, ' min')}</dd>
       </dl>
       <div class="formule">Totale actieve tijd = ${stappen.map((s) => (isGetal(s.actieveTijd) ? fmtGetal(s.actieveTijd) : ONBEKEND)).join(' + ')}${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}</div>
-      ${isGetal(b.actiefPerEenheid) ? `<div class="formule">Actieve tijd per eenheid = ${fmtGetal(b.totaalActief)} / ${fmtAantal(m.omvang)} = ${fmtGetal(b.actiefPerEenheid)}</div>` : ''}
+      ${isGetal(b.actiefPerUitvoering) ? `<div class="formule">Actieve tijd per ${esc(e.uitvoeringseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.aantalUitvoeringen))} = ${fmtGetal(b.actiefPerUitvoering)}</div>` : ''}
+      ${isGetal(b.actiefPerOmvang) ? `<div class="formule">Actieve tijd per ${esc(e.omvangseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.omvang))} = ${fmtGetal(b.actiefPerOmvang)}</div>` : ''}
       ${b.ontbrekendActief.length ? `<div class="klein">Actieve tijd ontbreekt bij: ${esc(b.ontbrekendActief.join(', '))}</div>` : ''}
       ${b.ontbrekendWacht.length ? `<div class="klein">Wachttijd ontbreekt bij: ${esc(b.ontbrekendWacht.join(', '))}</div>` : ''}
-      ${!b.omvangBekend ? '<div class="klein">Omvang ontbreekt; tijd per eenheid is niet berekend.</div>' : ''}
+      ${!b.aantalBekend ? `<div class="klein">Aantal ${esc(e.uitvoeringseenheidMeervoud)} ontbreekt; tijd per ${esc(e.uitvoeringseenheid)} is niet berekend.</div>` : ''}
+      ${!b.omvangBekend ? `<div class="klein">Omvang (aantal ${esc(e.omvangseenheidMeervoud)}) ontbreekt; tijd per ${esc(e.omvangseenheid)} is niet berekend.</div>` : ''}
     </div>`;
 }
 
@@ -3018,8 +3257,8 @@ async function openFrequentie(frequentieId) {
       <dt>FrequentieID</dt><dd class="mono">${esc(f.frequentieId)}</dd>
       <dt>Proces</dt><dd>${esc(procesLabel(f.procesId))}</dd>
       <dt>Meetperiode</dt><dd>${htmlTekst(f.meetperiode)}</dd>
-      <dt>Aantal uitvoeringen</dt><dd>${htmlAantal(f.aantalUitvoeringen)}</dd>
-      <dt>Totaal volume</dt><dd>${htmlAantal(f.totaalVolume)} ${esc(f.eenheid || '')}</dd>
+      <dt>Aantal uitvoeringen</dt><dd>${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</dd>
+      <dt>Totale omvang</dt><dd>${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</dd>
       <dt>Meetwijze</dt><dd>${meetwijzeHtml(f.meetwijze)}</dd>
       <dt>Bron of toelichting</dt><dd>${esc(f.bron || '—')}</dd>
       <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(f.aangemaakt))}</dd>
@@ -3075,11 +3314,10 @@ function kiesFrequentie(procesId) {
   return lijst.find((f) => f.frequentieId === gekozen) || lijst[0] || null;
 }
 
-function eenheidVanProces(procesId, groepen) {
-  const p = zoekProces(procesId);
-  if (p) return p.eenheid;
-  const e = uniek(groepen.flatMap((g) => g.eenheden));
-  return e[0] || 'eenheid';
+/** Eenheden voor de resultaten van een proces: die van het proces, anders van de eerste meting. */
+function eenhedenVoorResultaat(procesId, metingen) {
+  if (zoekProces(procesId)) return eenhedenVan(null, procesId);
+  return eenhedenVan(metingen && metingen[0], procesId);
 }
 
 function renderResultaten() {
@@ -3095,31 +3333,35 @@ function renderResultaten() {
   const sam = procesSamenvatting(procesId, filters);
   const N = sam.perCasustype.Normaal;
   const U = sam.perCasustype.Uitzondering;
-  const eenheid = eenheidVanProces(procesId, [N, U]);
+  const e = eenhedenVoorResultaat(procesId, sam.metingen);
   const freq = kiesFrequentie(procesId);
-  const belasting = berekenTijdsbelasting(freq, N);
+  const belasting = berekenTijdsbelasting(freq, N, procesId);
 
-  const meldingen = [];
+  const meldingen = [legacyMeldingHtml(procesId)];
   meldingen.push(`<div class="melding info"><strong>Beschikbaar binnen de filters:</strong> ${sam.aantal} procesmetingen (${N.aantal} normaal, ${U.aantal} uitzondering).
-    Meetwijzen: ${esc(meetwijzeVerdelingTekst(sam.meetwijzen))}. <span class="klein">Filters: ${esc(filtersAlsTekst(filters))}.</span></div>`);
+    Meetwijzen: ${esc(meetwijzeVerdelingTekst(sam.meetwijzen))}. <span class="klein">Filters: ${esc(filtersAlsTekst(filters))}.</span><br>
+    <span class="klein">Eenheden: één uitvoering = één <strong>${esc(e.uitvoeringseenheid)}</strong>; omvang in <strong>${esc(e.omvangseenheidMeervoud)}</strong>.
+    Primaire uitkomst: actieve tijd per ${esc(e.uitvoeringseenheid)}. Aanvullende uitkomst: actieve tijd per ${esc(e.omvangseenheid)}.</span></div>`);
   if (filters.meetwijze === 'alle' && Object.keys(sam.meetwijzen).length > 1) {
     meldingen.push(`<div class="melding waarschuwing"><strong>Let op: verschillende meetwijzen gecombineerd.</strong> Deze resultaten combineren ${esc(meetwijzeVerdelingTekst(sam.meetwijzen))}. Kies bij <em>Meetwijze</em> één meetwijze om ze afzonderlijk te bekijken.</div>`);
   }
   if (sam.aantal < 3 || (N.aantal > 0 && N.aantal < 3) || (U.aantal > 0 && U.aantal < 3)) {
     meldingen.push('<div class="melding neutraal">Er zijn nog weinig metingen beschikbaar. Interpreteer de uitkomsten voorzichtig.</div>');
   }
-  const eenhedenGemengd = uniek([...N.eenheden, ...U.eenheden]);
-  if (eenhedenGemengd.length > 1) {
-    meldingen.push(`<div class="melding waarschuwing">Let op: de metingen gebruiken verschillende eenheden (${esc(eenhedenGemengd.join(', '))}). Tijd per eenheid is daardoor niet goed vergelijkbaar.</div>`);
+  const uitvoeringGemengd = uniek([...N.eenheden.uitvoering, ...U.eenheden.uitvoering]);
+  const omvangGemengd = uniek([...N.eenheden.omvang, ...U.eenheden.omvang]);
+  if (uitvoeringGemengd.length > 1 || omvangGemengd.length > 1) {
+    meldingen.push(`<div class="melding waarschuwing">Let op: de metingen zijn vastgelegd met verschillende eenheden
+      (uitvoeringseenheid: ${esc(uitvoeringGemengd.join(', '))}; omvangseenheid: ${esc(omvangGemengd.join(', '))}). De tijden per eenheid zijn daardoor niet goed vergelijkbaar.</div>`);
   }
 
-  const tegel = (titel, waardeHtml, toelichting) => `<div class="tegel"><div class="titel">${titel}</div><div class="waarde${waardeHtml.includes('onbekend') ? ' onbekend' : ''}">${waardeHtml}</div><div class="toelichting">${toelichting}</div></div>`;
+  const tegel = (titel, waardeHtml, toelichting, primair) => `<div class="tegel"${primair ? ' style="border-top-color:var(--groen-donker);border-top-width:5px"' : ''}><div class="titel">${titel}</div><div class="waarde${waardeHtml.includes('onbekend') ? ' onbekend' : ''}">${waardeHtml}</div><div class="toelichting">${toelichting}</div></div>`;
   const tegels = [
-    tegel('Normale metingen', String(N.aantal), 'aantal procesmetingen'),
-    tegel('Uitzonderingen', String(U.aantal), 'aantal procesmetingen'),
-    tegel('Mediane actieve tijd per uitvoering', htmlGetal(N.actief.mediaan, 2, ' min'), `normale gevallen, n = ${N.actief.n}`),
-    tegel('Mediane actieve tijd per eenheid', htmlGetal(N.actiefPerEenheid.mediaan, 2, ' min'), `per ${esc(eenheid)}, normale gevallen, n = ${N.actiefPerEenheid.n}`),
-    tegel('Mediane wachttijd', htmlGetal(N.wacht.mediaan, 2, ' min'), `per uitvoering, normale gevallen, n = ${N.wacht.n}`),
+    tegel('Normale metingen', String(N.aantal), `${esc(fmtMetEenheid(N.aantalUitvoeringen, e, 'uitvoering'))}${N.metingenZonderAantal.length ? ` + ${N.metingenZonderAantal.length} meting(en) met onbekend aantal` : ''}`),
+    tegel('Uitzonderingen', String(U.aantal), `${esc(fmtMetEenheid(U.aantalUitvoeringen, e, 'uitvoering'))}${U.metingenZonderAantal.length ? ` + ${U.metingenZonderAantal.length} meting(en) met onbekend aantal` : ''}`),
+    tegel(`Mediane actieve tijd per ${esc(e.uitvoeringseenheid)} <span class="klein">(primair)</span>`, htmlGetal(N.actiefPerUitvoering.mediaan, 2, ' min'), `normale gevallen, n = ${N.actiefPerUitvoering.n}`, true),
+    tegel(`Mediane actieve tijd per ${esc(e.omvangseenheid)} <span class="klein">(aanvullend)</span>`, htmlGetal(N.actiefPerOmvang.mediaan, 2, ' min'), `normale gevallen, n = ${N.actiefPerOmvang.n}`),
+    tegel(`Mediane wachttijd per ${esc(e.uitvoeringseenheid)}`, htmlGetal(N.wachtPerUitvoering.mediaan, 2, ' min'), `normale gevallen, n = ${N.wachtPerUitvoering.n}`),
     tegel('Geschatte tijdsbelasting per meetperiode', isGetal(belasting.waarde) ? esc(fmtGetal(belasting.waarde, 1) + ' min') : `<span class="onbekend">${ONBEKEND}</span>`,
       isGetal(belasting.waarde) ? `${esc(fmtGetal(belasting.waarde / 60, 1))} uur · ${esc(freq.meetperiode)}` : 'zie toelichting hieronder'),
   ].join('');
@@ -3129,12 +3371,12 @@ function renderResultaten() {
     <div class="tegels">${tegels}</div>
     <div class="kaart">
       <h3>Samenvatting per casustype</h3>
-      <p class="klein zacht">Tijden in minuten per uitvoering van het proces, tenzij anders vermeld. Normale gevallen en uitzonderingen worden afzonderlijk berekend. Alleen metingen met een volledig bekende waarde tellen mee (n).</p>
-      ${samenvattingTabelHtml(N, U, eenheid)}
+      <p class="klein zacht">Tijden in minuten. Normale gevallen en uitzonderingen worden afzonderlijk berekend. Alleen metingen met een bekende waarde tellen mee (n).</p>
+      ${samenvattingTabelHtml(N, U, e)}
     </div>
     <div class="kaart">
       <h3>Frequentie en geschatte tijdsbelasting</h3>
-      ${tijdsbelastingHtml(procesId, freq, belasting)}
+      ${tijdsbelastingHtml(procesId, freq, belasting, e)}
     </div>
     <div class="kaart">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -3143,11 +3385,11 @@ function renderResultaten() {
           ${CASUSTYPEN.map((c) => `<button type="button" data-casustype="${c}" class="${c === resultaatCasustype ? 'actief' : ''}">${c === 'Normaal' ? 'Normale gevallen' : 'Uitzonderingen'}</button>`).join('')}
         </div>
       </div>
-      ${stapResultatenHtml(procesId, filters)}
+      ${stapResultatenHtml(procesId, filters, e)}
     </div>`;
 
-  $('#rCasustypeKeuze').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-casustype]');
+  $('#rCasustypeKeuze').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-casustype]');
     if (!b) return;
     resultaatCasustype = b.dataset.casustype;
     renderResultaten();
@@ -3156,28 +3398,24 @@ function renderResultaten() {
   if (canvas) tekenGrafiek(canvas, grafiekGegevens(procesId, filters), Math.max(1, window.devicePixelRatio || 1));
 }
 
-function samenvattingTabelHtml(N, U, eenheid) {
+function samenvattingTabelHtml(N, U, e) {
   const rij = (label, fn, dec = 2) => `<tr><th>${label}</th><td class="getal berekend">${fn(N, dec)}</td><td class="getal berekend">${fn(U, dec)}</td></tr>`;
   const st = (sleutel, veld) => (g, dec) => htmlGetal(g[sleutel][veld], dec);
   const nVan = (sleutel) => (g) => String(g[sleutel].n);
+  const blok = (titel, sleutel, volledig) => `
+      <tr><th colspan="3" class="zacht">${titel}</th></tr>
+      ${rij('&nbsp;&nbsp;Gebruikte metingen (n)', nVan(sleutel))}
+      ${rij('&nbsp;&nbsp;<strong>Mediaan</strong>', st(sleutel, 'mediaan'))}
+      ${rij('&nbsp;&nbsp;Gemiddelde', st(sleutel, 'gemiddelde'))}
+      ${volledig ? rij('&nbsp;&nbsp;Minimum', st(sleutel, 'minimum')) + rij('&nbsp;&nbsp;Maximum', st(sleutel, 'maximum')) : ''}`;
   return `<div class="tabelhouder"><table>
     <thead><tr><th></th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
     <tbody>
       ${rij('Aantal metingen', (g) => String(g.aantal))}
-      <tr><th colspan="3" class="zacht">Actieve tijd per uitvoering (min)</th></tr>
-      ${rij('&nbsp;&nbsp;Gebruikte metingen (n)', nVan('actief'))}
-      ${rij('&nbsp;&nbsp;<strong>Mediaan</strong>', st('actief', 'mediaan'))}
-      ${rij('&nbsp;&nbsp;Gemiddelde', st('actief', 'gemiddelde'))}
-      ${rij('&nbsp;&nbsp;Minimum', st('actief', 'minimum'))}
-      ${rij('&nbsp;&nbsp;Maximum', st('actief', 'maximum'))}
-      <tr><th colspan="3" class="zacht">Wachttijd per uitvoering (min)</th></tr>
-      ${rij('&nbsp;&nbsp;Gebruikte metingen (n)', nVan('wacht'))}
-      ${rij('&nbsp;&nbsp;<strong>Mediaan</strong>', st('wacht', 'mediaan'))}
-      ${rij('&nbsp;&nbsp;Gemiddelde', st('wacht', 'gemiddelde'))}
-      <tr><th colspan="3" class="zacht">Actieve tijd per eenheid (min per ${esc(eenheid)})</th></tr>
-      ${rij('&nbsp;&nbsp;Gebruikte metingen (n)', nVan('actiefPerEenheid'))}
-      ${rij('&nbsp;&nbsp;<strong>Mediaan</strong>', st('actiefPerEenheid', 'mediaan'))}
-      ${rij('&nbsp;&nbsp;Gemiddelde', st('actiefPerEenheid', 'gemiddelde'))}
+      ${rij(`Aantal ${esc(e.uitvoeringseenheidMeervoud)} (som)`, (g) => esc(fmtAantal(g.aantalUitvoeringen)) + (g.metingenZonderAantal.length ? ` <span class="klein">(+${g.metingenZonderAantal.length} onbekend)</span>` : ''))}
+      ${blok(`<strong>Primair:</strong> actieve tijd per ${esc(e.uitvoeringseenheid)} (min)`, 'actiefPerUitvoering', true)}
+      ${blok(`Wachttijd per ${esc(e.uitvoeringseenheid)} (min)`, 'wachtPerUitvoering', false)}
+      ${blok(`<strong>Aanvullend:</strong> actieve tijd per ${esc(e.omvangseenheid)} (min)`, 'actiefPerOmvang', true)}
       <tr><th></th>
         <td class="rechts"><button type="button" class="klein" data-actie="onderliggende-metingen" data-casustype="Normaal">Onderliggende metingen bekijken</button></td>
         <td class="rechts"><button type="button" class="klein" data-actie="onderliggende-metingen" data-casustype="Uitzondering">Onderliggende metingen bekijken</button></td>
@@ -3185,7 +3423,7 @@ function samenvattingTabelHtml(N, U, eenheid) {
     </tbody></table></div>`;
 }
 
-function tijdsbelastingHtml(procesId, freq, belasting) {
+function tijdsbelastingHtml(procesId, freq, belasting, e) {
   const lijst = frequentiesVanProces(procesId);
   const keuze = lijst.length
     ? `<div class="veld" style="max-width:520px"><label for="rFrequentie">Gebruikte frequentiemeting</label>
@@ -3198,19 +3436,21 @@ function tijdsbelastingHtml(procesId, freq, belasting) {
   return `${keuze}
     <div class="berekend-kader mt">
       <span class="etiket berekend">Automatisch berekend</span>
-      <div class="formule">Geschatte actieve tijd per meetperiode = aantal uitvoeringen × mediaan actieve tijd per uitvoering<br>
+      <div class="formule">Geschatte actieve tijd per meetperiode = aantal ${esc(e.uitvoeringseenheidMeervoud)} in de meetperiode × mediaan actieve tijd per ${esc(e.uitvoeringseenheid)}<br>
         = ${esc(fmtAantal(belasting.aantalUitvoeringen))} × ${esc(fmtGetal(belasting.mediaan))} min = <strong>${esc(fmtGetal(belasting.waarde))} min</strong> (${esc(fmtGetal(belasting.waarde / 60, 2))} uur)</div>
       <dl class="gegevens">
         <dt>Gebruikte frequentiemeting</dt><dd>${esc(f.frequentieId)}${demoLabel(f)} – meetperiode: ${esc(f.meetperiode)}</dd>
+        <dt>Aantal ${esc(e.uitvoeringseenheidMeervoud)} in meetperiode</dt><dd>${esc(fmtAantal(f.aantalUitvoeringen))}</dd>
+        <dt>Totaal aantal ${esc(e.omvangseenheidMeervoud)} in meetperiode</dt><dd>${htmlAantal(f.totaalVolume)} <span class="klein zacht">(informatief; niet gebruikt in deze berekening)</span></dd>
         <dt>Meetwijze frequentie</dt><dd>${meetwijzeHtml(f.meetwijze)}${f.bron ? ' – ' + esc(f.bron) : ''}</dd>
-        <dt>Gebruikte mediaan</dt><dd>${esc(fmtGetal(belasting.mediaan))} min: mediaan actieve tijd per uitvoering van de normale gevallen (n = ${belasting.n})</dd>
+        <dt>Gebruikte mediaan</dt><dd>${esc(fmtGetal(belasting.mediaan))} min: mediaan actieve tijd per ${esc(e.uitvoeringseenheid)} van de normale gevallen (n = ${belasting.n})</dd>
         <dt>MetingID's onder de mediaan</dt><dd class="mono">${esc(belasting.metingIds.join(', '))}</dd>
       </dl>
       <p class="klein">Uitzonderingen zijn niet in deze mediaan meegenomen. De meetwijzen van tijd en frequentie zijn hierboven afzonderlijk vermeld.</p>
     </div>`;
 }
 
-function stapResultatenHtml(procesId, filters) {
+function stapResultatenHtml(procesId, filters, e) {
   const rijen = stapSamenvatting(procesId, filters, resultaatCasustype);
   if (!rijen.length) return '<p class="zacht mt">Er zijn geen processtappen of stapmetingen voor dit proces.</p>';
   const body = rijen.map((r) => `<tr>
@@ -3224,13 +3464,13 @@ function stapResultatenHtml(procesId, filters) {
       <td class="getal berekend">${r.wacht.n}</td>
       <td class="getal berekend"><strong>${htmlGetal(r.wacht.mediaan)}</strong></td>
       <td class="getal berekend">${htmlGetal(r.wacht.gemiddelde)}</td>
-      <td class="getal berekend">${htmlGetal(r.percentageMetWacht, 1, '%')}${r.wacht.n ? ` <span class="klein">(${r.aantalMetWacht}/${r.wacht.n})</span>` : ''}</td>
+      <td class="getal berekend">${htmlGetal(r.percentageMetWacht, 1, '%')}${r.aantalBekendeWacht ? ` <span class="klein">(${r.aantalMetWacht}/${r.aantalBekendeWacht})</span>` : ''}</td>
     </tr>`).join('');
   return `
-    <p class="klein zacht mt">Casustype: <strong>${esc(resultaatCasustype)}</strong>. Tijden in minuten per uitvoering van de processtap. n = aantal waarnemingen met een bekende waarde.</p>
+    <p class="klein zacht mt">Casustype: <strong>${esc(resultaatCasustype)}</strong>. Tijden in minuten per ${esc(e.uitvoeringseenheid)}: stapwaarde gedeeld door het aantal ${esc(e.uitvoeringseenheidMeervoud)} van de meting. n = aantal waarnemingen met een bekende waarde.</p>
     <div class="tabelhouder"><table>
-      <thead><tr><th>StapID</th><th>Processtap</th><th class="getal">n actief</th><th class="getal">Mediaan actief</th><th class="getal">Gemiddelde actief</th><th class="getal">Min. actief</th><th class="getal">Max. actief</th>
-      <th class="getal">n wacht</th><th class="getal">Mediaan wacht</th><th class="getal">Gemiddelde wacht</th><th class="getal">Metingen met wachttijd</th></tr></thead>
+      <thead><tr><th>StapID</th><th>Processtap</th><th class="getal">n actief</th><th class="getal">Mediaan actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal">Gemiddelde actief</th><th class="getal">Min. actief</th><th class="getal">Max. actief</th>
+      <th class="getal">n wacht</th><th class="getal">Mediaan wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal">Gemiddelde wacht</th><th class="getal">Metingen met wachttijd</th></tr></thead>
       <tbody>${body}</tbody></table></div>
     <h4>Grafiek</h4>
     <div class="grafiekhouder"><canvas id="rGrafiek" width="1000" height="560" role="img" aria-label="Staafgrafiek met mediane actieve tijd en wachttijd per processtap"></canvas></div>
@@ -3241,14 +3481,15 @@ function grafiekGegevens(procesId, filters) {
   const rijen = stapSamenvatting(procesId, filters, resultaatCasustype);
   const sam = procesSamenvatting(procesId, filters);
   const groep = MEETWIJZE_GROEPEN.find((g) => g.code === filters.meetwijze);
+  const e = eenhedenVoorResultaat(procesId, sam.metingen);
   const periode = filters.van || filters.tot ? `${filters.van ? fmtDatum(filters.van) : '…'} t/m ${filters.tot ? fmtDatum(filters.tot) : '…'}` : 'alle datums';
   return {
     titel: `${procesLabel(procesId)}: mediane tijd per processtap`,
     ondertitels: [
       `Casustype: ${resultaatCasustype} · ${sam.perCasustype[resultaatCasustype].aantal} procesmetingen · Meetwijze: ${groep ? groep.label : 'alle meetwijzen (' + meetwijzeVerdelingTekst(sam.perCasustype[resultaatCasustype].meetwijzen) + ')'} · Periode: ${periode}`,
-      'Minuten per uitvoering van de processtap (mediaan); n = aantal waarnemingen per stap.',
+      `Minuten per ${e.uitvoeringseenheid} (mediaan; één uitvoering = één ${e.uitvoeringseenheid}); n = aantal waarnemingen per stap.`,
     ],
-    asLabel: 'Minuten per uitvoering (mediaan)',
+    asLabel: `Minuten per ${e.uitvoeringseenheid} (mediaan)`,
     voetnoot: `Bron: Meettool ${VERSIE} · ${fmtDatum(vandaagIso())} · Ontbrekende waarden zijn niet als nul meegeteld.${bevatDemo() ? ' · BEVAT DEMOGEGEVENS' : ''}`,
     stappen: rijen.map((r) => ({ stapId: r.stapId, naam: r.naam, actief: r.actief.mediaan, wacht: r.wacht.mediaan, nActief: r.actief.n, nWacht: r.wacht.n })),
   };
@@ -3266,28 +3507,27 @@ function toonOnderliggendeMetingen(casustype) {
   const filters = resultaatFilters();
   const sam = procesSamenvatting(procesId, filters);
   const g = sam.perCasustype[casustype];
-  const eenheid = eenheidVanProces(procesId, [g]);
+  const e = eenhedenVoorResultaat(procesId, sam.metingen);
   const metingen = sam.metingen.filter((m) => m.casustype === casustype);
   const tabel = metingen.length ? `<div class="tabelhouder"><table class="klein">
-      <thead><tr><th>MetingID</th><th>Datum</th><th>Meetwijze</th><th class="getal">Omvang</th><th class="getal berekend">Actief (min)</th><th class="getal berekend">Wacht (min)</th><th class="getal berekend">Actief per ${esc(eenheid)}</th></tr></thead>
+      <thead><tr><th>MetingID</th><th>Datum</th><th>Meetwijze</th><th class="getal">Aantal ${esc(e.uitvoeringseenheidMeervoud)}</th><th class="getal">Aantal ${esc(e.omvangseenheidMeervoud)}</th>
+      <th class="getal berekend">Totaal actief (min)</th><th class="getal berekend">Actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Actief per ${esc(e.omvangseenheid)}</th></tr></thead>
       <tbody>${metingen.map((m) => {
         const b = berekenMeting(m);
-        return `<tr><td class="mono">${esc(m.metingId)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td class="getal">${htmlAantal(m.omvang)}</td>
-          <td class="getal berekend">${htmlGetal(b.totaalActief)}</td><td class="getal berekend">${htmlGetal(b.totaalWacht)}</td><td class="getal berekend">${htmlGetal(b.actiefPerEenheid)}</td></tr>`;
+        return `<tr><td class="mono">${esc(m.metingId)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td class="getal">${htmlAantal(m.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(m.omvang)}</td>
+          <td class="getal berekend">${htmlGetal(b.totaalActief)}</td><td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.wachtPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}</td></tr>`;
       }).join('')}</tbody></table></div>` : '<p class="zacht">Geen metingen binnen de filters.</p>';
-  const lijstUitgesloten = (titel, lijst) => lijst.length
-    ? `<li>${titel}: ${lijst.map((u) => `<span class="mono">${esc(u.metingId)}</span> (${esc(u.reden)})`).join('; ')}</li>` : '';
-  const uitgesloten = [
-    lijstUitgesloten('Actieve tijd', g.uitgesloten.actief),
-    lijstUitgesloten('Wachttijd', g.uitgesloten.wacht),
-    lijstUitgesloten('Actieve tijd per eenheid', g.uitgesloten.actiefPerEenheid),
-  ].join('');
+  const labels = {
+    actiefPerUitvoering: `Actieve tijd per ${e.uitvoeringseenheid} (primair)`,
+    wachtPerUitvoering: `Wachttijd per ${e.uitvoeringseenheid}`,
+    actiefPerOmvang: `Actieve tijd per ${e.omvangseenheid} (aanvullend)`,
+  };
+  const uitgesloten = Object.entries(labels).map(([k, titel]) => (g.uitgesloten[k].length
+    ? `<li>${esc(titel)}: ${g.uitgesloten[k].map((u) => `<span class="mono">${esc(u.metingId)}</span> (${esc(u.reden)})`).join('; ')}</li>` : '')).join('');
   informeer(`Onderliggende metingen – ${procesId} – ${casustype}`, `
     <p class="klein">Filters: ${esc(filtersAlsTekst(filters))}</p>
     <dl class="gegevens klein">
-      <dt>Actieve tijd (n = ${g.actief.n})</dt><dd class="mono">${esc(g.actief.metingIds.join(', ') || '—')}</dd>
-      <dt>Wachttijd (n = ${g.wacht.n})</dt><dd class="mono">${esc(g.wacht.metingIds.join(', ') || '—')}</dd>
-      <dt>Actieve tijd per eenheid (n = ${g.actiefPerEenheid.n})</dt><dd class="mono">${esc(g.actiefPerEenheid.metingIds.join(', ') || '—')}</dd>
+      ${Object.entries(labels).map(([k, titel]) => `<dt>${esc(titel)} (n = ${g[k].n})</dt><dd class="mono">${esc(g[k].metingIds.join(', ') || '—')}</dd>`).join('')}
     </dl>
     ${uitgesloten ? `<div class="melding neutraal mt"><strong>Niet meegenomen (waarde Onbekend):</strong><ul>${uitgesloten}</ul></div>` : ''}
     <h4>Metingen</h4>${tabel}`);
@@ -3325,10 +3565,13 @@ const KOLOMMEN_PROCESMETINGEN = [
   ['Procesnaam (bij meting)', (m) => m.procesnaam],
   ['MedewerkerID', (m) => m.medewerkerId || ''],
   ['Casustype', (m) => m.casustype],
+  ['Aantal uitvoeringen', (m) => ('aantalUitvoeringen' in m ? m.aantalUitvoeringen : null)],
+  ['Uitvoeringseenheid', (m) => m.uitvoeringseenheid || ''],
   ['Omvang', (m) => m.omvang],
-  ['Eenheid', (m) => m.eenheid],
+  ['Omvangseenheid', (m) => m.omvangseenheid || ''],
   ['Meetwijze', (m) => m.meetwijze],
   ['Algemene toelichting', (m) => m.toelichting || ''],
+  ['Herkomst aantal uitvoeringen', (m) => m.aantalUitvoeringenHerkomst || ('aantalUitvoeringen' in m ? 'Ingevoerd' : 'Niet vastgelegd (meting uit versie 1.0)')],
   ['Vastgelegd op', (m) => m.aangemaakt || ''],
   ['Laatst gewijzigd', (m) => m.gewijzigd || ''],
   ['Demogegevens', (m) => (m.demo ? 'Ja' : 'Nee')],
@@ -3352,8 +3595,9 @@ const KOLOMMEN_FREQUENTIE = [
   ['ProcesID', (f) => f.procesId],
   ['Meetperiode', (f) => f.meetperiode],
   ['Aantal uitvoeringen', (f) => f.aantalUitvoeringen],
-  ['Totaal volume', (f) => f.totaalVolume],
-  ['Eenheid', (f) => f.eenheid],
+  ['Uitvoeringseenheid', (f) => f.uitvoeringseenheid || ''],
+  ['Totale omvang', (f) => f.totaalVolume],
+  ['Omvangseenheid', (f) => f.omvangseenheid || ''],
   ['Meetwijze', (f) => f.meetwijze],
   ['Bron of toelichting', (f) => f.bron || ''],
   ['Vastgelegd op', (f) => f.aangemaakt || ''],
@@ -3413,69 +3657,70 @@ function resultatenBlad(filters) {
   rijen.push(['Gebruikte filters', filtersAlsTekst(filters)]);
   rijen.push(['Exportdatum', exportdatum]);
   rijen.push(['Toolversie', VERSIE]);
-  rijen.push(['Toelichting', 'Tijden in minuten. Getallen zijn onafgerond opgeslagen en worden met twee decimalen weergegeven. "Onbekend" = niet te berekenen door ontbrekende invoer (niet als nul verwerkt). n = aantal metingen met een bekende waarde.']);
+  rijen.push(['Toelichting', 'Tijden in minuten. "Per uitvoering" = per uitvoeringseenheid van het proces (zie kolom Uitvoeringseenheid, bijv. per dossier); dit is de primaire uitkomst. "Per omvangseenheid" (zie kolom Omvangseenheid, bijv. per dienstperiode) is een aanvullende uitkomst. Getallen zijn onafgerond opgeslagen en worden met twee decimalen weergegeven. "Onbekend" = niet te berekenen door ontbrekende invoer (niet als nul verwerkt). n = aantal metingen met een bekende waarde.']);
   rijen.push([]);
   rijen.push([{ v: 'Samenvatting per proces en casustype', s: 'titel' }]);
   const koppen = [
-    'ProcesID', 'Procesnaam', 'Casustype', 'Gebruikte filters', 'Meetwijzen in selectie', 'Aantal metingen',
-    'n actieve tijd', 'Mediaan actieve tijd (min)', 'Gemiddelde actieve tijd (min)', 'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)',
-    'n wachttijd', 'Mediaan wachttijd (min)', 'Gemiddelde wachttijd (min)',
-    'Eenheid', 'n per eenheid', 'Mediaan actieve tijd per eenheid (min)', 'Gemiddelde actieve tijd per eenheid (min)',
-    'FrequentieID', 'Meetperiode', 'Aantal uitvoeringen', 'Totaal volume', 'Meetwijze frequentie',
+    'ProcesID', 'Procesnaam', 'Casustype', 'Uitvoeringseenheid', 'Omvangseenheid', 'Gebruikte filters', 'Meetwijzen in selectie',
+    'Aantal metingen', 'Aantal uitvoeringen (som)', 'Metingen met onbekend aantal uitvoeringen',
+    'Primaire uitkomst', 'n primair', 'Mediaan actieve tijd per uitvoering (min) – primair', 'Gemiddelde actieve tijd per uitvoering (min)', 'Minimum actieve tijd per uitvoering (min)', 'Maximum actieve tijd per uitvoering (min)',
+    'n wachttijd per uitvoering', 'Mediaan wachttijd per uitvoering (min)', 'Gemiddelde wachttijd per uitvoering (min)',
+    'Aanvullende uitkomst', 'n aanvullend', 'Mediaan actieve tijd per omvangseenheid (min) – aanvullend', 'Gemiddelde actieve tijd per omvangseenheid (min)', 'Minimum actieve tijd per omvangseenheid (min)', 'Maximum actieve tijd per omvangseenheid (min)',
+    'FrequentieID', 'Meetperiode', 'Aantal uitvoeringen in meetperiode', 'Totale omvang in meetperiode', 'Meetwijze frequentie',
     'Geschatte actieve tijd per meetperiode (min)', 'Geschatte actieve tijd per meetperiode (uur)', 'Toelichting tijdsbelasting',
-    'Onderliggende MetingID\'s', 'MetingID\'s actieve tijd', 'Niet meegenomen (reden)',
+    'Onderliggende MetingID\'s', 'MetingID\'s primaire uitkomst', 'MetingID\'s aanvullende uitkomst', 'Niet meegenomen (reden)',
   ];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
   for (const procesId of alleProcesIds()) {
     const sam = procesSamenvatting(procesId, filters);
     const freq = kiesFrequentie(procesId);
-    const eenheid = eenheidVanProces(procesId, Object.values(sam.perCasustype));
+    const e = eenhedenVoorResultaat(procesId, sam.metingen);
     for (const c of CASUSTYPEN) {
       const g = sam.perCasustype[c];
       let belasting = null;
       let belastingTekst = '';
       if (c === 'Normaal') {
-        const b = berekenTijdsbelasting(freq, g);
+        const b = berekenTijdsbelasting(freq, g, procesId);
         belasting = b.waarde;
         belastingTekst = isGetal(b.waarde)
-          ? `${fmtAantal(b.aantalUitvoeringen)} uitvoeringen × mediaan ${fmtGetal(b.mediaan)} min (normale gevallen, n = ${b.n})`
+          ? `${fmtAantal(b.aantalUitvoeringen)} ${e.uitvoeringseenheidMeervoud} × mediaan ${fmtGetal(b.mediaan)} min per ${e.uitvoeringseenheid} (normale gevallen, n = ${b.n})`
           : 'Niet berekend: ' + b.ontbreekt.join(' ');
       } else {
         belastingTekst = 'Niet berekend voor uitzonderingen (tijdsbelasting gebruikt de mediaan van normale gevallen).';
       }
-      const uitgesloten = [
-        ...g.uitgesloten.actief.map((u) => `${u.metingId}: ${u.reden}`),
-        ...g.uitgesloten.actiefPerEenheid.filter((u) => !g.uitgesloten.actief.some((x) => x.metingId === u.metingId)).map((u) => `${u.metingId} (per eenheid): ${u.reden}`),
-        ...g.uitgesloten.wacht.filter((u) => !g.uitgesloten.actief.some((x) => x.metingId === u.metingId)).map((u) => `${u.metingId} (wachttijd): ${u.reden}`),
-      ];
+      const uitgesloten = [];
+      const labels = { actiefPerUitvoering: 'primair', wachtPerUitvoering: 'wachttijd', actiefPerOmvang: 'aanvullend' };
+      for (const [k, label] of Object.entries(labels)) for (const u of g.uitgesloten[k]) uitgesloten.push(`${u.metingId} (${label}): ${u.reden}`);
       rijen.push([
-        procesId, procesNaam(procesId), c, filtersAlsTekst(filters), meetwijzeVerdelingTekst(g.meetwijzen), g.aantal,
-        g.actief.n, getalOfLeeg(g.actief.mediaan), getalOfLeeg(g.actief.gemiddelde), getalOfLeeg(g.actief.minimum), getalOfLeeg(g.actief.maximum),
-        g.wacht.n, getalOfLeeg(g.wacht.mediaan), getalOfLeeg(g.wacht.gemiddelde),
-        eenheid, g.actiefPerEenheid.n, getalOfLeeg(g.actiefPerEenheid.mediaan), getalOfLeeg(g.actiefPerEenheid.gemiddelde),
+        procesId, procesNaam(procesId), c, e.uitvoeringseenheid, e.omvangseenheid, filtersAlsTekst(filters), meetwijzeVerdelingTekst(g.meetwijzen),
+        g.aantal, g.aantalUitvoeringen, g.metingenZonderAantal.join(', '),
+        `Actieve tijd per ${e.uitvoeringseenheid}`, g.actiefPerUitvoering.n, getalOfLeeg(g.actiefPerUitvoering.mediaan), getalOfLeeg(g.actiefPerUitvoering.gemiddelde), getalOfLeeg(g.actiefPerUitvoering.minimum), getalOfLeeg(g.actiefPerUitvoering.maximum),
+        g.wachtPerUitvoering.n, getalOfLeeg(g.wachtPerUitvoering.mediaan), getalOfLeeg(g.wachtPerUitvoering.gemiddelde),
+        `Actieve tijd per ${e.omvangseenheid}`, g.actiefPerOmvang.n, getalOfLeeg(g.actiefPerOmvang.mediaan), getalOfLeeg(g.actiefPerOmvang.gemiddelde), getalOfLeeg(g.actiefPerOmvang.minimum), getalOfLeeg(g.actiefPerOmvang.maximum),
         freq ? freq.frequentieId : ONBEKEND, freq ? freq.meetperiode : '', freq ? getalOfLeeg(freq.aantalUitvoeringen) : '', freq ? getalOfLeeg(freq.totaalVolume) : '', freq ? freq.meetwijze : '',
         c === 'Normaal' ? getalOfLeeg(belasting) : '', c === 'Normaal' ? (isGetal(belasting) ? belasting / 60 : ONBEKEND) : '', belastingTekst,
-        g.metingIds.join(', '), g.actief.metingIds.join(', '), uitgesloten.join('; '),
+        g.metingIds.join(', '), g.actiefPerUitvoering.metingIds.join(', '), g.actiefPerOmvang.metingIds.join(', '), uitgesloten.join('; '),
       ]);
     }
   }
   rijen.push([]);
-  rijen.push([{ v: 'Resultaten per processtap', s: 'titel' }]);
-  const stapKoppen = ['ProcesID', 'Casustype', 'StapID', 'Processtap', 'Aantal waarnemingen', 'n actieve tijd', 'Mediaan actieve tijd (min)', 'Gemiddelde actieve tijd (min)',
-    'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)', 'n wachttijd', 'Mediaan wachttijd (min)', 'Gemiddelde wachttijd (min)', 'Percentage metingen met wachttijd', 'Onderliggende MetingID\'s'];
+  rijen.push([{ v: 'Resultaten per processtap (tijden per uitvoering: stapwaarde / aantal uitvoeringen van de meting)', s: 'titel' }]);
+  const stapKoppen = ['ProcesID', 'Casustype', 'Uitvoeringseenheid', 'StapID', 'Processtap', 'Aantal waarnemingen', 'n actieve tijd', 'Mediaan actieve tijd per uitvoering (min)', 'Gemiddelde actieve tijd per uitvoering (min)',
+    'Minimum actieve tijd per uitvoering (min)', 'Maximum actieve tijd per uitvoering (min)', 'n wachttijd', 'Mediaan wachttijd per uitvoering (min)', 'Gemiddelde wachttijd per uitvoering (min)', 'Percentage metingen met wachttijd', 'Onderliggende MetingID\'s'];
   rijen.push(stapKoppen.map(kop));
   for (const procesId of alleProcesIds()) {
+    const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
     for (const c of CASUSTYPEN) {
       for (const r of stapSamenvatting(procesId, filters, c)) {
         if (!r.aantalWaarnemingen) continue;
-        rijen.push([procesId, c, r.stapId, r.naam, r.aantalWaarnemingen, r.actief.n, getalOfLeeg(r.actief.mediaan), getalOfLeeg(r.actief.gemiddelde),
+        rijen.push([procesId, c, e.uitvoeringseenheid, r.stapId, r.naam, r.aantalWaarnemingen, r.actief.n, getalOfLeeg(r.actief.mediaan), getalOfLeeg(r.actief.gemiddelde),
           getalOfLeeg(r.actief.minimum), getalOfLeeg(r.actief.maximum), r.wacht.n, getalOfLeeg(r.wacht.mediaan), getalOfLeeg(r.wacht.gemiddelde),
           getalOfLeeg(r.percentageMetWacht), r.metingIds.join(', ')]);
       }
     }
   }
-  return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 40, 28, 10, 10, 14, 14, 14, 14, 10, 14, 14, 14, 10, 16, 16, 16, 16, 12, 12, 20, 18, 18, 50, 40, 40, 50], kopRij };
+  return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 16, 16, 40, 28, 10, 12, 20, 24, 8, 18, 16, 16, 16, 10, 16, 16, 24, 8, 18, 16, 16, 16, 16, 16, 14, 14, 20, 18, 18, 50, 40, 30, 30, 50], kopRij };
 }
 
 function methodeBlad(filters) {
@@ -3490,21 +3735,27 @@ function methodeBlad(filters) {
   r.push(t('Definities'));
   r.push(['Actieve tijd', 'De tijd in minuten waarin een medewerker daadwerkelijk aan een processtap werkt.']);
   r.push(['Wachttijd', 'De tijd in minuten waarin een processtap stilligt of wacht (bijvoorbeeld op een reactie, goedkeuring of systeem) zonder dat er actief aan wordt gewerkt. Bij wachttijd groter dan nul is een reden verplicht.']);
-  r.push(['Omvang', 'De hoeveelheid werk die in één procesmeting is verwerkt, uitgedrukt in de eenheid van het proces (bijvoorbeeld 12 documenten). Omvang moet groter zijn dan nul of ontbreekt.']);
-  r.push(['Frequentie', 'Het aantal uitvoeringen van een proces in een meetperiode, met het totale verwerkte volume. Een frequentie hoort bij het proces als geheel, niet bij een processtap.']);
-  r.push(['Procesmeting', 'Eén waargenomen uitvoering van een proces, met per processtap een stapmeting.']);
+  r.push(['Uitvoeringseenheid', 'Wat één uitvoering van een proces is, vastgelegd per proces (bijvoorbeeld bij PR24: één uitvoering = één dossier).']);
+  r.push(['Aantal uitvoeringen', 'Het aantal uitvoeringseenheden dat in één procesmeting is verwerkt (bijvoorbeeld het aantal dossiers). Verplicht bij iedere nieuwe meting en groter dan nul.']);
+  r.push(['Omvangseenheid', 'De eenheid waarin de omvang van het werk wordt uitgedrukt, vastgelegd per proces (bijvoorbeeld bij PR24: het aantal relevante dienstperioden).']);
+  r.push(['Omvang', 'Het aantal omvangseenheden dat in één procesmeting is verwerkt (bijvoorbeeld 7 dienstperioden). Groter dan nul, of leeg als onbekend.']);
+  r.push(['Frequentie', 'Het aantal uitvoeringen (uitvoeringseenheden) van een proces in een meetperiode, met eventueel de totale omvang (omvangseenheden) in die periode. De totale omvang mag onbekend zijn. Een frequentie hoort bij het proces als geheel, niet bij een processtap.']);
+  r.push(['Procesmeting', 'Eén waarneming van een proces, met het aantal uitvoeringen, de omvang en per processtap een stapmeting.']);
   r.push(['Casustype', 'Normaal of Uitzondering. Beide groepen worden altijd afzonderlijk geanalyseerd.']);
   r.push([]);
   r.push(t('Formules'));
   r.push(['Totale actieve tijd', 'Som van de actieve tijd van alle processtappen van een meting.']);
   r.push(['Totale wachttijd', 'Som van de wachttijd van alle processtappen van een meting.']);
-  r.push(['Actieve tijd per eenheid', 'Totale actieve tijd / omvang.']);
-  r.push(['Wachttijd per eenheid', 'Totale wachttijd / omvang.']);
+  r.push(['Actieve tijd per uitvoering (PRIMAIRE UITKOMST)', 'Totale actieve tijd / aantal uitvoeringen (bijv. minuten per dossier).']);
+  r.push(['Wachttijd per uitvoering', 'Totale wachttijd / aantal uitvoeringen.']);
+  r.push(['Actieve tijd per omvangseenheid (aanvullende uitkomst)', 'Totale actieve tijd / omvang (bijv. minuten per dienstperiode).']);
+  r.push(['Wachttijd per omvangseenheid', 'Totale wachttijd / omvang.']);
+  r.push(['Tijd per processtap', 'Actieve tijd (of wachttijd) van de stap / aantal uitvoeringen van de meting, dus per uitvoeringseenheid.']);
   r.push(['Mediaan', 'De middelste waarde na sorteren; bij een even aantal waarden het gemiddelde van de twee middelste waarden. De mediaan is de belangrijkste uitkomst.']);
   r.push(['Gemiddelde', 'Som van de waarden / aantal waarden.']);
   r.push(['Minimum en maximum', 'Kleinste en grootste waarde.']);
   r.push(['Percentage met wachttijd', 'Aantal stapmetingen met wachttijd > 0 / aantal stapmetingen met een bekende wachttijd × 100.']);
-  r.push(['Geschatte actieve tijd per meetperiode', 'Aantal uitvoeringen (uit de gekozen frequentiemeting) × mediaan actieve tijd per uitvoering van de normale gevallen.']);
+  r.push(['Geschatte actieve tijd per meetperiode', 'Aantal uitvoeringen in de meetperiode (uit de gekozen frequentiemeting, bijv. aantal dossiers) × mediaan actieve tijd per uitvoering van de normale gevallen (bijv. minuten per dossier). De totale omvang in de meetperiode (bijv. dienstperioden) wordt hierbij niet gebruikt en mag onbekend zijn.']);
   r.push([]);
   r.push(t('Meetwijzen'));
   r.push(['Gemeten', 'De tijd is tijdens de uitvoering gemeten (handmatig genoteerd of met de timer in de tool).']);
@@ -3515,11 +3766,20 @@ function methodeBlad(filters) {
   r.push(['Tijdvastlegging', 'Handmatig = tijd rechtstreeks ingevoerd; Timer = tijd met de timer vastgelegd (tot op 0,01 minuut); "Timer, handmatig aangepast" = timerwaarde daarna door de gebruiker gewijzigd.']);
   r.push([]);
   r.push(t('Behandeling van ontbrekende waarden en afronding'));
-  r.push(['Ontbrekende waarden', 'Ontbrekende waarden zijn NIET automatisch als nul verwerkt. Als bij een meting een stapwaarde ontbreekt, is de totale tijd van die meting Onbekend en telt de meting niet mee in de betreffende statistiek. Ontbreekt de omvang, dan is de tijd per eenheid Onbekend. Het aantal gebruikte metingen (n) en de niet meegenomen MetingID\'s staan in Resultaten.']);
+  r.push(['Ontbrekende waarden', 'Ontbrekende waarden zijn NIET automatisch als nul verwerkt. Als bij een meting een stapwaarde ontbreekt, is de totale tijd van die meting Onbekend en telt de meting niet mee in de betreffende statistiek. Ontbreekt het aantal uitvoeringen, dan is de tijd per uitvoering Onbekend; ontbreekt de omvang, dan is de tijd per omvangseenheid Onbekend. Het aantal gebruikte metingen (n) en de niet meegenomen MetingID\'s staan in Resultaten.']);
   r.push(['Ruwe gegevens', 'De tabbladen Procesmetingen, Stapmetingen en Frequentie bevatten uitsluitend de oorspronkelijke invoer en automatisch vastgelegde identificatievelden. Ruwe meetgegevens worden nooit automatisch aangepast. Alle berekeningen staan in het tabblad Resultaten.']);
   r.push(['Afronding', 'Er wordt intern met volledige precisie gerekend. Alleen de weergave wordt afgerond (standaard op twee decimalen).']);
   r.push(['Weinig metingen', 'Bij minder dan drie metingen toont de tool de melding: "Er zijn nog weinig metingen beschikbaar. Interpreteer de uitkomsten voorzichtig." Er wordt geen betrouwbaarheidsscore berekend.']);
-  return { naam: 'Methode', rijen: r, kolombreedtes: [38, 120] };
+  r.push(['Overgang van versie 1.0', 'Versie 1.0 kende één eenheid per proces; die is overgenomen als omvangseenheid (alleen de veldnaam is gewijzigd, niet de waarde). In versie 1.0 gold één procesmeting als één uitvoering, maar het aantal werd niet vastgelegd. Voor zulke metingen is het aantal uitvoeringen Onbekend, tenzij de gebruiker het heeft aangevuld; de kolom "Herkomst aantal uitvoeringen" in Procesmetingen vermeldt dat.']);
+  r.push([]);
+  r.push(t('Eenheden per proces'));
+  r.push(['ProcesID', 'Procesnaam', 'Uitvoeringseenheid', 'Omvangseenheid', 'Primaire uitkomst', 'Aanvullende uitkomst'].map(kop));
+  for (const procesId of alleProcesIds()) {
+    const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
+    r.push([procesId, procesNaam(procesId), `${e.uitvoeringseenheid} (meervoud: ${e.uitvoeringseenheidMeervoud})`, `${e.omvangseenheid} (meervoud: ${e.omvangseenheidMeervoud})`,
+      `Actieve tijd per ${e.uitvoeringseenheid} (min)`, `Actieve tijd per ${e.omvangseenheid} (min)`]);
+  }
+  return { naam: 'Methode', rijen: r, kolombreedtes: [38, 60, 30, 30, 30, 30] };
 }
 
 async function exporteerExcel() {
@@ -3597,6 +3857,7 @@ function controleerBackup(json) {
     if (!CASUSTYPEN.includes(m.casustype)) fouten.push(`${l}: casustype ontbreekt of is ongeldig.`);
     if (!MEETWIJZEN_METING.includes(m.meetwijze)) fouten.push(`${l}: meetwijze ontbreekt of is ongeldig.`);
     if (!getalOfNull(m.omvang) || (isGetal(m.omvang) && m.omvang <= 0)) fouten.push(`${l}: omvang moet groter zijn dan nul of leeg.`);
+    if ('aantalUitvoeringen' in m && (!getalOfNull(m.aantalUitvoeringen) || (isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen <= 0))) fouten.push(`${l}: aantal uitvoeringen moet groter zijn dan nul of leeg.`);
   });
   const metingIds = new Set(json.procesmetingen.map((m) => m.metingId));
   json.stapmetingen.forEach((s, i) => {
@@ -3623,7 +3884,12 @@ function controleerBackup(json) {
   const normaliseerGetal = (v) => (isGetal(v) ? v : null);
   const gegevens = normaliseerStaat(json);
   // Ontbrekende getallen consequent als null (nooit als 0).
-  gegevens.procesmetingen = gegevens.procesmetingen.map((m) => ({ ...m, omvang: normaliseerGetal(m.omvang) }));
+  // Een ontbrekende sleutel aantalUitvoeringen (meting uit versie 1.0) blijft ontbreken.
+  gegevens.procesmetingen = gegevens.procesmetingen.map((m) => ({
+    ...m,
+    omvang: normaliseerGetal(m.omvang),
+    ...('aantalUitvoeringen' in m ? { aantalUitvoeringen: normaliseerGetal(m.aantalUitvoeringen) } : {}),
+  }));
   gegevens.stapmetingen = gegevens.stapmetingen.map((s) => ({ ...s, actieveTijd: normaliseerGetal(s.actieveTijd), wachttijd: normaliseerGetal(s.wachttijd) }));
   gegevens.frequentiemetingen = gegevens.frequentiemetingen.map((f) => ({ ...f, aantalUitvoeringen: normaliseerGetal(f.aantalUitvoeringen), totaalVolume: normaliseerGetal(f.totaalVolume) }));
   return { fouten, gegevens };
@@ -3837,6 +4103,7 @@ const ACTIES = {
   'demo-laden': () => laadDemo(),
   'demo-verwijderen': () => verwijderDemo(),
   'alles-wissen': () => wisAlleGegevens(),
+  'aantal-aanvullen': (el) => vulAantalUitvoeringenAanMetBevestiging(el.dataset.proces || null),
 };
 
 async function start() {
@@ -3904,6 +4171,7 @@ async function start() {
     berekenTijdsbelasting,
     kiesFrequentie,
     leesGetal,
+    isGeldigeDatum,
     mediaan,
     wachtOpOpslag: () => Opslag.wachtrij.then(() => true, () => false),
     klaar: true,

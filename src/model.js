@@ -4,24 +4,32 @@
 // identificatievelden. Berekende waarden worden nooit opgeslagen; ze worden
 // telkens opnieuw afgeleid in berekeningen.js.
 //
-// processen:          { procesId, naam, eenheid, demo, aangemaakt, gewijzigd }
+// Ieder proces heeft twee eenheden (elk in enkelvoud en meervoud):
+// - uitvoeringseenheid: wat één uitvoering is (bijv. dossier);
+// - omvangseenheid: waarin de omvang wordt uitgedrukt (bijv. dienstperiode).
+// EENHEID_VELDEN = uitvoeringseenheid, uitvoeringseenheidMeervoud, omvangseenheid, omvangseenheidMeervoud
+//
+// processen:          { procesId, naam, ...EENHEID_VELDEN, demo, aangemaakt, gewijzigd }
 // processtappen:      { stapId, procesId, volgorde, naam, demo }
 // procesmetingen:     { metingId, datum, procesId, procesnaam, medewerkerId, casustype,
-//                       omvang, eenheid, meetwijze, toelichting, demo, aangemaakt, gewijzigd }
+//                       aantalUitvoeringen, aantalUitvoeringenHerkomst, omvang, ...EENHEID_VELDEN,
+//                       meetwijze, toelichting, demo, aangemaakt, gewijzigd }
 // stapmetingen:       { metingId, stapId, volgorde, stapnaam, actieveTijd, wachttijd,
 //                       redenWachttijd, opmerking, tijdvastlegging, demo }
 // frequentiemetingen: { frequentieId, procesId, meetperiode, aantalUitvoeringen, totaalVolume,
-//                       eenheid, meetwijze, bron, demo, aangemaakt, gewijzigd }
+//                       ...EENHEID_VELDEN, meetwijze, bron, demo, aangemaakt, gewijzigd }
 //
-// procesnaam (bij meting) en stapnaam (bij stapmeting) zijn een kopie op het moment van
+// procesnaam, stapnaam en de eenheden bij een meting zijn een kopie op het moment van
 // meten, zodat metingen leesbaar blijven als een proces later wordt gewijzigd of verwijderd.
 // Ontbrekende getallen worden als null opgeslagen, nooit als 0.
+// Metingen uit schemaversie 1 hebben geen veld aantalUitvoeringen (de sleutel ontbreekt);
+// dit wordt nooit automatisch ingevuld, alleen na expliciete bevestiging door de gebruiker.
 
 let staat = legeStaat();
 
 function legeStaat() {
   return {
-    schemaversie: 1,
+    schemaversie: 2,
     processen: [],
     processtappen: [],
     procesmetingen: [],
@@ -37,11 +45,71 @@ function normaliseerStaat(s) {
   for (const k of ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']) {
     n[k] = Array.isArray(s[k]) ? s[k] : [];
   }
+  // Schemaversie 1 -> 2: het enkele veld 'eenheid' was de eenheid van de omvang.
+  // Alleen de veldnaam verandert; de waarde blijft gelijk.
+  n.processen = n.processen.map(migreerEenheidVelden);
+  n.procesmetingen = n.procesmetingen.map(migreerEenheidVelden);
+  n.frequentiemetingen = n.frequentiemetingen.map(migreerEenheidVelden);
   if (s.volgnummers && typeof s.volgnummers === 'object') {
     n.volgnummers.meting = { ...(s.volgnummers.meting || {}) };
     n.volgnummers.frequentie = { ...(s.volgnummers.frequentie || {}) };
   }
   return n;
+}
+
+const EENHEID_VELDEN = ['uitvoeringseenheid', 'uitvoeringseenheidMeervoud', 'omvangseenheid', 'omvangseenheidMeervoud'];
+
+function migreerEenheidVelden(record) {
+  if (!record || typeof record !== 'object') return record;
+  const r = { ...record };
+  if ('eenheid' in r) {
+    const e = typeof r.eenheid === 'string' ? r.eenheid : '';
+    if (r.omvangseenheid === undefined) r.omvangseenheid = e;
+    if (r.omvangseenheidMeervoud === undefined) r.omvangseenheidMeervoud = e;
+    delete r.eenheid;
+  }
+  for (const k of EENHEID_VELDEN) if (typeof r[k] !== 'string') r[k] = '';
+  return r;
+}
+
+/**
+ * Eenheden voor weergave bij een meting of frequentie: eerst de vastgelegde kopie,
+ * anders die van het (huidige) proces, anders een algemene omschrijving.
+ */
+function eenhedenVan(record, procesId) {
+  const p = zoekProces(procesId || (record && record.procesId));
+  const kies = (veld, standaard) => (record && record[veld]) || (p && p[veld]) || standaard;
+  return {
+    uitvoeringseenheid: kies('uitvoeringseenheid', 'uitvoering'),
+    uitvoeringseenheidMeervoud: kies('uitvoeringseenheidMeervoud', 'uitvoeringen'),
+    omvangseenheid: kies('omvangseenheid', 'omvangseenheid'),
+    omvangseenheidMeervoud: kies('omvangseenheidMeervoud', 'omvangseenheden'),
+  };
+}
+
+function eenhedenKopie(procesId) {
+  const p = zoekProces(procesId);
+  const r = {};
+  for (const k of EENHEID_VELDEN) r[k] = p ? p[k] || '' : '';
+  return r;
+}
+
+/** Metingen uit een eerdere versie waarbij het aantal uitvoeringen nooit is vastgelegd. */
+function metingenZonderAantalUitvoeringen() {
+  return staat.procesmetingen.filter((m) => !('aantalUitvoeringen' in m));
+}
+
+/** Vult op verzoek van de gebruiker aantal uitvoeringen = 1 in voor metingen uit versie 1.0.x, met herkomst. */
+function vulAantalUitvoeringenAan(metingIds) {
+  const tijd = nuIso();
+  const herkomst = `Aangevuld met 1 na overgang naar versie ${VERSIE} (definitie in versie 1.0: één procesmeting = één uitvoering); bevestigd door gebruiker op ${fmtTijdstip(tijd)}`;
+  for (const m of staat.procesmetingen) {
+    if (metingIds.includes(m.metingId) && !('aantalUitvoeringen' in m)) {
+      m.aantalUitvoeringen = 1;
+      m.aantalUitvoeringenHerkomst = herkomst;
+      m.gewijzigd = tijd;
+    }
+  }
 }
 
 const ID_PATROON = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
@@ -142,7 +210,13 @@ function valideerProces(invoer, origineelId) {
   else if (!ID_PATROON.test(id)) fouten.push('Een ProcesID mag alleen letters, cijfers, - en _ bevatten (geen spaties), bijvoorbeeld PR24.');
   else if (id !== origineelId && zoekProces(id)) fouten.push(`ProcesID ${id} bestaat al. Kies een andere code.`);
   if (!(invoer.naam || '').trim()) fouten.push('Vul een procesnaam in.');
-  if (!(invoer.eenheid || '').trim()) fouten.push('Vul een eenheid in, bijvoorbeeld documenten of dossiers.');
+  const eenheidLabels = {
+    uitvoeringseenheid: 'uitvoeringseenheid (enkelvoud), bijvoorbeeld dossier',
+    uitvoeringseenheidMeervoud: 'uitvoeringseenheid (meervoud), bijvoorbeeld dossiers',
+    omvangseenheid: 'omvangseenheid (enkelvoud), bijvoorbeeld dienstperiode',
+    omvangseenheidMeervoud: 'omvangseenheid (meervoud), bijvoorbeeld dienstperioden',
+  };
+  for (const k of EENHEID_VELDEN) if (!(invoer[k] || '').trim()) fouten.push(`Vul de ${eenheidLabels[k]} in.`);
   const stappen = invoer.stappen || [];
   if (stappen.length === 0) fouten.push('Een proces moet minimaal één processtap hebben.');
   const gezien = new Set();
@@ -173,7 +247,10 @@ function bewaarProces(invoer, origineelId) {
   const proces = {
     procesId,
     naam: invoer.naam.trim(),
-    eenheid: invoer.eenheid.trim(),
+    uitvoeringseenheid: invoer.uitvoeringseenheid.trim(),
+    uitvoeringseenheidMeervoud: invoer.uitvoeringseenheidMeervoud.trim(),
+    omvangseenheid: invoer.omvangseenheid.trim(),
+    omvangseenheidMeervoud: invoer.omvangseenheidMeervoud.trim(),
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: nuIso(),
@@ -216,9 +293,13 @@ function valideerMeting(meting, stapmetingen, origineelId) {
   else if (!isGeldigeDatum(meting.datum)) fouten.push('De datum is ongeldig.');
   if (!CASUSTYPEN.includes(meting.casustype)) fouten.push('Kies een casustype: Normaal of Uitzondering.');
   if (!MEETWIJZEN_METING.includes(meting.meetwijze)) fouten.push('Kies een meetwijze.');
-  if (meting.omvang !== null && !(meting.omvang > 0)) fouten.push('Omvang moet groter zijn dan nul (of leeg als die onbekend is).');
+  const e = eenhedenVan(meting);
+  if (meting.aantalUitvoeringen === null) fouten.push(`Vul het aantal ${e.uitvoeringseenheidMeervoud} in (aantal uitvoeringen in deze meting).`);
+  else if (!(meting.aantalUitvoeringen > 0)) fouten.push(`Het aantal ${e.uitvoeringseenheidMeervoud} moet groter zijn dan nul.`);
+  else if (!Number.isInteger(meting.aantalUitvoeringen)) waarschuwingen.push(`Het aantal ${e.uitvoeringseenheidMeervoud} (${fmtAantal(meting.aantalUitvoeringen)}) is geen geheel getal.`);
+  if (meting.omvang !== null && !(meting.omvang > 0)) fouten.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) moet groter zijn dan nul, of leeg als die onbekend is.`);
   if (meting.medewerkerId && /\s/.test(meting.medewerkerId.trim())) waarschuwingen.push('MedewerkerID bevat een spatie. Gebruik bij voorkeur een korte anonieme code zoals M01, geen naam.');
-  if (meting.omvang === null) waarschuwingen.push('Omvang is niet ingevuld. Tijd per eenheid wordt voor deze meting als Onbekend getoond.');
+  if (meting.omvang === null) waarschuwingen.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) is niet ingevuld. Actieve tijd per ${e.omvangseenheid} wordt voor deze meting als Onbekend getoond.`);
   if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
   for (const s of stapmetingen) {
     const label = `${s.stapId} (${s.stapnaam})`;
@@ -235,8 +316,12 @@ function valideerMeting(meting, stapmetingen, origineelId) {
 
 function bewaarMeting(meting, stapmetingen, origineelId) {
   const bestaand = origineelId ? zoekMeting(origineelId) : null;
+  // Herkomst van het aantal uitvoeringen blijft alleen behouden als de waarde ongewijzigd is.
+  const herkomst = bestaand && bestaand.aantalUitvoeringen === meting.aantalUitvoeringen && bestaand.aantalUitvoeringenHerkomst
+    ? bestaand.aantalUitvoeringenHerkomst : 'Ingevoerd';
   const record = {
     ...meting,
+    aantalUitvoeringenHerkomst: herkomst,
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: bestaand ? nuIso() : null,
