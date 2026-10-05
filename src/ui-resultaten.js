@@ -239,10 +239,45 @@ function totaalOverzichtHtml(procesId, filters) {
       </dl>
       <div class="knoppen"><button type="button" class="klein" data-actie="totaal-onderliggend">Onderliggende gegevens bekijken</button></div>
     </div>
+    ${blokkenHtml(procesId, filters, t)}
     ${t.status.length ? `<h4>Frequentiemetingen van dit proces</h4>
       <div class="tabelhouder"><table class="klein">
         <thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Periode</th><th>Meetmoment</th><th class="getal">Aantal</th><th>Bron</th><th>Meetellen</th><th>In dit totaal</th><th></th></tr></thead>
         <tbody>${statusRijen}</tbody></table></div>` : '<p class="zacht klein mt">Er zijn voor dit proces nog geen frequentiemetingen.</p>'}`;
+}
+
+/** Diensttijdblokken (informatief): telt niet mee in de tijdsbelasting, omdat die tijd al in de tijd per dossier zit. */
+function blokkenHtml(procesId, filters, t) {
+  const N = t.blokken;
+  if (!blokkenVastleggen(procesId) && !isGetal(N.totaalBlokken)) return '';
+  const e = t.eenheden;
+  const U = blokkenAnalyse(procesSamenvatting(procesId, filters).metingen.filter((m) => m.casustype === 'Uitzondering'));
+  const perTekst = t.periodeEenheid ? `per ${t.periodeEenheid.toLowerCase()}` : 'per periode';
+  const cel = (d, dec, eenheid) => (isGetal(d.waarde) ? `${esc(fmtGetal(d.waarde, dec))} ${eenheid} <span class="klein zacht">(n = ${d.n})</span>` : `<span class="onbekend">${ONBEKEND}</span> <span class="klein zacht">(n = ${d.n})</span>`);
+  const rij = (label, fn) => `<tr><th>${label}</th><td class="getal berekend">${fn(N)}</td><td class="getal berekend">${fn(U)}</td></tr>`;
+  const verhoudingTekst = isGetal(N.verhouding.waarde)
+    ? `${fmtAantal(N.verhouding.noemer)} ${N.verhouding.noemer === 1 ? e.omvangseenheid : e.omvangseenheidMeervoud} resulteerden in ${fmtAantal(N.verhouding.teller)} ${N.verhouding.teller === 1 ? 'diensttijdblok' : 'diensttijdblokken'}.`
+    : '';
+  return `
+    <h4>Diensttijdblokken ${infoHtml('blokken')}</h4>
+    <p class="klein zacht">Informatief. De geschatte actieve tijdsbelasting hierboven blijft <em>frequentie × actieve tijd per ${esc(e.uitvoeringseenheid)}</em>: de tijd voor de diensttijdblokken zit al in de tijd per ${esc(e.uitvoeringseenheid)} en wordt dus niet nog eens met het aantal blokken vermenigvuldigd.
+      Alle gemiddelden zijn totaal ÷ totaal. Metingen zonder aantal blokken tellen alleen niet mee in de berekeningen per blok.</p>
+    ${verhoudingTekst ? `<div class="melding info"><strong>${esc(verhoudingTekst)}</strong> <span class="klein">(normale gevallen; ${N.verhouding.n} meting(en) waarvan zowel het aantal ${esc(e.omvangseenheidMeervoud)} als het aantal blokken bekend is; verhouding ${esc(fmtGetal(N.verhouding.waarde, 2))} blok per ${esc(e.omvangseenheid)})</span></div>` : ''}
+    <div class="tabelhouder"><table>
+      <thead><tr><th></th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+      <tbody>
+        ${rij('Gebruikte dossiermetingen', (g) => `${g.aantalMetingen} <span class="klein zacht">(waarvan ${g.metingenMetBlokken.length} met aantal blokken)</span>`)}
+        ${rij(`Totaal beoordeelde ${esc(e.omvangseenheidMeervoud)}`, (g) => esc(fmtAantal(g.totaalOmvang)))}
+        ${rij('Totaal resulterende diensttijdblokken', (g) => htmlAantal(g.totaalBlokken))}
+        ${rij(`Gemiddeld aantal ${esc(e.omvangseenheidMeervoud)} per ${esc(e.uitvoeringseenheid)}`, (g) => cel(g.omvangPerDossier, 2, ''))}
+        ${rij(`Gemiddeld aantal diensttijdblokken per ${esc(e.uitvoeringseenheid)}`, (g) => cel(g.blokkenPerDossier, 2, ''))}
+        ${rij('Gemiddelde actieve tijd per diensttijdblok', (g) => cel(g.actiefPerBlok, 2, 'min'))}
+        ${rij(`Verhouding diensttijdblokken ÷ ${esc(e.omvangseenheidMeervoud)}`, (g) => cel(g.verhouding, 3, ''))}
+        <tr><th>Geschat aantal diensttijdblokken ${esc(perTekst)}</th><td class="getal berekend">${isGetal(t.blokkenPerPeriode) ? `<strong>${esc(fmtGetal(t.blokkenPerPeriode, 2))}</strong> <span class="klein">(${esc(fmtGetal(N.blokkenPerDossier.waarde, 2))} × ${esc(fmtAantal(t.totaleFrequentie))} ${esc(e.uitvoeringseenheidMeervoud)})</span>` : `<span class="onbekend">${ONBEKEND}</span>`}</td><td class="getal zacht klein">niet berekend (de frequentie hoort bij normale gevallen)</td></tr>
+        ${rij('Gebruikte procesmeting-ID\'s', (g) => `<span class="mono klein">${esc(g.metingIds.join(', ') || '—')}</span>`)}
+        ${rij('Meetwijze (bron)', (g) => esc(meetwijzeVerdelingTekst(g.meetwijzen)))}
+      </tbody></table></div>
+    <p class="klein">Bron frequentie: ${esc(t.bronnen.map(bronLabel).join('; ') || '—')} · Filters: ${esc(filtersAlsTekst(filters))}${t.weekSleutel ? ` · ${esc(kalenderweekSleutelTekst(t.weekSleutel))}` : ''}</p>`;
 }
 
 /** Herleidbaarheid van het totaaloverzicht: alle gebruikte procesmetingen en frequentiemetingen. */

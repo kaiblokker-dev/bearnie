@@ -29,6 +29,9 @@
 // - procesmetingen:     testmeting (true = test/fictief), actieveTijdTotaal en wachttijdTotaal
 //                       (optionele controlewaarden: totaal volgens de procesmeting zelf);
 // - frequentiemetingen: testmeting, meetdatum (meetmoment, JJJJ-MM-DD).
+// Versie 1.5: procesmetingen kunnen aantalBlokken hebben (aantal resulterende diensttijdblokken,
+// geheel getal ≥ 0; null of ontbrekend = onbekend). Processen kunnen blokkenVastleggen hebben
+// (true/false); ontbreekt het, dan staat het veld alleen bij PR24 standaard aan.
 // Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
 // van de week worden nooit opgeslagen maar altijd uit de datum berekend.
 // Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
@@ -115,6 +118,16 @@ function eenheidWaarschuwing(procesId) {
   if (isOntbrekendeEenheid(p.uitvoeringseenheid) || isOntbrekendeEenheid(p.uitvoeringseenheidMeervoud)) mist.push('uitvoeringseenheid (bijv. dossier / dossiers)');
   if (isOntbrekendeEenheid(p.omvangseenheid) || isOntbrekendeEenheid(p.omvangseenheidMeervoud)) mist.push('omvangseenheid (bijv. diensttijdregistratie / diensttijdregistraties)');
   return mist.length ? `Bij proces ${procesId} ontbreekt de ${mist.join(' en de ')}. Er wordt een algemene omschrijving getoond; vul de eenheid aan bij Processen beheren.` : '';
+}
+
+/** Of bij metingen van dit proces het aantal resulterende diensttijdblokken wordt vastgelegd. */
+function blokkenVastleggen(procesId) {
+  const p = zoekProces(procesId);
+  if (p && typeof p.blokkenVastleggen === 'boolean') return p.blokkenVastleggen;
+  // Standaard alleen bij PR24 (proces met ABP-periode-regels); andere processen alleen na aanzetten.
+  if (procesId === 'PR24') return true;
+  // Ook tonen als er al metingen met een aantal blokken zijn (bijv. na verwijderen van het proces).
+  return staat.procesmetingen.some((m) => m.procesId === procesId && isGetal(m.aantalBlokken));
 }
 
 function isTestmeting(record) {
@@ -311,6 +324,7 @@ function bewaarProces(invoer, origineelId) {
     uitvoeringseenheidMeervoud: invoer.uitvoeringseenheidMeervoud.trim(),
     omvangseenheid: invoer.omvangseenheid.trim(),
     omvangseenheidMeervoud: invoer.omvangseenheidMeervoud.trim(),
+    ...(typeof invoer.blokkenVastleggen === 'boolean' ? { blokkenVastleggen: invoer.blokkenVastleggen } : {}),
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: nuIso(),
@@ -361,6 +375,10 @@ function valideerMeting(meting, stapmetingen, origineelId) {
   // Geen blokkade (oudere codes blijven geldig), wel een waarschuwing als de code op een naam lijkt.
   if (meting.medewerkerId && !/^[A-Za-z]{1,4}-?\d{1,4}$/.test(meting.medewerkerId.trim())) {
     waarschuwingen.push(`MedewerkerID "${meting.medewerkerId}" lijkt geen anonieme code. Gebruik een code zoals PZ01 en nooit een echte naam.`);
+  }
+  if (meting.aantalBlokken !== null && meting.aantalBlokken !== undefined) {
+    if (!Number.isInteger(meting.aantalBlokken) || meting.aantalBlokken < 0) fouten.push('Het aantal resulterende diensttijdblokken moet een geheel getal van 0 of hoger zijn (of leeg als het onbekend is).');
+    else if (isGetal(meting.omvang) && meting.aantalBlokken > meting.omvang) waarschuwingen.push(`Het aantal diensttijdblokken (${meting.aantalBlokken}) is groter dan het aantal ${e.omvangseenheidMeervoud} (${fmtAantal(meting.omvang)}). Controleer of dit klopt.`);
   }
   if (meting.omvang === null) waarschuwingen.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) is niet ingevuld. Actieve tijd per ${e.omvangseenheid} wordt voor deze meting als Onbekend getoond.`);
   if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');

@@ -55,6 +55,8 @@ const KOLOMMEN_PROCESMETINGEN = [
   ['Controle: totale actieve tijd volgens procesmeting (min)', (m) => (isGetal(m.actieveTijdTotaal) ? m.actieveTijdTotaal : null)],
   ['Controle: totale wachttijd volgens procesmeting (min)', (m) => (isGetal(m.wachttijdTotaal) ? m.wachttijdTotaal : null)],
   ...KALENDER_KOLOMMEN((m) => m.datum),
+  // Sinds versie 1.5
+  ['Aantal resulterende diensttijdblokken', (m) => (isGetal(m.aantalBlokken) ? m.aantalBlokken : null)],
 ];
 
 const KOLOMMEN_STAPMETINGEN = [
@@ -226,7 +228,9 @@ function totaalBlad(filters) {
   const koppen = ['ProcesID', 'Procesnaam', 'Periode', 'Kalenderweek (selectie)', 'Kalenderweken gebruikte frequenties', 'Meetperiode(n) (omschrijving)', 'Uitvoeringseenheid', 'Totale frequentie', 'Gemiddelde actieve tijd per uitvoering (min)',
     'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)', 'Geschatte actieve tijdsbelasting (min)', 'Geschatte actieve tijdsbelasting (uur)',
     'Gemiddelde wachttijd per uitvoering (min, niet meegeteld)', 'Aantal procesmetingen', 'Aantal frequentiemetingen', 'Keuze gemiddelde', 'Test/fictieve metingen', 'Mogelijke overlap',
-    'Gebruikte medewerker-ID\'s', 'Gebruikte MetingID\'s', 'Gebruikte frequentie-ID\'s', 'Bronnen frequentie', 'Meetwijzen tijd', 'Status', 'Waarschuwingen'];
+    'Gebruikte medewerker-ID\'s', 'Gebruikte MetingID\'s', 'Gebruikte frequentie-ID\'s', 'Bronnen frequentie', 'Meetwijzen tijd', 'Status', 'Waarschuwingen',
+    'Dossiermetingen (normaal)', 'Waarvan met aantal diensttijdblokken', 'Totaal omvang (bijv. dienstperioden)', 'Totaal diensttijdblokken', 'Gemiddelde omvang per uitvoering',
+    'Gemiddeld aantal diensttijdblokken per uitvoering', 'Gemiddelde actieve tijd per diensttijdblok (min)', 'Geschat aantal diensttijdblokken per periode', 'Verhouding diensttijdblokken / omvang', 'MetingID\'s met diensttijdblokken'];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
   for (const procesId of alleProcesIds()) {
@@ -245,7 +249,10 @@ function totaalBlad(filters) {
           t.frequenties.length < 2 ? 'n.v.t.' : t.mogelijkeOverlap ? 'Ja – totaal niet berekend' : 'Nee',
           t.medewerkerIds.join(', '), t.metingIds.join(', '), t.frequenties.map((f) => f.frequentieId).join(', '),
           t.bronnen.map(bronLabel).join('; '), t.meetwijzenTijd.join('; '),
-          isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | ')]);
+          isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | '),
+          t.blokken.aantalMetingen, t.blokken.metingenMetBlokken.length, t.blokken.totaalOmvang, getalOfLeeg(t.blokken.totaalBlokken), getalOfLeeg(t.blokken.omvangPerDossier.waarde),
+          getalOfLeeg(t.blokken.blokkenPerDossier.waarde), getalOfLeeg(t.blokken.actiefPerBlok.waarde), getalOfLeeg(t.blokkenPerPeriode), getalOfLeeg(t.blokken.verhouding.waarde),
+          t.blokken.metingenMetBlokken.join(', ')]);
       }
     }
   }
@@ -306,7 +313,8 @@ function medewerkerBlad(filters) {
   rijen.push(['MetingID', 'Meetdatum', 'Kalenderweek', 'ProcesID', 'Casustype', 'MedewerkerID', 'Meetwijze', 'Test/fictief', 'Meegenomen in resultaten', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Omvang', 'Omvangseenheid',
     'Totale actieve tijd (min)', 'Actieve tijd per uitvoering (min)', 'Totale wachttijd (min)', 'Wachttijd per uitvoering (min)', 'Omvang per uitvoering', 'Actieve tijd per omvangseenheid (min)',
     'Controle actief: procesmeting (min)', 'Controle actief: som stapmetingen (min)', 'Controle actief: verschil (min)',
-    'Controle wacht: procesmeting (min)', 'Controle wacht: som stapmetingen (min)', 'Controle wacht: verschil (min)', 'Afwijking proces/stappen'].map(kop));
+    'Controle wacht: procesmeting (min)', 'Controle wacht: som stapmetingen (min)', 'Controle wacht: verschil (min)', 'Afwijking proces/stappen',
+    'Aantal resulterende diensttijdblokken', 'Actieve tijd per diensttijdblok (min)'].map(kop));
   for (const m of [...staat.procesmetingen].sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
     const b = berekenMeting(m);
     const e = eenhedenVan(m);
@@ -316,7 +324,8 @@ function medewerkerBlad(filters) {
       'aantalUitvoeringen' in m ? getalOfLeeg(m.aantalUitvoeringen) : ONBEKEND, e.uitvoeringseenheid, getalOfLeeg(m.omvang), e.omvangseenheid,
       getalOfLeeg(b.totaalActief), getalOfLeeg(b.actiefPerUitvoering), getalOfLeeg(b.totaalWacht), getalOfLeeg(b.wachtPerUitvoering),
       getalOfLeeg(b.omvangPerUitvoering), getalOfLeeg(b.actiefPerOmvang),
-      ...ctl(c.actief), ...ctl(c.wacht), c.actief || c.wacht ? (c.heeftAfwijking ? 'Ja: ' + controleTekst(c).join(' ') : 'Nee') : 'Niet te controleren (geen totaal bij procesmeting)']);
+      ...ctl(c.actief), ...ctl(c.wacht), c.actief || c.wacht ? (c.heeftAfwijking ? 'Ja: ' + controleTekst(c).join(' ') : 'Nee') : 'Niet te controleren (geen totaal bij procesmeting)',
+      isGetal(m.aantalBlokken) ? m.aantalBlokken : '', isGetal(m.aantalBlokken) && m.aantalBlokken > 0 && isGetal(b.totaalActief) ? b.totaalActief / m.aantalBlokken : '']);
   }
   return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 14, 18, 26, 16, 16, 18, 10, 34, 12, 14, 10, 14, 14, 16, 14, 16, 14, 16, 14, 14, 14, 14, 14, 14, 50], kopRij };
 }
@@ -367,6 +376,7 @@ function methodeBlad(filters) {
   r.push(['Test/fictieve metingen', 'Gemarkeerd met Test/fictief = Ja. Ze blijven in de ruwe gegevens staan, maar worden standaard uitgesloten van gemiddelden, grafieken, totale frequenties en tijdsbelasting (tenzij bij de resultaten "Testmetingen meenemen" is gekozen; dat staat in de gebruikte filters). Stapmetingen van een test-procesmeting gelden ook als test. Metingen uit eerdere versies gelden als echt.']);
   r.push(['Controle proces- en stapmetingen', `Als bij een procesmeting een totale actieve tijd of wachttijd is genoteerd, wordt die vergeleken met de som van de stapmetingen. Een verschil groter dan ${fmtGetal(CONTROLE_TOLERANTIE)} minuut geeft een waarschuwing (opslaan blijft mogelijk) en staat in het tabblad Per medewerker. Voor alle berekeningen wordt de som van de stapmetingen gebruikt.`]);
   r.push(['Gekopieerde tijden', 'Tijdvastlegging "Gekopieerd" = waarde overgenomen bij het dupliceren van een eerdere meting; "Gekopieerd, handmatig aangepast" = daarna door de gebruiker gewijzigd.']);
+  r.push(['Diensttijdblokken', 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd (optioneel, geheel getal ≥ 0). Berekeningen (totaal ÷ totaal, normale gevallen, binnen de filters): dienstperioden per dossier = Σ dienstperioden ÷ Σ dossiers; diensttijdblokken per dossier = Σ blokken ÷ Σ dossiers; actieve tijd per diensttijdblok = Σ actieve tijd ÷ Σ blokken; geschat aantal blokken per periode = blokken per dossier × totale frequentie; verhouding = Σ blokken ÷ Σ dienstperioden. Metingen zonder aantal blokken tellen alleen niet mee in de berekeningen per blok. De geschatte actieve tijdsbelasting wordt NIET met het aantal blokken vermenigvuldigd: de tijd voor de blokken zit al in de actieve tijd per dossier.']);
   r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
   r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
   r.push(['Meetellen in totaal', 'Ja / Nee door de gebruiker gekozen. Bij frequentiemetingen uit eerdere versies is dit "Nog niet bepaald"; die tellen niet mee in het totaal, zodat oude frequenties niet automatisch dubbel worden geteld.']);
@@ -489,6 +499,7 @@ function controleerBackup(json) {
     if (!CASUSTYPEN.includes(m.casustype)) fouten.push(`${l}: casustype ontbreekt of is ongeldig.`);
     if (!MEETWIJZEN_METING.includes(m.meetwijze)) fouten.push(`${l}: meetwijze ontbreekt of is ongeldig.`);
     if (!getalOfNull(m.omvang) || (isGetal(m.omvang) && m.omvang <= 0)) fouten.push(`${l}: omvang moet groter zijn dan nul of leeg.`);
+    if (m.aantalBlokken !== undefined && m.aantalBlokken !== null && !(Number.isInteger(m.aantalBlokken) && m.aantalBlokken >= 0)) fouten.push(`${l}: aantal diensttijdblokken moet een geheel getal van 0 of hoger zijn.`);
     if ('aantalUitvoeringen' in m && (!getalOfNull(m.aantalUitvoeringen) || (isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen <= 0))) fouten.push(`${l}: aantal uitvoeringen moet groter zijn dan nul of leeg.`);
   });
   const metingIds = new Set(json.procesmetingen.map((m) => m.metingId));

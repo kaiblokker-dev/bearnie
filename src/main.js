@@ -75,6 +75,7 @@ async function start() {
     }
   });
   $('#procesEditor').addEventListener('input', verwerkProcesEditorInvoer);
+  $('#procesEditor').addEventListener('change', (e) => { if (e.target.id === 'peBlokken') verwerkProcesEditorInvoer(e); });
   $('#processenCsvBestand').addEventListener('change', async (e) => {
     const bestand = e.target.files[0];
     e.target.value = '';
@@ -136,6 +137,7 @@ async function start() {
     stapSamenvatting,
     medewerkerSamenvatting,
     berekenTotaalOverzicht,
+    blokkenAnalyse,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,

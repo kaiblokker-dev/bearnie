@@ -217,6 +217,41 @@ function medewerkerLabel(id) {
   return id ? id : '(niet ingevuld)';
 }
 
+/**
+ * Analyse van diensttijdblokken voor een set procesmetingen (al gefilterd op proces, medewerker,
+ * casustype, datum en teststatus). Alle verhoudingen zijn totaal ÷ totaal, zodat metingen met een
+ * grotere omvang zwaarder wegen. Per kengetal tellen alleen metingen mee waarvoor alle benodigde
+ * waarden bekend zijn; metingen zonder aantal blokken vallen alleen buiten de berekeningen per blok.
+ */
+function blokkenAnalyse(metingen) {
+  const rijen = metingen.map((m) => ({ m, b: berekenMeting(m) }));
+  const aantalOk = (m) => isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0;
+  const deling = (lijst, teller, noemer) => {
+    const t = som(lijst.map(teller));
+    const n = som(lijst.map(noemer));
+    return { waarde: lijst.length && n > 0 ? t / n : null, teller: lijst.length ? t : null, noemer: lijst.length ? n : null, n: lijst.length, metingIds: lijst.map((x) => x.m.metingId) };
+  };
+  const metBlokken = rijen.filter(({ m }) => isGetal(m.aantalBlokken));
+  return {
+    aantalMetingen: metingen.length,
+    metingIds: metingen.map((m) => m.metingId),
+    metingenMetBlokken: metBlokken.map(({ m }) => m.metingId),
+    metingenZonderBlokken: rijen.filter(({ m }) => !isGetal(m.aantalBlokken)).map(({ m }) => m.metingId),
+    totaalDossiers: som(rijen.filter(({ m }) => aantalOk(m)).map(({ m }) => m.aantalUitvoeringen)),
+    totaalOmvang: som(rijen.filter(({ m }) => isGetal(m.omvang)).map(({ m }) => m.omvang)),
+    totaalBlokken: metBlokken.length ? som(metBlokken.map(({ m }) => m.aantalBlokken)) : null,
+    // 1. dienstperioden per dossier = Σ omvang ÷ Σ dossiers
+    omvangPerDossier: deling(rijen.filter(({ m }) => aantalOk(m) && isGetal(m.omvang)), ({ m }) => m.omvang, ({ m }) => m.aantalUitvoeringen),
+    // 2. diensttijdblokken per dossier = Σ blokken ÷ Σ dossiers
+    blokkenPerDossier: deling(metBlokken.filter(({ m }) => aantalOk(m)), ({ m }) => m.aantalBlokken, ({ m }) => m.aantalUitvoeringen),
+    // 3. actieve tijd per diensttijdblok = Σ actieve tijd ÷ Σ blokken
+    actiefPerBlok: deling(metBlokken.filter(({ b }) => isGetal(b.totaalActief)), ({ b }) => b.totaalActief, ({ m }) => m.aantalBlokken),
+    // 5. verhouding invoer/uitvoer = Σ blokken ÷ Σ dienstperioden
+    verhouding: deling(metBlokken.filter(({ m }) => isGetal(m.omvang)), ({ m }) => m.aantalBlokken, ({ m }) => m.omvang),
+    meetwijzen: metingen.reduce((v, m) => { v[m.meetwijze] = (v[m.meetwijze] || 0) + 1; return v; }, {}),
+  };
+}
+
 /** Periode-eenheden waarvoor bij een proces frequentiemetingen zijn aangevinkt voor het totaal. */
 function totaalPeriodenVanProces(procesId) {
   const aanwezig = frequentiesVanProces(procesId).filter((f) => f.meetellenInTotaal === true && f.periodeEenheid).map((f) => f.periodeEenheid);
@@ -319,8 +354,14 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid, weekSleutel) 
 
   const totaleFrequentie = frequentieBlokkades.length ? null : som(geselecteerd.map((f) => f.aantalUitvoeringen));
   const gemiddeldeActief = actief.n ? actief.gemiddelde : null;
+  // De tijdsbelasting blijft frequentie × actieve tijd per dossier; de blokken zitten al in die tijd (geen dubbele telling).
   const minuten = isGetal(totaleFrequentie) && isGetal(gemiddeldeActief) ? totaleFrequentie * gemiddeldeActief : null;
+  const blokken = blokkenAnalyse(sam.metingen.filter((m) => m.casustype === 'Normaal'));
+  // 4. geschat aantal diensttijdblokken per periode = blokken per dossier × totale frequentie (informatief)
+  const blokkenPerPeriode = isGetal(totaleFrequentie) && isGetal(blokken.blokkenPerDossier.waarde) ? blokken.blokkenPerDossier.waarde * totaleFrequentie : null;
   return {
+    blokken,
+    blokkenPerPeriode,
     procesId,
     periodeEenheid,
     eenheden: e,
