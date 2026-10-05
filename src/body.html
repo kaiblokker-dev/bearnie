@@ -63,8 +63,8 @@
           </div>
           <div class="veld">
             <label for="mMedewerker">MedewerkerID</label>
-            <input type="text" id="mMedewerker" placeholder="bijv. M01" maxlength="20">
-            <span class="hint">Optioneel. Gebruik een anonieme code, geen naam.</span>
+            <input type="text" id="mMedewerker" placeholder="bijv. PZ01" maxlength="20">
+            <span class="hint">Optioneel. Gebruik een anonieme code zoals PZ01, nooit een echte naam.</span>
           </div>
           <div class="veld">
             <span class="label verplicht">Casustype</span>
@@ -201,6 +201,7 @@
       <div class="filterbalk">
         <div class="veld" style="width:260px"><label for="rProces">Proces</label><select id="rProces"></select></div>
         <div class="veld" style="width:230px"><label for="rMeetwijze">Meetwijze</label><select id="rMeetwijze"></select></div>
+        <div class="veld" style="width:200px"><label for="rMedewerker">Medewerker</label><select id="rMedewerker"></select></div>
         <div class="veld"><label for="rVan">Datum vanaf</label><input type="date" id="rVan"></div>
         <div class="veld"><label for="rTot">Datum tot en met</label><input type="date" id="rTot"></div>
       </div>
@@ -216,7 +217,7 @@
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze en datum).</p>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Per medewerker, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>

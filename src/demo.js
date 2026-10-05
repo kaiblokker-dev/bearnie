@@ -18,14 +18,14 @@ function maakDemogegevens() {
 
   // [procesId, nr, datum, medewerker, casustype, aantal uitvoeringen, omvang, meetwijze, [[actief, wacht, reden, opmerking], ...]]
   const metingen = [
-    ['DEMO-PR01', 1, '2026-03-02', 'M01', 'Normaal', 1, 4, 'Gemeten', [[6, 0], [12.5, 0], [4, 0]]],
-    ['DEMO-PR01', 2, '2026-03-03', 'M02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever'], [3.5, 0]]],
-    ['DEMO-PR01', 3, '2026-03-04', 'M01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag']]],
-    ['DEMO-PR01', 4, '2026-03-05', 'M03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
-    ['DEMO-PR01', 5, '2026-03-09', 'M02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0], [25, 120, 'Ontbrekende loongegevens opgevraagd'], [6, 0]]],
-    ['DEMO-PR01', 6, '2026-03-10', 'M03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
-    ['DEMO-PR02', 1, '2026-03-02', 'M04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
-    ['DEMO-PR02', 2, '2026-03-06', 'M04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
+    ['DEMO-PR01', 1, '2026-03-02', 'PZ01', 'Normaal', 1, 4, 'Gemeten', [[6, 0], [12.5, 0], [4, 0]]],
+    ['DEMO-PR01', 2, '2026-03-03', 'PZ02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever'], [3.5, 0]]],
+    ['DEMO-PR01', 3, '2026-03-04', 'PZ01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag']]],
+    ['DEMO-PR01', 4, '2026-03-05', 'PZ03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
+    ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0], [25, 120, 'Ontbrekende loongegevens opgevraagd'], [6, 0]]],
+    ['DEMO-PR01', 6, '2026-03-10', 'PZ03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
+    ['DEMO-PR02', 1, '2026-03-02', 'PZ04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
+    ['DEMO-PR02', 2, '2026-03-06', 'PZ04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
   ];
 
   const procesmetingen = [];

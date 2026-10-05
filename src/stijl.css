@@ -297,3 +297,6 @@ dl.gegevens dd { margin: 0; }
 td.mono { white-space: nowrap; }
 .rechts { text-align: right; }
 .mt { margin-top: 14px; }
+
+tr.totaalrij > td { border-top: 2px solid var(--berekend-rand); }
+tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }

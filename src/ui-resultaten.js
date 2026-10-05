@@ -5,7 +5,7 @@ const gekozenFrequentie = {}; // per ProcesID het gekozen FrequentieID
 
 function initResultaten() {
   vulSelect($('#rMeetwijze'), [{ waarde: 'alle', label: 'Alle meetwijzen (gemengd, wordt vermeld)' }, ...MEETWIJZE_GROEPEN.map((g) => ({ waarde: g.code, label: g.label }))], 'alle');
-  for (const id of ['#rProces', '#rMeetwijze', '#rVan', '#rTot']) $(id).addEventListener('change', renderResultaten);
+  for (const id of ['#rProces', '#rMeetwijze', '#rMedewerker', '#rVan', '#rTot']) $(id).addEventListener('change', renderResultaten);
   $('#resultatenInhoud').addEventListener('change', (e) => {
     if (e.target.id === 'rFrequentie') {
       gekozenFrequentie[$('#rProces').value] = e.target.value;
@@ -15,7 +15,7 @@ function initResultaten() {
 }
 
 function resultaatFilters() {
-  return { meetwijze: $('#rMeetwijze').value || 'alle', van: $('#rVan').value, tot: $('#rTot').value };
+  return { meetwijze: $('#rMeetwijze').value || 'alle', medewerker: $('#rMedewerker').value || '', van: $('#rVan').value, tot: $('#rTot').value };
 }
 
 function kiesFrequentie(procesId) {
@@ -40,6 +40,12 @@ function renderResultaten() {
     inhoud.innerHTML = '<div class="melding neutraal">Er zijn nog geen processen of metingen. Leg eerst een proces vast en registreer metingen.</div>';
     return;
   }
+  // Medewerkerkeuze: alleen medewerkers van dit proces; een niet meer passende keuze vervalt naar 'alle'.
+  const heeftZonderId = staat.procesmetingen.some((m) => m.procesId === procesId && !m.medewerkerId);
+  vulSelect($('#rMedewerker'), [
+    ...medewerkersVanProces(procesId),
+    ...(heeftZonderId ? [{ waarde: MEDEWERKER_LEEG, label: '(niet ingevuld)' }] : []),
+  ], $('#rMedewerker').value, 'Alle medewerkers');
   const filters = resultaatFilters();
   const sam = procesSamenvatting(procesId, filters);
   const N = sam.perCasustype.Normaal;
@@ -49,6 +55,10 @@ function renderResultaten() {
   const belasting = berekenTijdsbelasting(freq, N, procesId);
 
   const meldingen = [legacyMeldingHtml(procesId)];
+  if (filters.medewerker) {
+    meldingen.push(`<div class="melding waarschuwing"><strong>Gefilterd op medewerker ${esc(medewerkerLabel(filters.medewerker === MEDEWERKER_LEEG ? '' : filters.medewerker))}.</strong>
+      Alle uitkomsten hieronder (ook de geschatte tijdsbelasting en de grafiek) zijn alleen gebaseerd op de metingen van deze medewerker. Kies <em>Alle medewerkers</em> voor het gecombineerde resultaat van het hele proces.</div>`);
+  }
   meldingen.push(`<div class="melding info"><strong>Beschikbaar binnen de filters:</strong> ${sam.aantal} procesmetingen (${N.aantal} normaal, ${U.aantal} uitzondering).
     Meetwijzen: ${esc(meetwijzeVerdelingTekst(sam.meetwijzen))}. <span class="klein">Filters: ${esc(filtersAlsTekst(filters))}.</span><br>
     <span class="klein">Eenheden: één uitvoering = één <strong>${esc(e.uitvoeringseenheid)}</strong>; omvang in <strong>${esc(e.omvangseenheidMeervoud)}</strong>.
@@ -84,6 +94,10 @@ function renderResultaten() {
       <h3>Samenvatting per casustype</h3>
       <p class="klein zacht">Tijden in minuten. Normale gevallen en uitzonderingen worden afzonderlijk berekend. Alleen metingen met een bekende waarde tellen mee (n).</p>
       ${samenvattingTabelHtml(N, U, e)}
+    </div>
+    <div class="kaart">
+      <h3>Resultaten per medewerker</h3>
+      ${medewerkerTabelHtml(procesId, filters, e)}
     </div>
     <div class="kaart">
       <h3>Frequentie en geschatte tijdsbelasting</h3>
@@ -132,6 +146,64 @@ function samenvattingTabelHtml(N, U, e) {
         <td class="rechts"><button type="button" class="klein" data-actie="onderliggende-metingen" data-casustype="Uitzondering">Onderliggende metingen bekijken</button></td>
       </tr>
     </tbody></table></div>`;
+}
+
+/** Tabel 'Resultaten per medewerker', apart voor normale gevallen en uitzonderingen. */
+function medewerkerTabelHtml(procesId, filters, e) {
+  const cel = (stat, veld) => (stat.n ? `${htmlGetal(stat[veld])} <span class="klein zacht">(n=${stat.n})</span>` : `<span class="onbekend">${ONBEKEND}</span> <span class="klein zacht">(n=0)</span>`);
+  const rij = (label, g, extraKlasse, medewerkerId) => `<tr${extraKlasse ? ` class="${extraKlasse}"` : ''}>
+      <td>${label}</td>
+      <td class="getal">${g.aantal}</td>
+      <td class="getal berekend">${cel(g.actief, 'gemiddelde')}</td>
+      <td class="getal berekend">${cel(g.actief, 'minimum')}</td>
+      <td class="getal berekend">${cel(g.actief, 'maximum')}</td>
+      <td class="getal berekend">${cel(g.wacht, 'gemiddelde')}</td>
+      <td class="getal berekend">${cel(g.omvang, 'gemiddelde')}</td>
+      <td class="acties">${g.aantal ? `<button type="button" class="klein" data-actie="metingen-medewerker" data-medewerker="${esc(medewerkerId)}" data-casustype="${esc(g.casustype)}">Metingen (${g.aantal})</button>` : ''}</td>
+    </tr>`;
+  const blokken = CASUSTYPEN.map((c) => {
+    const ms = medewerkerSamenvatting(procesId, filters, c);
+    if (!ms.totaal.aantal) return c === 'Normaal' ? `<h4>Normale gevallen</h4><p class="zacht klein">Geen normale metingen binnen de filters.</p>` : '';
+    const t = ms.totaal;
+    return `<h4>${c === 'Normaal' ? 'Normale gevallen' : 'Uitzonderingen'}</h4>
+      <p class="klein" style="margin:0 0 6px">Actief en wacht: minuten per ${esc(e.uitvoeringseenheid)}. Omvang: aantal ${esc(e.omvangseenheidMeervoud)} per ${esc(e.uitvoeringseenheid)}.</p>
+      <div class="tabelhouder"><table>
+        <thead><tr><th>MedewerkerID</th><th class="getal">Metingen</th>
+          <th class="getal berekend">Gem. actief</th><th class="getal berekend">Min. actief</th><th class="getal berekend">Max. actief</th>
+          <th class="getal berekend">Gem. wacht</th><th class="getal berekend">Gem. omvang</th><th></th></tr></thead>
+        <tbody>
+          ${ms.perMedewerker.map((g) => rij(`<strong>${esc(medewerkerLabel(g.medewerkerId))}</strong>`, { ...g, casustype: c }, filters.medewerker && (filters.medewerker === MEDEWERKER_LEEG ? '' : filters.medewerker) === g.medewerkerId ? 'gekozen' : '', g.medewerkerId || MEDEWERKER_LEEG)).join('')}
+          ${rij('<strong>Alle medewerkers (gecombineerd)</strong>', { ...t, casustype: c }, 'totaalrij', '')}
+        </tbody></table></div>
+      <p class="klein">Bandbreedte actieve tijd per ${esc(e.uitvoeringseenheid)}, alle medewerkers: <strong>${t.actief.n ? `${esc(fmtGetal(t.actief.minimum))} – ${esc(fmtGetal(t.actief.maximum))} min` : ONBEKEND}</strong> (n = ${t.actief.n} metingen).</p>`;
+  }).join('');
+  return `<p class="klein zacht">Iedere waarde wordt eerst per individuele procesmeting berekend (actieve tijd en wachttijd per ${esc(e.uitvoeringseenheid)}; omvang per ${esc(e.uitvoeringseenheid)} = aantal ${esc(e.omvangseenheidMeervoud)} / aantal ${esc(e.uitvoeringseenheidMeervoud)}).
+      De rij <em>Alle medewerkers</em> is berekend uit alle individuele metingen samen, niet uit de gemiddelden per medewerker. n = aantal metingen met een bekende waarde.
+      Deze tabel toont altijd alle medewerkers (het medewerkerfilter geldt hier niet); meetwijze- en datumfilter gelden wel.</p>
+    ${blokken}`;
+}
+
+/** Tabel met individuele procesmetingen en hun berekende waarden. */
+function metingenTabelHtml(metingen, e) {
+  if (!metingen.length) return '<p class="zacht">Geen metingen binnen de filters.</p>';
+  return `<div class="tabelhouder"><table class="klein">
+      <thead><tr><th>MetingID</th><th>Datum</th><th>Medewerker</th><th>Meetwijze</th><th class="getal">Aantal ${esc(e.uitvoeringseenheidMeervoud)}</th><th class="getal">Aantal ${esc(e.omvangseenheidMeervoud)}</th>
+      <th class="getal berekend">Totaal actief (min)</th><th class="getal berekend">Actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Actief per ${esc(e.omvangseenheid)}</th></tr></thead>
+      <tbody>${metingen.map((m) => {
+        const b = berekenMeting(m);
+        return `<tr><td class="mono">${esc(m.metingId)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${htmlTekst(m.medewerkerId)}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td class="getal">${htmlAantal(m.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(m.omvang)}</td>
+          <td class="getal berekend">${htmlGetal(b.totaalActief)}</td><td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.wachtPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}</td></tr>`;
+      }).join('')}</tbody></table></div>`;
+}
+
+function toonMetingenVanMedewerker(medewerker, casustype) {
+  const procesId = $('#rProces').value;
+  const filters = { ...resultaatFilters(), medewerker };
+  const sam = procesSamenvatting(procesId, filters);
+  const e = eenhedenVoorResultaat(procesId, sam.metingen);
+  const metingen = sam.metingen.filter((m) => m.casustype === casustype);
+  const naam = medewerker ? medewerkerLabel(medewerker === MEDEWERKER_LEEG ? '' : medewerker) : 'alle medewerkers';
+  informeer(`Individuele metingen – ${procesId} – ${naam} – ${casustype}`, `<p class="klein">Filters: ${esc(filtersAlsTekst(filters))}</p>${metingenTabelHtml(metingen, e)}`);
 }
 
 function tijdsbelastingHtml(procesId, freq, belasting, e) {
@@ -197,7 +269,7 @@ function grafiekGegevens(procesId, filters) {
   return {
     titel: `${procesLabel(procesId)}: mediane tijd per processtap`,
     ondertitels: [
-      `Casustype: ${resultaatCasustype} · ${sam.perCasustype[resultaatCasustype].aantal} procesmetingen · Meetwijze: ${groep ? groep.label : 'alle meetwijzen (' + meetwijzeVerdelingTekst(sam.perCasustype[resultaatCasustype].meetwijzen) + ')'} · Periode: ${periode}`,
+      `Casustype: ${resultaatCasustype} · ${sam.perCasustype[resultaatCasustype].aantal} procesmetingen · Medewerker: ${filters.medewerker ? medewerkerLabel(filters.medewerker === MEDEWERKER_LEEG ? '' : filters.medewerker) : 'alle'} · Meetwijze: ${groep ? groep.label : 'alle meetwijzen (' + meetwijzeVerdelingTekst(sam.perCasustype[resultaatCasustype].meetwijzen) + ')'} · Periode: ${periode}`,
       `Minuten per ${e.uitvoeringseenheid} (mediaan; één uitvoering = één ${e.uitvoeringseenheid}); n = aantal waarnemingen per stap.`,
     ],
     asLabel: `Minuten per ${e.uitvoeringseenheid} (mediaan)`,
@@ -220,14 +292,7 @@ function toonOnderliggendeMetingen(casustype) {
   const g = sam.perCasustype[casustype];
   const e = eenhedenVoorResultaat(procesId, sam.metingen);
   const metingen = sam.metingen.filter((m) => m.casustype === casustype);
-  const tabel = metingen.length ? `<div class="tabelhouder"><table class="klein">
-      <thead><tr><th>MetingID</th><th>Datum</th><th>Meetwijze</th><th class="getal">Aantal ${esc(e.uitvoeringseenheidMeervoud)}</th><th class="getal">Aantal ${esc(e.omvangseenheidMeervoud)}</th>
-      <th class="getal berekend">Totaal actief (min)</th><th class="getal berekend">Actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Actief per ${esc(e.omvangseenheid)}</th></tr></thead>
-      <tbody>${metingen.map((m) => {
-        const b = berekenMeting(m);
-        return `<tr><td class="mono">${esc(m.metingId)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td class="getal">${htmlAantal(m.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(m.omvang)}</td>
-          <td class="getal berekend">${htmlGetal(b.totaalActief)}</td><td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.wachtPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}</td></tr>`;
-      }).join('')}</tbody></table></div>` : '<p class="zacht">Geen metingen binnen de filters.</p>';
+  const tabel = metingenTabelHtml(metingen, e);
   const labels = {
     actiefPerUitvoering: `Actieve tijd per ${e.uitvoeringseenheid} (primair)`,
     wachtPerUitvoering: `Wachttijd per ${e.uitvoeringseenheid}`,

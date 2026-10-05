@@ -298,7 +298,10 @@ function valideerMeting(meting, stapmetingen, origineelId) {
   else if (!(meting.aantalUitvoeringen > 0)) fouten.push(`Het aantal ${e.uitvoeringseenheidMeervoud} moet groter zijn dan nul.`);
   else if (!Number.isInteger(meting.aantalUitvoeringen)) waarschuwingen.push(`Het aantal ${e.uitvoeringseenheidMeervoud} (${fmtAantal(meting.aantalUitvoeringen)}) is geen geheel getal.`);
   if (meting.omvang !== null && !(meting.omvang > 0)) fouten.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) moet groter zijn dan nul, of leeg als die onbekend is.`);
-  if (meting.medewerkerId && /\s/.test(meting.medewerkerId.trim())) waarschuwingen.push('MedewerkerID bevat een spatie. Gebruik bij voorkeur een korte anonieme code zoals M01, geen naam.');
+  // Geen blokkade (oudere codes blijven geldig), wel een waarschuwing als de code op een naam lijkt.
+  if (meting.medewerkerId && !/^[A-Za-z]{1,4}-?\d{1,4}$/.test(meting.medewerkerId.trim())) {
+    waarschuwingen.push(`MedewerkerID "${meting.medewerkerId}" lijkt geen anonieme code. Gebruik een code zoals PZ01 en nooit een echte naam.`);
+  }
   if (meting.omvang === null) waarschuwingen.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) is niet ingevuld. Actieve tijd per ${e.omvangseenheid} wordt voor deze meting als Onbekend getoond.`);
   if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
   for (const s of stapmetingen) {

@@ -381,7 +381,7 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   await tab('importexport');
   const xlsx = await download(() => page.click('[data-actie="excel-export"]'), 'export.xlsx');
   const xlsxInfo = JSON.parse(execFileSync('python3', [path.join(__dirname, 'controleer_xlsx.py'), xlsx.pad]).toString());
-  assert.deepStrictEqual(xlsxInfo.bladen, ['Resultaten', 'Procesmetingen', 'Stapmetingen', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(xlsxInfo.bladen, ['Resultaten', 'Per medewerker', 'Procesmetingen', 'Stapmetingen', 'Frequentie', 'Methode']);
   assert.strictEqual(xlsxInfo.procesmetingen, 4);
   assert.strictEqual(xlsxInfo.stapmetingen, 12);
   assert.strictEqual(xlsxInfo.frequentie, 1);
@@ -543,6 +543,95 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   assert.ok(!/(src|href)\s*=\s*["']https?:/i.test(html), 'externe verwijzing');
   ok('16', 'Volledige test draaide met de browser offline (context.setOffline): 0 netwerkverzoeken, 0 JavaScript-fouten; geen externe verwijzingen in het bestand');
 
+  // ---------- Controlevoorbeeld resultaten per medewerker (schone browseromgeving) ----------
+  {
+    const ctx2 = await browser.newContext({ acceptDownloads: true, viewport: { width: 1366, height: 900 }, timezoneId: process.env.TEST_TIJDZONE || 'Europe/Amsterdam', locale: 'nl-NL' });
+    await ctx2.setOffline(true);
+    ctx2.on('request', (r) => { if (!/^(file|blob|data):/.test(r.url())) netwerk.push(r.url()); });
+    const p2 = await ctx2.newPage();
+    p2.on('pageerror', (e) => fouten.push('pageerror: ' + e.message));
+    await p2.goto(url);
+    await p2.waitForFunction(() => window.__meettool && window.__meettool.klaar);
+    const knop2 = (label) => p2.click(`#dialoogKnoppen button:text-is("${label}")`);
+    await p2.click('#tabs button[data-tab="processen"]');
+    await p2.click('[data-actie="proces-nieuw"]');
+    await p2.fill('#peId', 'PR24');
+    await p2.fill('#peNaam', 'Herberekening dossier');
+    for (const [id, w] of [['#peUitvoering', 'dossier'], ['#peUitvoeringMv', 'dossiers'], ['#peOmvang', 'dienstperiode'], ['#peOmvangMv', 'dienstperioden']]) await p2.fill(id, w);
+    await p2.fill('#procesEditor tr[data-index="0"] input[data-stapveld="naam"]', 'Dossier verwerken');
+    await p2.click('[data-actie="proces-opslaan"]');
+    await p2.click('#tabs button[data-tab="meting"]');
+    for (const [mw, minuten, omvang] of [['PZ01', '22', '6'], ['PZ02', '17', '4']]) {
+      await p2.selectOption('#mProces', 'PR24');
+      await p2.fill('#mDatum', '2026-10-01');
+      await p2.fill('#mMedewerker', mw);
+      await p2.check('input[name="casustype"][value="Normaal"]');
+      await p2.fill('#mAantal', '1');
+      await p2.fill('#mOmvang', omvang);
+      await p2.selectOption('#mMeetwijze', 'Gemeten');
+      await p2.fill('#mStappen tr[data-stap="PR24-S01"] [data-veld="actieveTijd"]', minuten);
+      await p2.fill('#mStappen tr[data-stap="PR24-S01"] [data-veld="wachttijd"]', '0');
+      await p2.click('#mOpslaan');
+    }
+    await p2.waitForFunction(() => window.__meettool.staat().procesmetingen.length === 2);
+    const st2 = await p2.evaluate(() => JSON.parse(JSON.stringify(window.__meettool.staat())));
+    assert.deepStrictEqual(st2.procesmetingen.map((m) => [m.metingId, m.medewerkerId]), [['M-PR24-001', 'PZ01'], ['M-PR24-002', 'PZ02']]);
+    // Berekening
+    const ms = await p2.evaluate(() => window.__meettool.medewerkerSamenvatting('PR24', { meetwijze: 'alle' }, 'Normaal'));
+    assert.deepStrictEqual(ms.perMedewerker.map((g) => [g.medewerkerId, g.aantal, g.actief.gemiddelde]), [['PZ01', 1, 22], ['PZ02', 1, 17]]);
+    assert.ok(ms.totaal.aantal === 2 && ms.totaal.actief.n === 2 && bijna(ms.totaal.actief.gemiddelde, 19.5) && ms.totaal.actief.minimum === 17 && ms.totaal.actief.maximum === 22);
+    assert.ok(bijna(ms.totaal.omvang.gemiddelde, 5)); // (6 + 4) / 2 dienstperioden per dossier
+    // Weergave: alle medewerkers
+    await p2.click('#tabs button[data-tab="resultaten"]');
+    await p2.selectOption('#rProces', 'PR24');
+    const alle = await p2.textContent('#resultatenInhoud');
+    assert.ok(alle.includes('Resultaten per medewerker') && alle.includes('19,50 (n=2)') && alle.includes('17,00 – 22,00 min') && alle.includes('(n = 2 metingen)'), 'gecombineerd');
+    const rijPZ01 = await p2.locator('#resultatenInhoud tr', { hasText: 'PZ01' }).first().innerText();
+    assert.ok(rijPZ01.includes('22,00 (n=1)'), rijPZ01);
+    const tegelTekst = async () => p2.locator('.tegel', { hasText: 'Mediane actieve tijd per dossier' }).innerText();
+    assert.ok((await tegelTekst()).includes('19,50 min') && (await tegelTekst()).includes('n = 2'));
+    // Filter op één medewerker
+    await p2.selectOption('#rMedewerker', 'PZ01');
+    assert.ok((await tegelTekst()).includes('22,00 min') && (await tegelTekst()).includes('n = 1'), await tegelTekst());
+    assert.ok((await p2.textContent('#resultatenInhoud')).includes('Gefilterd op medewerker PZ01'));
+    await p2.selectOption('#rMedewerker', 'PZ02');
+    assert.ok((await tegelTekst()).includes('17,00 min'), await tegelTekst());
+    await p2.selectOption('#rMedewerker', '');
+    assert.ok((await tegelTekst()).includes('19,50 min'));
+    // Individuele metingen per medewerker zichtbaar
+    await p2.click('[data-actie="metingen-medewerker"][data-medewerker="PZ01"]');
+    const dlg = await p2.textContent('#dialoogInhoud');
+    assert.ok(dlg.includes('M-PR24-001') && !dlg.includes('M-PR24-002') && dlg.includes('22,00'));
+    await knop2('Sluiten');
+    await p2.screenshot({ path: path.join(UIT, 'scherm_per_medewerker.png'), fullPage: true });
+    // Excel
+    await p2.click('#tabs button[data-tab="importexport"]');
+    const [dl2] = await Promise.all([p2.waitForEvent('download'), p2.click('[data-actie="excel-export"]')]);
+    const xlsx2 = path.join(UIT, 'export_per_medewerker.xlsx');
+    await dl2.saveAs(xlsx2);
+    const pm = JSON.parse(execFileSync('python3', ['-c', `
+import json, openpyxl
+wb = openpyxl.load_workbook(${JSON.stringify(xlsx2)})
+ws = list(wb["Per medewerker"].iter_rows(values_only=True))
+k = next(i for i, r in enumerate(ws) if r and r[0] == "ProcesID")
+kop = ws[k]
+sam = {r[3]: [r[kop.index("Aantal metingen")], r[kop.index("Gemiddelde actieve tijd per uitvoering (min)")], r[kop.index("Minimum actieve tijd per uitvoering (min)")], r[kop.index("Maximum actieve tijd per uitvoering (min)")], r[kop.index("n actieve tijd")]] for r in ws[k+1:] if r and r[0] == "PR24"}
+j = next(i for i, r in enumerate(ws) if r and r[0] == "MetingID")
+ind = [[r[0], r[4], r[11]] for r in ws[j+1:] if r and r[0]]
+pm = [r for r in wb["Procesmetingen"].iter_rows(values_only=True)]
+print(json.dumps({"bladen": wb.sheetnames, "sam": sam, "ind": ind, "pm_kop": "MedewerkerID" in pm[0]}))`]).toString());
+    assert.ok(pm.bladen.includes('Per medewerker'));
+    assert.deepStrictEqual(pm.sam.PZ01, [1, 22, 22, 22, 1]);
+    assert.deepStrictEqual(pm.sam.PZ02, [1, 17, 17, 17, 1]);
+    assert.deepStrictEqual(pm.sam['Alle medewerkers (gecombineerd)'], [2, 19.5, 17, 22, 2]);
+    assert.deepStrictEqual(pm.ind, [['M-PR24-001', 'PZ01', 22], ['M-PR24-002', 'PZ02', 17]]);
+    assert.ok(pm.pm_kop);
+    ok('medewerkers', 'Controlevoorbeeld: PZ01 = 22 min, PZ02 = 17 min; gecombineerd gemiddelde PR24 = 19,5 min (n = 2), bandbreedte 17–22; filter PZ01 toont 22, PZ02 toont 17, Alle toont 19,5; individuele metingen per medewerker zichtbaar; Excel-tabblad "Per medewerker" bevat samenvatting en individuele metingen');
+    await ctx2.close();
+  }
+
+  assert.deepStrictEqual(netwerk, [], 'netwerkverzoeken: ' + netwerk.join(', '));
+  assert.deepStrictEqual(fouten, [], fouten.join('\n'));
   await browser.close();
   fs.writeFileSync(path.join(UIT, 'resultaat.txt'), resultaten.join('\n') + '\n');
   console.log('\nALLE TESTS GESLAAGD');
