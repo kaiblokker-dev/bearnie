@@ -96,6 +96,10 @@ function vulSelect(select, opties, gekozen, legeOptie) {
   if (gekozen !== undefined && gekozen !== null && [...select.options].some((o) => o.value === gekozen)) select.value = gekozen;
 }
 
+function testLabel(record) {
+  return isTestmeting(record) ? '<span class="testlabel" title="Test/fictieve meting">TEST</span>' : '';
+}
+
 function demoLabel(record) {
   return record && record.demo ? '<span class="demolabel">DEMO</span>' : '';
 }

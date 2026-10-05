@@ -22,9 +22,20 @@ function renderImportExport() {
 
 // ---------- Kolomdefinities voor ruwe gegevens (CSV en Excel) ----------
 
+/** Kalenderjaar, -week en begin/einde van de week, afgeleid uit een datum (nooit opgeslagen). */
+function KALENDER_KOLOMMEN(datum) {
+  const k = (r) => kalenderweek(datum(r));
+  return [
+    ['Kalenderjaar (ISO-week, afgeleid)', (r) => (k(r) ? k(r).jaar : null)],
+    ['Kalenderweek (afgeleid)', (r) => (k(r) ? k(r).week : null)],
+    ['Begin kalenderweek (afgeleid)', (r) => (k(r) ? k(r).begin : '')],
+    ['Einde kalenderweek (afgeleid)', (r) => (k(r) ? k(r).eind : '')],
+  ];
+}
+
 const KOLOMMEN_PROCESMETINGEN = [
   ['MetingID', (m) => m.metingId],
-  ['Datum', (m) => m.datum],
+  ['Meetdatum', (m) => m.datum],
   ['ProcesID', (m) => m.procesId],
   ['Procesnaam (bij meting)', (m) => m.procesnaam],
   ['MedewerkerID', (m) => m.medewerkerId || ''],
@@ -39,6 +50,11 @@ const KOLOMMEN_PROCESMETINGEN = [
   ['Vastgelegd op', (m) => m.aangemaakt || ''],
   ['Laatst gewijzigd', (m) => m.gewijzigd || ''],
   ['Demogegevens', (m) => (m.demo ? 'Ja' : 'Nee')],
+  // Sinds versie 1.4 (achteraan toegevoegd)
+  ['Test/fictief', (m) => (isTestmeting(m) ? 'Ja' : 'Nee')],
+  ['Controle: totale actieve tijd volgens procesmeting (min)', (m) => (isGetal(m.actieveTijdTotaal) ? m.actieveTijdTotaal : null)],
+  ['Controle: totale wachttijd volgens procesmeting (min)', (m) => (isGetal(m.wachttijdTotaal) ? m.wachttijdTotaal : null)],
+  ...KALENDER_KOLOMMEN((m) => m.datum),
 ];
 
 const KOLOMMEN_STAPMETINGEN = [
@@ -52,6 +68,7 @@ const KOLOMMEN_STAPMETINGEN = [
   ['Opmerking', (s) => s.opmerking || ''],
   ['Tijdvastlegging', (s) => s.tijdvastlegging || ''],
   ['Demogegevens', (s) => (s.demo ? 'Ja' : 'Nee')],
+  ['Test/fictief (via procesmeting)', (s) => (isTestStapmeting(s) ? 'Ja' : 'Nee')],
 ];
 
 const KOLOMMEN_FREQUENTIE = [
@@ -73,6 +90,10 @@ const KOLOMMEN_FREQUENTIE = [
   ['Bereik', (f) => f.bereik || 'Nog niet bepaald'],
   ['Afbakening / toelichting', (f) => f.afbakening || ''],
   ['Meetellen in totaal', (f) => meetellenTekst(f)],
+  // Sinds versie 1.4
+  ['Meetdatum', (f) => f.meetdatum || ''],
+  ['Test/fictief', (f) => (isTestmeting(f) ? 'Ja' : 'Nee')],
+  ...KALENDER_KOLOMMEN((f) => f.meetdatum),
 ];
 
 function gesorteerdeProcesmetingen() {
@@ -202,26 +223,55 @@ function totaalBlad(filters) {
   rijen.push(['Keuze gemiddelde', keuzeGemiddeldeTekst(filters) + ' (normale gevallen)']);
   rijen.push(['Formule', 'Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering; uren = minuten / 60. Wachttijd telt niet mee. Totale frequentie = som van frequentiemetingen met "Meetellen in totaal" = Ja en dezelfde periode, alleen als ze niet (mogelijk) overlappen.']);
   rijen.push([]);
-  const koppen = ['ProcesID', 'Procesnaam', 'Periode', 'Meetperiode(n)', 'Uitvoeringseenheid', 'Totale frequentie', 'Gemiddelde actieve tijd per uitvoering (min)',
+  const koppen = ['ProcesID', 'Procesnaam', 'Periode', 'Kalenderweek (selectie)', 'Kalenderweken gebruikte frequenties', 'Meetperiode(n) (omschrijving)', 'Uitvoeringseenheid', 'Totale frequentie', 'Gemiddelde actieve tijd per uitvoering (min)',
     'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)', 'Geschatte actieve tijdsbelasting (min)', 'Geschatte actieve tijdsbelasting (uur)',
-    'Gemiddelde wachttijd per uitvoering (min, niet meegeteld)', 'Aantal procesmetingen', 'Aantal frequentiemetingen', 'Keuze gemiddelde',
+    'Gemiddelde wachttijd per uitvoering (min, niet meegeteld)', 'Aantal procesmetingen', 'Aantal frequentiemetingen', 'Keuze gemiddelde', 'Test/fictieve metingen', 'Mogelijke overlap',
     'Gebruikte medewerker-ID\'s', 'Gebruikte MetingID\'s', 'Gebruikte frequentie-ID\'s', 'Bronnen frequentie', 'Meetwijzen tijd', 'Status', 'Waarschuwingen'];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
   for (const procesId of alleProcesIds()) {
     const perioden = totaalPeriodenVanProces(procesId);
+    // Per periode: eerst alle kalenderweken samen, daarna iedere kalenderweek afzonderlijk.
     for (const periode of perioden.length ? perioden : [null]) {
-      const t = berekenTotaalOverzicht(procesId, filters, periode);
-      const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
-      rijen.push([procesId, procesNaam(procesId), periode ? 'per ' + periode.toLowerCase() : ONBEKEND, t.meetperioden.join(', '), t.eenheden.uitvoeringseenheid,
-        getalOfLeeg(t.totaleFrequentie), getalOfLeeg(t.gemiddeldeActief), getalOfLeeg(t.minimumActief), getalOfLeeg(t.maximumActief),
-        getalOfLeeg(t.minuten), getalOfLeeg(t.uren), getalOfLeeg(t.gemiddeldeWacht), t.aantalProcesmetingen, t.frequenties.length,
-        keuzeGemiddeldeTekst(filters), t.medewerkerIds.join(', '), t.metingIds.join(', '), t.frequenties.map((f) => f.frequentieId).join(', '),
-        t.bronnen.map(bronLabel).join('; '), t.meetwijzenTijd.join('; '),
-        isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | ')]);
+      for (const week of ['', ...totaalWekenVanProces(procesId)]) {
+        const t = berekenTotaalOverzicht(procesId, filters, periode, week);
+        if (week && !t.frequenties.length) continue;
+        const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
+        rijen.push([procesId, procesNaam(procesId), periode ? 'per ' + periode.toLowerCase() : ONBEKEND, week ? kalenderweekSleutelTekst(week) : 'alle kalenderweken',
+          t.kalenderweken.map(kalenderweekSleutelTekst).join(', '), t.meetperioden.join(', '), t.eenheden.uitvoeringseenheid,
+          getalOfLeeg(t.totaleFrequentie), getalOfLeeg(t.gemiddeldeActief), getalOfLeeg(t.minimumActief), getalOfLeeg(t.maximumActief),
+          getalOfLeeg(t.minuten), getalOfLeeg(t.uren), getalOfLeeg(t.gemiddeldeWacht), t.aantalProcesmetingen, t.frequenties.length,
+          keuzeGemiddeldeTekst(filters), filters.metTest ? 'meegenomen' : 'uitgesloten',
+          t.frequenties.length < 2 ? 'n.v.t.' : t.mogelijkeOverlap ? 'Ja – totaal niet berekend' : 'Nee',
+          t.medewerkerIds.join(', '), t.metingIds.join(', '), t.frequenties.map((f) => f.frequentieId).join(', '),
+          t.bronnen.map(bronLabel).join('; '), t.meetwijzenTijd.join('; '),
+          isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | ')]);
+      }
     }
   }
-  return { naam: 'Totaaloverzicht', rijen, kolombreedtes: [12, 28, 12, 18, 14, 12, 16, 12, 12, 16, 14, 16, 10, 10, 26, 22, 30, 30, 34, 24, 18, 90], kopRij };
+  rijen.push([]);
+  rijen.push([{ v: 'Status per frequentiemeting (alle kalenderweken, per eigen periode)', s: 'titel' }]);
+  rijen.push(['FrequentieID', 'ProcesID', 'MedewerkerID', 'Meetdatum', 'Kalenderweek', 'Periode', 'Bereik', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Bron', 'Meetellen in totaal', 'Test/fictief', 'Meegenomen in totaal', 'Reden'].map(kop));
+  for (const procesId of alleProcesIds()) {
+    for (const f of frequentiesVanProces(procesId).slice().sort((a, b) => vergelijkTekst(a.frequentieId, b.frequentieId))) {
+      const t = berekenTotaalOverzicht(procesId, filters, f.periodeEenheid || null, '');
+      const st = t.status.find((x) => x.frequentie.frequentieId === f.frequentieId);
+      const meegeteld = st && st.geselecteerd && isGetal(t.totaleFrequentie);
+      const reden = st && !st.geselecteerd ? st.reden : (!isGetal(t.totaleFrequentie) ? 'totaal niet berekend: ' + t.frequentieBlokkades.join(' ') : '');
+      rijen.push([f.frequentieId, procesId, f.medewerkerId || '', f.meetdatum || '', kalenderweekTekst(f.meetdatum, true), f.periodeEenheid ? 'per ' + f.periodeEenheid.toLowerCase() : 'Nog niet bepaald',
+        f.bereik || 'Nog niet bepaald', getalOfLeeg(f.aantalUitvoeringen), eenhedenVan(f).uitvoeringseenheid, bronLabel(f.meetwijze), meetellenTekst(f), isTestmeting(f) ? 'Ja' : 'Nee',
+        meegeteld ? 'Ja' : 'Nee', reden]);
+    }
+  }
+  return { naam: 'Totaaloverzicht', rijen, kolombreedtes: [12, 28, 12, 22, 26, 18, 14, 12, 16, 12, 12, 16, 14, 16, 10, 10, 26, 14, 18, 22, 30, 30, 34, 24, 18, 90], kopRij };
+}
+
+/** Of een procesmeting met de huidige filters in de resultaten is meegenomen, met reden. */
+function meegenomenStatus(m, filters, b) {
+  if (isTestmeting(m) && !filters.metTest) return 'Nee – test/fictieve meting (uitgesloten)';
+  if (!metingVoldoetAanFilters(m, { ...filters, procesId: m.procesId })) return 'Nee – buiten de gekozen filters (meetwijze, medewerker of datum)';
+  if (!isGetal((b || berekenMeting(m)).actiefPerUitvoering)) return `Ja (${m.casustype}), maar actieve tijd per uitvoering is Onbekend`;
+  return `Ja (${m.casustype})`;
 }
 
 /** Tabblad 'Per medewerker': samenvatting per medewerker en de individuele metingen met berekende waarden. */
@@ -239,7 +289,6 @@ function medewerkerBlad(filters) {
     'n wachttijd', 'Gemiddelde wachttijd per uitvoering (min)', 'n omvang', 'Gemiddelde omvang per uitvoering', 'MetingID\'s'];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
-  const individueel = [];
   for (const procesId of alleProcesIds()) {
     const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
     for (const c of CASUSTYPEN) {
@@ -250,22 +299,26 @@ function medewerkerBlad(filters) {
         g.wacht.n, getalOfLeeg(g.wacht.gemiddelde), g.omvang.n, getalOfLeeg(g.omvang.gemiddelde), g.metingIds.join(', ')];
       for (const g of ms.perMedewerker) rijen.push(regel(medewerkerLabel(g.medewerkerId), g));
       rijen.push(regel('Alle medewerkers (gecombineerd)', ms.totaal));
-      for (const id of ms.totaal.metingIds) individueel.push(zoekMeting(id));
     }
   }
   rijen.push([]);
-  rijen.push([{ v: 'Individuele procesmetingen (iedere meting afzonderlijk, met berekende waarden)', s: 'titel' }]);
-  rijen.push(['MetingID', 'Datum', 'ProcesID', 'Casustype', 'MedewerkerID', 'Meetwijze', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Omvang', 'Omvangseenheid',
-    'Totale actieve tijd (min)', 'Actieve tijd per uitvoering (min)', 'Totale wachttijd (min)', 'Wachttijd per uitvoering (min)', 'Omvang per uitvoering', 'Actieve tijd per omvangseenheid (min)'].map(kop));
-  for (const m of individueel.sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
+  rijen.push([{ v: 'Individuele procesmetingen – alle metingen afzonderlijk, met berekende waarden, controles en of ze in de resultaten zijn meegenomen', s: 'titel' }]);
+  rijen.push(['MetingID', 'Meetdatum', 'Kalenderweek', 'ProcesID', 'Casustype', 'MedewerkerID', 'Meetwijze', 'Test/fictief', 'Meegenomen in resultaten', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Omvang', 'Omvangseenheid',
+    'Totale actieve tijd (min)', 'Actieve tijd per uitvoering (min)', 'Totale wachttijd (min)', 'Wachttijd per uitvoering (min)', 'Omvang per uitvoering', 'Actieve tijd per omvangseenheid (min)',
+    'Controle actief: procesmeting (min)', 'Controle actief: som stapmetingen (min)', 'Controle actief: verschil (min)',
+    'Controle wacht: procesmeting (min)', 'Controle wacht: som stapmetingen (min)', 'Controle wacht: verschil (min)', 'Afwijking proces/stappen'].map(kop));
+  for (const m of [...staat.procesmetingen].sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
     const b = berekenMeting(m);
     const e = eenhedenVan(m);
-    rijen.push([m.metingId, m.datum, m.procesId, m.casustype, m.medewerkerId || '(niet ingevuld)', m.meetwijze,
+    const c = controleProcesStap(m, stapmetingenVan(m.metingId));
+    const ctl = (x) => (x ? [x.procesmeting, x.stapmetingen, x.verschil] : ['', '', '']);
+    rijen.push([m.metingId, m.datum, kalenderweekTekst(m.datum, true), m.procesId, m.casustype, m.medewerkerId || '(niet ingevuld)', m.meetwijze, isTestmeting(m) ? 'Ja' : 'Nee', meegenomenStatus(m, filters, b),
       'aantalUitvoeringen' in m ? getalOfLeeg(m.aantalUitvoeringen) : ONBEKEND, e.uitvoeringseenheid, getalOfLeeg(m.omvang), e.omvangseenheid,
       getalOfLeeg(b.totaalActief), getalOfLeeg(b.actiefPerUitvoering), getalOfLeeg(b.totaalWacht), getalOfLeeg(b.wachtPerUitvoering),
-      getalOfLeeg(b.omvangPerUitvoering), getalOfLeeg(b.actiefPerOmvang)]);
+      getalOfLeeg(b.omvangPerUitvoering), getalOfLeeg(b.actiefPerOmvang),
+      ...ctl(c.actief), ...ctl(c.wacht), c.actief || c.wacht ? (c.heeftAfwijking ? 'Ja: ' + controleTekst(c).join(' ') : 'Nee') : 'Niet te controleren (geen totaal bij procesmeting)']);
   }
-  return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 28, 13, 26, 16, 16, 10, 10, 18, 18, 18, 10, 18, 10, 16, 50], kopRij };
+  return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 14, 18, 26, 16, 16, 18, 10, 34, 12, 14, 10, 14, 14, 16, 14, 16, 14, 16, 14, 14, 14, 14, 14, 14, 50], kopRij };
 }
 
 function methodeBlad(filters) {
@@ -309,6 +362,11 @@ function methodeBlad(filters) {
   r.push(['Geteld (frequentie)', 'Het aantal uitvoeringen is handmatig geteld.']);
   r.push(['Resultaten per medewerker', 'Per MedewerkerID: aantal metingen, gemiddelde/minimum/maximum actieve tijd per uitvoering, gemiddelde wachttijd per uitvoering en gemiddelde omvang per uitvoering (omvang / aantal uitvoeringen), elk met het aantal gebruikte metingen (n). Het gecombineerde resultaat (alle medewerkers) wordt berekend uit alle individuele metingen samen, niet uit de gemiddelden per medewerker. MedewerkerID\'s zijn anonieme codes (bijv. PZ01); er worden geen namen vastgelegd.']);
   r.push(['Filter op medewerker', 'Resultaten kunnen worden berekend voor alle medewerkers samen (standaard) of voor één MedewerkerID. Het gebruikte filter staat bij de resultaten vermeld.']);
+  r.push(['Meetmoment en kalenderweek', 'Meetdatum = de datum waarop de meting is uitgevoerd. Kalenderjaar, kalenderweek en begin/einde van de week worden automatisch uit de meetdatum berekend volgens ISO 8601 (Nederlandse weekindeling, maandag t/m zondag; week 1 bevat de eerste donderdag van het jaar). Kalenderjaar is het ISO-weekjaar. Het meetmoment is iets anders dan de frequentieperiode (per dag, week, maand of jaar).']);
+  r.push(['Doorlooptijd', 'Actieve tijd + wachttijd van een uitvoering. Alleen actieve tijd telt mee in de geschatte tijdsbelasting.']);
+  r.push(['Test/fictieve metingen', 'Gemarkeerd met Test/fictief = Ja. Ze blijven in de ruwe gegevens staan, maar worden standaard uitgesloten van gemiddelden, grafieken, totale frequenties en tijdsbelasting (tenzij bij de resultaten "Testmetingen meenemen" is gekozen; dat staat in de gebruikte filters). Stapmetingen van een test-procesmeting gelden ook als test. Metingen uit eerdere versies gelden als echt.']);
+  r.push(['Controle proces- en stapmetingen', `Als bij een procesmeting een totale actieve tijd of wachttijd is genoteerd, wordt die vergeleken met de som van de stapmetingen. Een verschil groter dan ${fmtGetal(CONTROLE_TOLERANTIE)} minuut geeft een waarschuwing (opslaan blijft mogelijk) en staat in het tabblad Per medewerker. Voor alle berekeningen wordt de som van de stapmetingen gebruikt.`]);
+  r.push(['Gekopieerde tijden', 'Tijdvastlegging "Gekopieerd" = waarde overgenomen bij het dupliceren van een eerdere meting; "Gekopieerd, handmatig aangepast" = daarna door de gebruiker gewijzigd.']);
   r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
   r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
   r.push(['Meetellen in totaal', 'Ja / Nee door de gebruiker gekozen. Bij frequentiemetingen uit eerdere versies is dit "Nog niet bepaald"; die tellen niet mee in het totaal, zodat oude frequenties niet automatisch dubbel worden geteld.']);
@@ -352,12 +410,18 @@ async function exporteerExcel() {
 
 // ---------- JSON-back-up ----------
 
+/**
+ * Volledige back-up. De lijsten met records zijn de bron; medewerkerIds, koppelingen en teststatussen
+ * zijn afgeleide overzichten die bij herstel worden gecontroleerd op consistentie.
+ */
 function maakBackup() {
+  const tijd = nuIso();
   return {
     formaat: BACKUP_FORMAAT,
     toolversie: VERSIE,
     schemaversie: staat.schemaversie,
-    exportdatum: nuIso(),
+    exportdatum: tijd,
+    aangemaaktOp: tijd,
     bevatDemogegevens: bevatDemo(),
     processen: staat.processen,
     processtappen: staat.processtappen,
@@ -365,7 +429,21 @@ function maakBackup() {
     stapmetingen: staat.stapmetingen,
     frequentiemetingen: staat.frequentiemetingen,
     volgnummers: staat.volgnummers,
+    instellingen: { volgnummers: staat.volgnummers },
+    medewerkerIds: uniek([...staat.procesmetingen, ...staat.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst),
+    koppelingen: staat.procesmetingen.map((m) => ({ metingId: m.metingId, procesId: m.procesId, stapIds: stapmetingenVan(m.metingId).map((x) => x.stapId) })),
+    teststatussen: {
+      procesmetingen: staat.procesmetingen.filter(isTestmeting).map((m) => m.metingId),
+      frequentiemetingen: staat.frequentiemetingen.filter(isTestmeting).map((f) => f.frequentieId),
+    },
   };
+}
+
+/** Veiligheidsback-up vóór vervangen: als download én lokaal in de browser (localStorage, indien mogelijk). */
+function maakVeiligheidsbackup() {
+  const tekst = JSON.stringify(maakBackup(), null, 2);
+  downloadTekst(tekst, `Meettool_veiligheidsbackup_${bestandsdatum()}.json`, 'application/json');
+  try { localStorage.setItem('meettool-veiligheidsbackup', tekst); } catch (e) { /* te groot of niet beschikbaar; de download blijft */ }
 }
 
 async function downloadBackup() {
@@ -432,6 +510,24 @@ function controleerBackup(json) {
     if (f.bereik && !BEREIKEN.includes(f.bereik)) fouten.push(`${l}: bereik is ongeldig.`);
     if (f.meetellenInTotaal !== undefined && f.meetellenInTotaal !== null && typeof f.meetellenInTotaal !== 'boolean') fouten.push(`${l}: "Meetellen in totaal" is ongeldig.`);
   });
+  // Afgeleide overzichten (sinds versie 1.4) moeten kloppen met de records; een afwijking duidt op een beschadigd bestand.
+  if (Array.isArray(json.koppelingen)) {
+    for (const k of json.koppelingen) {
+      const echt = json.stapmetingen.filter((x) => x.metingId === k.metingId).map((x) => x.stapId).sort();
+      if (!metingIds.has(k.metingId) || JSON.stringify(echt) !== JSON.stringify([...(k.stapIds || [])].sort())) {
+        fouten.push(`Koppeling van meting ${k.metingId} komt niet overeen met de stapmetingen in het bestand (bestand mogelijk beschadigd).`);
+      }
+    }
+    if (json.koppelingen.length !== json.procesmetingen.length) fouten.push('Het aantal koppelingen komt niet overeen met het aantal procesmetingen (bestand mogelijk beschadigd).');
+  }
+  if (json.teststatussen && Array.isArray(json.teststatussen.procesmetingen)) {
+    const echt = json.procesmetingen.filter((m) => m.testmeting === true).map((m) => m.metingId).sort();
+    if (JSON.stringify(echt) !== JSON.stringify([...json.teststatussen.procesmetingen].sort())) fouten.push('De teststatussen komen niet overeen met de procesmetingen (bestand mogelijk beschadigd).');
+  }
+  for (const r of [...json.procesmetingen, ...json.frequentiemetingen]) {
+    if (r.testmeting !== undefined && typeof r.testmeting !== 'boolean') fouten.push(`${r.metingId || r.frequentieId}: teststatus is ongeldig.`);
+  }
+  json.frequentiemetingen.forEach((f) => { if (f.meetdatum && !isGeldigeDatum(f.meetdatum)) fouten.push(`Frequentiemeting ${f.frequentieId}: meetdatum is ongeldig.`); });
   dubbel(json.processen, (p) => p.procesId, 'ProcesID');
   dubbel(json.processtappen, (s) => s.stapId, 'StapID');
   dubbel(json.procesmetingen, (m) => m.metingId, 'MetingID');
@@ -532,6 +628,9 @@ async function importeerBackup(bestand) {
         <dt>Exportdatum</dt><dd>${esc(fmtTijdstip(json.exportdatum))}</dd>
         <dt>Inhoud</dt><dd>${gegevens.processen.length} processen, ${gegevens.processtappen.length} processtappen, ${gegevens.procesmetingen.length} procesmetingen, ${gegevens.stapmetingen.length} stapmetingen, ${gegevens.frequentiemetingen.length} frequentiemetingen</dd>
         <dt>Demogegevens</dt><dd>${json.bevatDemogegevens ? '<strong>Ja</strong>' : 'Nee'}</dd>
+        <dt>Test/fictief</dt><dd>${gegevens.procesmetingen.filter(isTestmeting).length} procesmeting(en), ${gegevens.frequentiemetingen.filter(isTestmeting).length} frequentiemeting(en)</dd>
+        <dt>Medewerker-ID's</dt><dd>${esc(uniek([...gegevens.procesmetingen, ...gegevens.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst).join(', ') || '—')}</dd>
+        <dt>Schemaversie</dt><dd>${esc(json.schemaversie || 1)}${(json.schemaversie || 1) < 3 ? ' (ouder formaat; wordt veilig omgezet, opgeslagen waarden blijven gelijk)' : ''}</dd>
       </dl>
       <div class="melding info mt">Het bestand is gecontroleerd: het formaat klopt, verplichte velden zijn aanwezig en alle identificatiecodes zijn uniek.</div>
       <h4>Kies hoe u wilt importeren</h4>
@@ -552,8 +651,9 @@ async function importeerBackup(bestand) {
     await informeer('Samenvoegen voltooid', `<p>Toegevoegd: ${verslag.toegevoegd.processen} processen, ${verslag.toegevoegd.procesmetingen} procesmetingen, ${verslag.toegevoegd.frequentiemetingen} frequentiemetingen.</p>
       ${verslag.conflicten.length ? `<div class="melding waarschuwing"><strong>Niet geïmporteerd (conflict):</strong><ul>${verslag.conflicten.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}`);
   } else if (keuze === 'vervangen') {
-    const ok = await bevestig('Huidige gegevens vervangen', '<div class="melding waarschuwing">Alle huidige gegevens worden gewist en vervangen door de back-up. Maak eventueel eerst een back-up van de huidige gegevens.</div><p>Weet u het zeker?</p>', 'Ja, vervangen', true);
+    const ok = await bevestig('Huidige gegevens vervangen', '<div class="melding waarschuwing">Alle huidige gegevens worden gewist en vervangen door de back-up.</div><p>Vóór het vervangen wordt automatisch een <strong>veiligheidsback-up</strong> van de huidige gegevens gedownload (en lokaal bewaard). Weet u het zeker?</p>', 'Ja, vervangen', true);
     if (!ok) return;
+    maakVeiligheidsbackup();
     staat = gegevens;
     metingBewerkId = null;
     frequentieBewerkId = null;

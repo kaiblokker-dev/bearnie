@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Meettool administratieve processen
-  Versie: 1.3.0
+  Versie: 1.4.0
   Gebouwd op: 2026-10-05
 
   Zelfstandig bestand: alle JavaScript en CSS staan hieronder in dit bestand.
@@ -320,6 +320,22 @@ td.mono { white-space: nowrap; }
 tr.totaalrij > td { border-top: 2px solid var(--berekend-rand); }
 tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
 
+/* Korte uitleg bij begrippen */
+.uitleg-i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 4px;
+  border-radius: 50%; border: 1px solid var(--berekend-rand);
+  color: var(--berekend-tekst); background: #fff;
+  font: italic 600 10px Georgia, serif; cursor: help; vertical-align: middle;
+}
+.uitleg-i:focus { outline: 2px solid var(--groen); }
+.testlabel {
+  display: inline-block; background: #fdeaea; color: #8a1c1c; border: 1px solid #efc2bf;
+  border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; vertical-align: middle;
+}
+.conceptstatus { font-size: 13px; color: var(--tekst-zacht); }
+.afwijking { color: var(--waarschuwing); font-weight: 600; cursor: help; }
+
 </style>
 </head>
 <body>
@@ -379,8 +395,9 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
             <span class="hint">Wordt automatisch toegekend.</span>
           </div>
           <div class="veld">
-            <label for="mDatum" class="verplicht">Datum</label>
+            <label for="mDatum" class="verplicht">Meetdatum</label>
             <input type="date" id="mDatum">
+            <span class="hint" id="mKalenderweek"></span>
           </div>
           <div class="veld">
             <label for="mProces" class="verplicht">ProcesID</label>
@@ -399,12 +416,12 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
             </div>
           </div>
           <div class="veld">
-            <label for="mAantal" class="verplicht" id="mAantalLabel">Aantal uitvoeringen</label>
+            <span class="label verplicht"><label for="mAantal" id="mAantalLabel">Aantal uitvoeringen</label> <span data-uitleg="uitvoeringseenheid"></span></span>
             <input type="text" id="mAantal" inputmode="decimal" placeholder="bijv. 1">
             <span class="hint" id="mAantalHint">Uitvoeringseenheid volgt uit het proces.</span>
           </div>
           <div class="veld">
-            <label for="mOmvang" id="mOmvangLabel">Omvang</label>
+            <span class="label"><label for="mOmvang" id="mOmvangLabel">Omvang</label> <span data-uitleg="omvang"></span></span>
             <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 7">
             <span class="hint" id="mOmvangHint">Positief getal. Leeg laten als onbekend.</span>
           </div>
@@ -415,6 +432,19 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
           <div class="veld breed">
             <label for="mToelichting">Algemene toelichting</label>
             <textarea id="mToelichting" placeholder="Optioneel"></textarea>
+          </div>
+          <div class="veld">
+            <label for="mActiefTotaal">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
+            <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+            <span class="hint">Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.</span>
+          </div>
+          <div class="veld">
+            <label for="mWachtTotaal">Totale wachttijd volgens procesmeting (min) <span data-uitleg="wacht"></span></label>
+            <input type="text" id="mWachtTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+          </div>
+          <div class="veld">
+            <span class="label">Test/fictief <span data-uitleg="test"></span></span>
+            <label class="keuzes" style="font-weight:400"><input type="checkbox" id="mTest"> Test/fictieve meting</label>
           </div>
         </div>
       </div>
@@ -434,6 +464,8 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
       <div class="knoppen">
         <button type="submit" class="primair" id="mOpslaan">Meting opslaan</button>
         <button type="button" data-actie="meting-annuleren" id="mAnnuleren">Formulier leegmaken</button>
+        <button type="button" class="klein" data-actie="concept-meting-verwijderen" id="mConceptVerwijderen" hidden>Concept verwijderen</button>
+        <span class="conceptstatus" id="mConceptStatus" aria-live="polite"></span>
       </div>
     </form>
   </section>
@@ -466,12 +498,17 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
             <input type="text" id="fPeriode" placeholder="bijv. maart 2026 of week 12">
           </div>
           <div class="veld">
-            <label for="fPeriodeEenheid">Periode (frequentie per …)</label>
+            <label for="fDatum">Meetdatum (meetmoment) <span data-uitleg="kalenderweek"></span></label>
+            <input type="date" id="fDatum">
+            <span class="hint" id="fKalenderweek">Optioneel. De kalenderweek wordt automatisch berekend.</span>
+          </div>
+          <div class="veld">
+            <label for="fPeriodeEenheid">Frequentieperiode (per …) <span data-uitleg="frequentieperiode"></span></label>
             <select id="fPeriodeEenheid"></select>
             <span class="hint">Alleen frequenties met dezelfde periode worden bij elkaar opgeteld.</span>
           </div>
           <div class="veld">
-            <label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label>
+            <span class="label"><label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label> <span data-uitleg="frequentie"></span></span>
             <input type="text" id="fAantal" inputmode="decimal" placeholder="bijv. 120">
             <span class="hint" id="fAantalHint">Nodig voor de geschatte tijdsbelasting.</span>
           </div>
@@ -494,9 +531,13 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
             <textarea id="fAfbakening" placeholder="Optioneel: op welke dossiers of werkzaamheden heeft deze frequentie betrekking? Bijv. alleen eigen dossiers van PZ01, zonder bezwaarzaken."></textarea>
           </div>
           <div class="veld breed">
-            <label class="keuzes" style="font-weight:600"><input type="checkbox" id="fMeetellen"> Meetellen in totaal</label>
+            <label class="keuzes" style="font-weight:600"><input type="checkbox" id="fMeetellen"> Meetellen in totaal <span data-uitleg="meetellen"></span></label>
             <span class="hint">Vink alleen aan als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Verschillende schattingen van hetzelfde volume (bijv. twee schattingen voor de hele afdeling) mogen niet allebei meetellen.</span>
             <span class="hint" id="fMeetellenStatus"></span>
+          </div>
+          <div class="veld">
+            <span class="label">Test/fictief <span data-uitleg="test"></span></span>
+            <label class="keuzes" style="font-weight:400"><input type="checkbox" id="fTest"> Test/fictieve meting</label>
           </div>
           <div class="veld breed">
             <label for="fBron">Bron of toelichting</label>
@@ -508,6 +549,8 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
       <div class="knoppen">
         <button type="submit" class="primair">Frequentie opslaan</button>
         <button type="button" data-actie="frequentie-annuleren" id="fAnnuleren">Formulier leegmaken</button>
+        <button type="button" class="klein" data-actie="concept-frequentie-verwijderen" id="fConceptVerwijderen" hidden>Concept verwijderen</button>
+        <span class="conceptstatus" id="fConceptStatus" aria-live="polite"></span>
       </div>
     </form>
     <div class="kaart mt">
@@ -553,6 +596,7 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
         <div class="veld" style="width:200px"><label for="rMedewerker">Medewerker</label><select id="rMedewerker"></select></div>
         <div class="veld"><label for="rVan">Datum vanaf</label><input type="date" id="rVan"></div>
         <div class="veld"><label for="rTot">Datum tot en met</label><input type="date" id="rTot"></div>
+        <div class="veld" style="width:auto"><span class="label">Testmetingen</span><label class="keuzes" style="font-weight:400"><input type="checkbox" id="rMetTest"> Testmetingen meenemen <span data-uitleg="test"></span></label></div>
       </div>
     </div>
     <div id="resultatenInhoud"></div>
@@ -580,11 +624,11 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
         </div>
       </div>
       <div class="kaart">
-        <h3>Back-up</h3>
-        <p class="klein zacht">Een JSON-back-up bevat alle processen, processtappen, procesmetingen, stapmetingen, frequentiemetingen en het versienummer van de tool.</p>
+        <h3>Volledige back-up (JSON)</h3>
+        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
         <div class="knoppen">
-          <button type="button" class="primair" data-actie="backup-download">Back-up downloaden (JSON)</button>
-          <button type="button" data-actie="backup-import">Back-up importeren (JSON)</button>
+          <button type="button" class="primair" data-actie="backup-download">Volledige back-up downloaden</button>
+          <button type="button" data-actie="backup-import">Back-up herstellen</button>
           <input type="file" id="backupBestand" accept=".json,application/json" hidden>
         </div>
       </div>
@@ -622,7 +666,7 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
 'use strict';
 // ===== versie.js =====
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.3.0';
+const VERSIE = '1.4.0';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
@@ -895,6 +939,85 @@ function htmlAantal(n, achtervoegsel = '') {
   return esc(fmtAantal(n) + achtervoegsel);
 }
 
+// ---------- Kalenderweek (ISO 8601, Nederlandse weekindeling: maandag t/m zondag) ----------
+
+const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+
+/**
+ * Kalenderweek van een datum (JJJJ-MM-DD). Week 1 is de week met de eerste donderdag van het jaar.
+ * jaar = ISO-weekjaar (bijv. 1 januari 2027 valt in week 53 van 2026). Volledig in UTC, dus tijdzone-onafhankelijk.
+ */
+function kalenderweek(isoDatum) {
+  if (!isGeldigeDatum(isoDatum)) return null;
+  const [j, m, d] = isoDatum.split('-').map(Number);
+  const datum = Date.UTC(j, m - 1, d);
+  const dagNr = new Date(datum).getUTCDay() || 7; // 1 = maandag … 7 = zondag
+  const DAG = 864e5;
+  const begin = datum - (dagNr - 1) * DAG;
+  const donderdag = new Date(begin + 3 * DAG);
+  const jaar = donderdag.getUTCFullYear();
+  const jan4 = Date.UTC(jaar, 0, 4);
+  const maandagWeek1 = jan4 - ((new Date(jan4).getUTCDay() || 7) - 1) * DAG;
+  const naarIso = (t) => new Date(t).toISOString().slice(0, 10);
+  return { jaar, week: Math.round((begin - maandagWeek1) / (7 * DAG)) + 1, begin: naarIso(begin), eind: naarIso(begin + 6 * DAG) };
+}
+
+/** Bijv. "5 t/m 11 oktober 2026" of "28 december 2026 t/m 3 januari 2027". */
+function weekBereikTekst(beginIso, eindIso) {
+  const [bj, bm, bd] = beginIso.split('-').map(Number);
+  const [ej, em, ed] = eindIso.split('-').map(Number);
+  if (bj !== ej) return `${bd} ${MAANDEN[bm - 1]} ${bj} t/m ${ed} ${MAANDEN[em - 1]} ${ej}`;
+  if (bm !== em) return `${bd} ${MAANDEN[bm - 1]} t/m ${ed} ${MAANDEN[em - 1]} ${ej}`;
+  return `${bd} t/m ${ed} ${MAANDEN[em - 1]} ${ej}`;
+}
+
+/** Bijv. "Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)". */
+function kalenderweekTekst(isoDatum, kort) {
+  const k = kalenderweek(isoDatum);
+  if (!k) return '';
+  return kort ? `week ${k.week} van ${k.jaar}` : `Kalenderweek ${k.week} van ${k.jaar} (${weekBereikTekst(k.begin, k.eind)})`;
+}
+
+/** Sleutel voor groeperen/kiezen van een kalenderweek, bijv. "2026-W41". */
+function kalenderweekSleutel(isoDatum) {
+  const k = kalenderweek(isoDatum);
+  return k ? `${k.jaar}-W${String(k.week).padStart(2, '0')}` : '';
+}
+
+function kalenderweekSleutelTekst(sleutel) {
+  const m = /^(\d{4})-W(\d{2})$/.exec(sleutel || '');
+  return m ? `kalenderweek ${Number(m[2])} van ${m[1]}` : '';
+}
+
+// ---------- Eenheden ----------
+
+/** Lege of nietszeggende eenheden ("n.v.t.", "-", "onbekend") gelden als ontbrekend. */
+function isOntbrekendeEenheid(tekst) {
+  const t = String(tekst || '').trim().toLowerCase();
+  return !t || /^(n\.?\s?v\.?\s?t\.?|nvt|-+|\?+|onbekend|geen|x)$/.test(t);
+}
+
+// ---------- Korte uitleg bij begrippen ----------
+
+const UITLEG = {
+  actief: 'Actieve tijd: tijd waarin een medewerker daadwerkelijk aan het dossier werkt.',
+  wacht: 'Wachttijd: tijd waarin het proces stilligt zonder dat de medewerker eraan werkt (bijv. wachten op een reactie of systeem).',
+  doorlooptijd: 'Doorlooptijd: actieve tijd + wachttijd; de totale tijd van begin tot einde van de uitvoering.',
+  omvang: 'Omvang: het aantal items dat binnen één procesuitvoering wordt verwerkt, uitgedrukt in de omvangseenheid (bijv. diensttijdregistraties).',
+  uitvoeringseenheid: 'Uitvoeringseenheid: wat één uitvoering van het proces is (bijv. één dossier). Tijden worden per uitvoeringseenheid berekend.',
+  frequentie: 'Frequentie: hoe vaak het proces binnen een bepaalde periode wordt uitgevoerd (bijv. 25 dossiers per week).',
+  frequentieperiode: 'Frequentieperiode: de periode waarop het aantal betrekking heeft (per dag, week, maand, kwartaal of jaar). Dit is iets anders dan het meetmoment.',
+  kalenderweek: 'Kalenderweek (meetmoment): de ISO-week (maandag t/m zondag) waarin de meetdatum valt. Wordt automatisch uit de datum berekend.',
+  tijdsbelasting: 'Geschatte actieve tijdsbelasting: totale frequentie × gemiddelde actieve tijd per procesuitvoering. Wachttijd telt niet mee.',
+  meetellen: 'Meetellen in totaal: alleen aanvinken als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Alleen aangevinkte frequenties worden opgeteld.',
+  test: 'Test/fictieve meting: blijft zichtbaar in de ruwe gegevens, maar telt standaard niet mee in gemiddelden, grafieken, totalen en tijdsbelasting.',
+};
+
+function infoHtml(term) {
+  const t = UITLEG[term] || '';
+  return `<span class="uitleg-i" tabindex="0" role="img" title="${esc(t)}" aria-label="${esc('Uitleg: ' + t)}">i</span>`;
+}
+
 // ===== opslag.js =====
 // ---------- Lokale opslag (IndexedDB, met localStorage als terugvaloptie) ----------
 
@@ -982,6 +1105,53 @@ const Opslag = {
   },
 };
 
+// ---------- Concepten (niet-afgeronde invoer) ----------
+// Concepten staan los van de definitieve gegevens in localStorage, omdat dat synchroon schrijft:
+// ook bij direct sluiten of vernieuwen van de pagina blijft de laatste invoer bewaard.
+// Een concept wordt nooit automatisch als meting opgeslagen.
+
+const CONCEPT_PREFIX = 'meettool-concept-';
+
+function bewaarConcept(soort, gegevens) {
+  try {
+    localStorage.setItem(CONCEPT_PREFIX + soort, JSON.stringify({ opgeslagen: nuIso(), versie: VERSIE, gegevens }));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function laadConcept(soort) {
+  try {
+    const t = localStorage.getItem(CONCEPT_PREFIX + soort);
+    return t ? JSON.parse(t) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function heeftConcept(soort) {
+  return !!laadConcept(soort);
+}
+
+function verwijderConcept(soort) {
+  try { localStorage.removeItem(CONCEPT_PREFIX + soort); } catch (e) { /* niet kritiek */ }
+  toonConceptStatus(soort === 'meting' ? 'm' : 'f', null);
+}
+
+/** Toont "Concept automatisch opgeslagen" bij het formulier (prefix 'm' = meting, 'f' = frequentie). */
+function toonConceptStatus(prefix, gelukt, tijdstip) {
+  const status = document.getElementById(prefix + 'ConceptStatus');
+  const knop = document.getElementById(prefix + 'ConceptVerwijderen');
+  if (!status || !knop) return;
+  if (gelukt === null) { status.textContent = ''; knop.hidden = true; return; }
+  if (!gelukt) { status.textContent = 'Concept kon niet lokaal worden bewaard (opslag niet beschikbaar).'; knop.hidden = true; return; }
+  const t = tijdstip ? new Date(tijdstip) : new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  status.textContent = `Concept automatisch opgeslagen om ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`;
+  knop.hidden = false;
+}
+
 // ===== model.js =====
 // ---------- Datamodel ----------
 //
@@ -1010,6 +1180,14 @@ const Opslag = {
 // procesnaam, stapnaam en de eenheden bij een meting zijn een kopie op het moment van
 // meten, zodat metingen leesbaar blijven als een proces later wordt gewijzigd of verwijderd.
 // Ontbrekende getallen worden als null opgeslagen, nooit als 0.
+// Schemaversie 3 (versie 1.4) voegt optionele velden toe, die bij oudere records ontbreken:
+// - procesmetingen:     testmeting (true = test/fictief), actieveTijdTotaal en wachttijdTotaal
+//                       (optionele controlewaarden: totaal volgens de procesmeting zelf);
+// - frequentiemetingen: testmeting, meetdatum (meetmoment, JJJJ-MM-DD).
+// Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
+// van de week worden nooit opgeslagen maar altijd uit de datum berekend.
+// Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
+//
 // Metingen uit schemaversie 1 hebben geen veld aantalUitvoeringen (de sleutel ontbreekt);
 // dit wordt nooit automatisch ingevuld, alleen na expliciete bevestiging door de gebruiker.
 
@@ -1017,7 +1195,7 @@ let staat = legeStaat();
 
 function legeStaat() {
   return {
-    schemaversie: 2,
+    schemaversie: 3,
     processen: [],
     processtappen: [],
     procesmetingen: [],
@@ -1066,7 +1244,9 @@ function migreerEenheidVelden(record) {
  */
 function eenhedenVan(record, procesId) {
   const p = zoekProces(procesId || (record && record.procesId));
-  const kies = (veld, standaard) => (record && record[veld]) || (p && p[veld]) || standaard;
+  // Lege of nietszeggende eenheden (zoals "n.v.t.") worden overgeslagen.
+  const geldig = (bron, veld) => (bron && !isOntbrekendeEenheid(bron[veld]) ? bron[veld] : '');
+  const kies = (veld, standaard) => geldig(record, veld) || geldig(p, veld) || standaard;
   return {
     uitvoeringseenheid: kies('uitvoeringseenheid', 'uitvoering'),
     uitvoeringseenheidMeervoud: kies('uitvoeringseenheidMeervoud', 'uitvoeringen'),
@@ -1080,6 +1260,53 @@ function eenhedenKopie(procesId) {
   const r = {};
   for (const k of EENHEID_VELDEN) r[k] = p ? p[k] || '' : '';
   return r;
+}
+
+/** Waarschuwingstekst als de eenheden van een proces ontbreken of nietszeggend zijn (blokkeert niets). */
+function eenheidWaarschuwing(procesId) {
+  const p = zoekProces(procesId);
+  if (!p) return '';
+  const mist = [];
+  if (isOntbrekendeEenheid(p.uitvoeringseenheid) || isOntbrekendeEenheid(p.uitvoeringseenheidMeervoud)) mist.push('uitvoeringseenheid (bijv. dossier / dossiers)');
+  if (isOntbrekendeEenheid(p.omvangseenheid) || isOntbrekendeEenheid(p.omvangseenheidMeervoud)) mist.push('omvangseenheid (bijv. diensttijdregistratie / diensttijdregistraties)');
+  return mist.length ? `Bij proces ${procesId} ontbreekt de ${mist.join(' en de ')}. Er wordt een algemene omschrijving getoond; vul de eenheid aan bij Processen beheren.` : '';
+}
+
+function isTestmeting(record) {
+  return !!(record && record.testmeting === true);
+}
+
+/** Stapmetingen erven de teststatus van hun procesmeting. */
+function isTestStapmeting(s) {
+  return isTestmeting(zoekMeting(s.metingId));
+}
+
+// Afrondingstolerantie (minuten) voor de controle tussen proces- en stapmetingen.
+const CONTROLE_TOLERANTIE = 0.05;
+
+/**
+ * Controle tussen de (optionele) totalen bij de procesmeting en de som van de stapmetingen.
+ * Geeft per soort { procesmeting, stapmetingen, verschil, afwijking } of null als er niets te controleren valt.
+ */
+function controleProcesStap(meting, stapmetingen) {
+  const uit = {};
+  for (const [soort, totaalVeld, stapVeld] of [['actief', 'actieveTijdTotaal', 'actieveTijd'], ['wacht', 'wachttijdTotaal', 'wachttijd']]) {
+    const totaal = meting[totaalVeld];
+    const waarden = stapmetingen.map((s) => s[stapVeld]);
+    if (!isGetal(totaal) || !waarden.length || !waarden.every(isGetal)) { uit[soort] = null; continue; }
+    const somStappen = som(waarden);
+    const verschil = somStappen - totaal;
+    uit[soort] = { procesmeting: totaal, stapmetingen: somStappen, verschil, afwijking: Math.abs(verschil) > CONTROLE_TOLERANTIE };
+  }
+  uit.heeftAfwijking = !!((uit.actief && uit.actief.afwijking) || (uit.wacht && uit.wacht.afwijking));
+  return uit;
+}
+
+function controleTekst(c) {
+  const delen = [];
+  if (c.actief && c.actief.afwijking) delen.push(`Let op: de actieve tijd van de stapmetingen is samen ${fmtGetal(c.actief.stapmetingen)} minuten, terwijl bij de procesmeting ${fmtGetal(c.actief.procesmeting)} minuten staat (verschil ${fmtGetal(Math.abs(c.actief.verschil))} minuut).`);
+  if (c.wacht && c.wacht.afwijking) delen.push(`Let op: de wachttijd van de stapmetingen is samen ${fmtGetal(c.wacht.stapmetingen)} minuten, terwijl bij de procesmeting ${fmtGetal(c.wacht.procesmeting)} minuten staat (verschil ${fmtGetal(Math.abs(c.wacht.verschil))} minuut).`);
+  return delen;
 }
 
 /** Metingen uit een eerdere versie waarbij het aantal uitvoeringen nooit is vastgelegd. */
@@ -1298,6 +1525,10 @@ function valideerMeting(meting, stapmetingen, origineelId) {
     if (s.wachttijd !== null && s.wachttijd < 0) fouten.push(`${label}: wachttijd mag niet negatief zijn.`);
     if (s.wachttijd > 0 && !(s.redenWachttijd || '').trim()) fouten.push(`${label}: er is wachttijd ingevuld. Geef ook de reden van de wachttijd op.`);
   }
+  for (const [veld, label] of [['actieveTijdTotaal', 'Totale actieve tijd volgens procesmeting'], ['wachttijdTotaal', 'Totale wachttijd volgens procesmeting']]) {
+    if (isGetal(meting[veld]) && meting[veld] < 0) fouten.push(`${label} mag niet negatief zijn.`);
+  }
+  waarschuwingen.push(...controleTekst(controleProcesStap(meting, stapmetingen)));
   const zonderActief = stapmetingen.filter((s) => s.actieveTijd === null).map((s) => s.stapId);
   const zonderWacht = stapmetingen.filter((s) => s.wachttijd === null).map((s) => s.stapId);
   if (zonderActief.length) waarschuwingen.push(`Actieve tijd is niet ingevuld bij: ${zonderActief.join(', ')}. Deze waarden blijven Onbekend en worden niet als nul geteld; de totale actieve tijd van deze meting wordt daardoor Onbekend.`);
@@ -1396,10 +1627,12 @@ const MEDEWERKER_LEEG = '__leeg__';
 
 /**
  * Filtert procesmetingen.
- * filters: { procesId, meetwijze ('alle' | groepcode), van, tot, medewerker ('' = alle | MEDEWERKER_LEEG | MedewerkerID) }
+ * filters: { procesId, meetwijze ('alle' | groepcode), van, tot, medewerker ('' = alle | MEDEWERKER_LEEG | MedewerkerID),
+ *            metTest (true = test/fictieve metingen meenemen; standaard uitgesloten) }
  */
 function metingVoldoetAanFilters(m, filters) {
   if (filters.procesId && m.procesId !== filters.procesId) return false;
+  if (isTestmeting(m) && !filters.metTest) return false;
   if (filters.medewerker === MEDEWERKER_LEEG && m.medewerkerId) return false;
   if (filters.medewerker && filters.medewerker !== MEDEWERKER_LEEG && m.medewerkerId !== filters.medewerker) return false;
   if (filters.meetwijze && filters.meetwijze !== 'alle') {
@@ -1620,10 +1853,12 @@ function totaalPeriodenVanProces(procesId) {
  * Geschatte actieve tijd (min) = totale frequentie × gemiddelde actieve tijd per uitvoering
  * (normale gevallen, binnen de filters inclusief het medewerkerfilter). Wachttijd telt niet mee.
  */
-function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
+function berekenTotaalOverzicht(procesId, filters, periodeEenheid, weekSleutel) {
   const e = eenhedenVan(null, procesId);
   const alle = frequentiesVanProces(procesId).slice().sort((a, b) => vergelijkTekst(a.frequentieId, b.frequentieId));
-  const aangevinkt = alle.filter((f) => f.meetellenInTotaal === true);
+  // Uitgesloten vóór de selectie: testmetingen (tenzij meegenomen) en, bij een gekozen kalenderweek, andere weken.
+  const binnenFilters = (f) => (!isTestmeting(f) || filters.metTest) && (!weekSleutel || kalenderweekSleutel(f.meetdatum) === weekSleutel);
+  const aangevinkt = alle.filter((f) => f.meetellenInTotaal === true && binnenFilters(f));
   const geselecteerd = aangevinkt.filter((f) => f.periodeEenheid === periodeEenheid);
   const frequentieBlokkades = [];
   const tijdBlokkades = [];
@@ -1632,7 +1867,10 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
   // Status per frequentiemeting, voor de herleidbaarheid.
   const status = alle.map((f) => {
     let reden = '';
-    if (f.meetellenInTotaal !== true) reden = typeof f.meetellenInTotaal === 'boolean' ? 'Meetellen in totaal staat uit' : 'Meetellen in totaal nog niet bepaald';
+    if (isTestmeting(f) && !filters.metTest) reden = 'test/fictieve meting (uitgesloten)';
+    else if (weekSleutel && !f.meetdatum) reden = 'geen meetdatum, dus kalenderweek onbekend';
+    else if (weekSleutel && kalenderweekSleutel(f.meetdatum) !== weekSleutel) reden = `andere kalenderweek (${kalenderweekTekst(f.meetdatum, true)})`;
+    else if (f.meetellenInTotaal !== true) reden = typeof f.meetellenInTotaal === 'boolean' ? 'Meetellen in totaal staat uit' : 'Meetellen in totaal nog niet bepaald';
     else if (!f.periodeEenheid) reden = 'periode niet bepaald';
     else if (f.periodeEenheid !== periodeEenheid) reden = `andere periode (per ${f.periodeEenheid.toLowerCase()})`;
     return { frequentie: f, geselecteerd: !reden, reden };
@@ -1671,10 +1909,17 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
     }
   }
   const meetperioden = uniek(geselecteerd.map((f) => (f.meetperiode || '').trim()).filter(Boolean));
-  if (meetperioden.length > 1) {
+  const kalenderweken = uniek(geselecteerd.map((f) => kalenderweekSleutel(f.meetdatum)).filter(Boolean)).sort();
+  if (kalenderweken.length > 1) {
+    waarschuwingen.push(`De geselecteerde frequenties komen uit verschillende kalenderweken (${kalenderweken.map(kalenderweekSleutelTekst).join(', ')}). Kies zo nodig één kalenderweek, zodat dezelfde medewerker niet voor meerdere weken wordt opgeteld.`);
+  } else if (!kalenderweken.length && meetperioden.length > 1) {
     waarschuwingen.push(`De geselecteerde frequenties noemen verschillende meetperioden (${meetperioden.join(', ')}). Controleer of het om hetzelfde soort tijdvak gaat en of samen optellen klopt.`);
   }
-  const andereEenheid = geselecteerd.filter((f) => f.uitvoeringseenheid && f.uitvoeringseenheid !== e.uitvoeringseenheid);
+  const eenheidMelding = eenheidWaarschuwing(procesId);
+  if (eenheidMelding) waarschuwingen.push(eenheidMelding);
+  const testInTotaal = geselecteerd.filter(isTestmeting);
+  if (testInTotaal.length) waarschuwingen.push(`Testmetingen zijn meegenomen in de totale frequentie: ${testInTotaal.map((f) => f.frequentieId).join(', ')}.`);
+  const andereEenheid = geselecteerd.filter((f) => !isOntbrekendeEenheid(f.uitvoeringseenheid) && f.uitvoeringseenheid !== e.uitvoeringseenheid);
   if (andereEenheid.length) {
     waarschuwingen.push(`Let op: ${andereEenheid.map((f) => `${f.frequentieId} (${f.uitvoeringseenheid})`).join(', ')} gebruikt een andere uitvoeringseenheid dan het proces (${e.uitvoeringseenheid}).`);
   }
@@ -1714,10 +1959,18 @@ function berekenTotaalOverzicht(procesId, filters, periodeEenheid) {
     meetwijzenTijd: uniek(gebruikteMetingen.map((m) => m.meetwijze)),
     bronnen: uniek(geselecteerd.map((f) => f.meetwijze)),
     meetperioden,
+    kalenderweken,
+    weekSleutel: weekSleutel || '',
+    mogelijkeOverlap: frequentieBlokkades.some((b) => /overlap|dubbele telling/i.test(b)),
     frequentieBlokkades,
     tijdBlokkades,
     waarschuwingen,
   };
+}
+
+/** Kalenderweken (sleutels) van de frequentiemetingen van een proces met 'Meetellen in totaal'. */
+function totaalWekenVanProces(procesId) {
+  return uniek(frequentiesVanProces(procesId).filter((f) => f.meetellenInTotaal === true && f.meetdatum).map((f) => kalenderweekSleutel(f.meetdatum)).filter(Boolean)).sort();
 }
 
 function keuzeGemiddeldeTekst(filters) {
@@ -1731,6 +1984,7 @@ function filtersAlsTekst(filters) {
   delen.push('Medewerker: ' + (!filters.medewerker ? 'alle medewerkers' : filters.medewerker === MEDEWERKER_LEEG ? 'zonder MedewerkerID' : filters.medewerker));
   const groep = MEETWIJZE_GROEPEN.find((g) => g.code === filters.meetwijze);
   delen.push('Meetwijze: ' + (groep ? groep.label : 'alle meetwijzen (gemengd)'));
+  delen.push('Testmetingen: ' + (filters.metTest ? 'meegenomen' : 'uitgesloten'));
   delen.push('Datum vanaf: ' + (filters.van ? fmtDatum(filters.van) : 'geen'));
   delen.push('Datum tot en met: ' + (filters.tot ? fmtDatum(filters.tot) : 'geen'));
   return delen.join('; ');
@@ -2346,6 +2600,10 @@ function vulSelect(select, opties, gekozen, legeOptie) {
   if (gekozen !== undefined && gekozen !== null && [...select.options].some((o) => o.value === gekozen)) select.value = gekozen;
 }
 
+function testLabel(record) {
+  return isTestmeting(record) ? '<span class="testlabel" title="Test/fictieve meting">TEST</span>' : '';
+}
+
 function demoLabel(record) {
   return record && record.demo ? '<span class="demolabel">DEMO</span>' : '';
 }
@@ -2778,18 +3036,27 @@ function initMetingFormulier() {
     const rij = e.target.closest('tr[data-stap]');
     if (rij && (e.target.dataset.veld === 'actieveTijd' || e.target.dataset.veld === 'wachttijd')) {
       const s = formulierStappen.find((x) => x.stapId === rij.dataset.stap);
-      if (s && s.tijdvastlegging === 'Timer') { s.tijdvastlegging = 'Timer, handmatig aangepast'; werkBronLabelBij(rij, s); }
+      if (s && (s.tijdvastlegging === 'Timer' || s.tijdvastlegging === 'Gekopieerd')) { s.tijdvastlegging += ', handmatig aangepast'; werkBronLabelBij(rij, s); }
       if (e.target.dataset.veld === 'wachttijd') werkRedenZichtbaarheidBij(rij);
     }
+    werkKalenderweekBij();
     werkBerekeningBij();
+    planMetingConcept();
   });
-  $('#metingFormulier').addEventListener('change', werkBerekeningBij);
+  $('#metingFormulier').addEventListener('change', () => { werkKalenderweekBij(); werkBerekeningBij(); planMetingConcept(); });
   $('#metingFormulier').addEventListener('submit', (e) => { e.preventDefault(); slaMetingOp(); });
   $('#mStappen').addEventListener('click', (e) => {
     const knop = e.target.closest('button[data-timer]');
     if (knop) timerActie(knop.closest('tr').dataset.stap, knop.dataset.timer);
   });
   renderMetingStappen();
+  werkKalenderweekBij();
+}
+
+/** Toont onder de meetdatum de kalenderweek, bijv. "Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)". */
+function werkKalenderweekBij() {
+  const tekst = kalenderweekTekst($('#mDatum').value);
+  $('#mKalenderweek').innerHTML = tekst ? `Meetmoment: ${esc(tekst)} ${infoHtml('kalenderweek')}` : '';
 }
 
 function laadProcesStappenInFormulier(procesId) {
@@ -2812,8 +3079,8 @@ function renderMetingStappen(waarden = {}) {
     return `<tr data-stap="${esc(s.stapId)}">
       <td class="mono">${esc(s.stapId)}</td>
       <td>${esc(s.stapnaam)}<span class="bronlabel" data-bron></span></td>
-      <td><input type="text" class="tijd" data-veld="actieveTijd" inputmode="decimal" value="${esc(naarInvoer(w.actieveTijd))}" aria-label="Actieve tijd in minuten voor ${esc(s.stapId)}"></td>
-      <td><input type="text" class="tijd" data-veld="wachttijd" inputmode="decimal" value="${esc(naarInvoer(w.wachttijd))}" aria-label="Wachttijd in minuten voor ${esc(s.stapId)}"></td>
+      <td><input type="text" class="tijd" data-veld="actieveTijd" inputmode="decimal" value="${esc(typeof w.actieveTijd === 'string' ? w.actieveTijd : naarInvoer(w.actieveTijd))}" aria-label="Actieve tijd in minuten voor ${esc(s.stapId)}"></td>
+      <td><input type="text" class="tijd" data-veld="wachttijd" inputmode="decimal" value="${esc(typeof w.wachttijd === 'string' ? w.wachttijd : naarInvoer(w.wachttijd))}" aria-label="Wachttijd in minuten voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="redenWachttijd" value="${esc(w.redenWachttijd || '')}" placeholder="Verplicht bij wachttijd" aria-label="Reden wachttijd voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="opmerking" value="${esc(w.opmerking || '')}" placeholder="Optioneel" aria-label="Opmerking voor ${esc(s.stapId)}"></td>
       <td class="timer">
@@ -2823,7 +3090,7 @@ function renderMetingStappen(waarden = {}) {
     </tr>`;
   }).join('');
   houder.innerHTML = `<div class="tabelhouder"><table class="stappen">
-    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min)</th><th>Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th class="timer">Timer</th></tr></thead>
+    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min) ${infoHtml('actief')}</th><th>Wachttijd (min) ${infoHtml('wacht')}</th><th>Reden wachttijd</th><th>Opmerking</th><th class="timer">Timer</th></tr></thead>
     <tbody>${rijen}</tbody></table></div>
     <p class="klein zacht">Tijden in minuten; decimalen met komma of punt. Vul 0 in als er geen wachttijd was. De timer vult de velden pas na <em>Afronden</em>; controleer en corrigeer de waarden altijd vóór het opslaan.</p>`;
   for (const rij of $$('tr[data-stap]', houder)) {
@@ -2858,6 +3125,14 @@ function leesMetingFormulier() {
   const omvang = leesGetal($('#mOmvang').value);
   if (omvang.fout) invoerFouten.push(`Omvang (aantal ${e.omvangseenheidMeervoud}): ` + omvang.fout);
   $('#mOmvang').classList.toggle('ongeldig', !!omvang.fout || (isGetal(omvang.waarde) && omvang.waarde <= 0));
+  const leesControle = (id, label) => {
+    const r = leesGetal($(id).value);
+    if (r.fout) invoerFouten.push(`${label}: ${r.fout}`);
+    $(id).classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && r.waarde < 0));
+    return r.fout ? NaN : r.waarde;
+  };
+  const actieveTijdTotaal = leesControle('#mActiefTotaal', 'Totale actieve tijd volgens procesmeting');
+  const wachttijdTotaal = leesControle('#mWachtTotaal', 'Totale wachttijd volgens procesmeting');
   const casus = $('input[name="casustype"]:checked');
   const pid = metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
   const meting = {
@@ -2872,7 +3147,11 @@ function leesMetingFormulier() {
     ...formulierEenheden,
     meetwijze: $('#mMeetwijze').value,
     toelichting: $('#mToelichting').value.trim(),
+    actieveTijdTotaal,
+    wachttijdTotaal,
   };
+  // Alleen vastleggen als het een test/fictieve meting is; ontbreken = geen testmeting.
+  if ($('#mTest').checked) meting.testmeting = true;
   const stapmetingen = formulierStappen.map((s) => {
     const rij = $(`tr[data-stap="${CSS.escape(s.stapId)}"]`, $('#mStappen'));
     const lees = (veld) => {
@@ -2920,12 +3199,16 @@ function werkBerekeningBij() {
       <div><div class="klein"><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</div><strong>${htmlGetal(deel(totaalActief, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
       <div><div class="klein">Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</div><strong>${htmlGetal(deel(totaalActief, omvangOk, meting.omvang), 2, ' min')}</strong></div>
       <div><div class="klein">Wachttijd per ${esc(e.uitvoeringseenheid)}</div><strong>${htmlGetal(deel(totaalWacht, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
+      <div><div class="klein">Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</div><strong>${htmlGetal(isGetal(totaalActief) && isGetal(totaalWacht) ? totaalActief + totaalWacht : null, 2, ' min')}</strong></div>
     </div>
+    ${controleHtml(controleProcesStap(meting, stapmetingen))}
     ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
 }
 
 async function slaMetingOp() {
   const { meting, stapmetingen, invoerFouten } = leesMetingFormulier();
+  // Een nieuwe meting krijgt bij opslaan altijd een vrij MetingID (nooit een bestaande overschrijven).
+  if (!metingBewerkId && meting.procesId) meting.metingId = volgendeId('meting', meting.procesId).id;
   const { fouten, waarschuwingen } = invoerFouten.length ? { fouten: invoerFouten, waarschuwingen: [] } : valideerMeting(meting, stapmetingen, metingBewerkId);
   $('#mFouten').innerHTML = foutenHtml(fouten, 'De meting is nog niet opgeslagen. Controleer het volgende:');
   if (fouten.length) { $('#mFouten').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
@@ -2937,8 +3220,18 @@ async function slaMetingOp() {
       `<ul>${waarschuwingen.map((w) => `<li>${esc(w)}</li>`).join('')}</ul><p>Wilt u de meting toch opslaan?</p>`, 'Toch opslaan');
     if (!ok) return;
   }
+  if (metingBewerkId && metingConceptBasis !== null) {
+    const huidig = zoekMeting(metingBewerkId);
+    if (huidig && (huidig.gewijzigd || huidig.aangemaakt || '') !== metingConceptBasis) {
+      const ok = await bevestig('Meting is intussen gewijzigd',
+        `<div class="melding waarschuwing">Meting ${esc(metingBewerkId)} is opgeslagen gewijzigd nadat dit concept is begonnen (laatst gewijzigd: ${esc(fmtTijdstip(huidig.gewijzigd || huidig.aangemaakt))}). Als u nu opslaat, vervangt dit concept die versie.</div><p>Wilt u het concept toch opslaan?</p>`,
+        'Concept toch opslaan', true);
+      if (!ok) return;
+    }
+  }
   const wasBewerking = !!metingBewerkId;
   const record = bewaarMeting(meting, stapmetingen, metingBewerkId);
+  verwijderConcept('meting');
   resetMetingFormulier(true);
   await naWijziging(`Meting ${record.metingId} is ${wasBewerking ? 'bijgewerkt' : 'opgeslagen'}.`);
   if (wasBewerking) toonTab('overzicht');
@@ -2963,6 +3256,11 @@ function resetMetingFormulier(behoudAlgemeen) {
   $$('input[name="casustype"]').forEach((r) => { r.checked = false; });
   $('#mAantal').value = '';
   $('#mOmvang').value = '';
+  $('#mActiefTotaal').value = '';
+  $('#mWachtTotaal').value = '';
+  $('#mTest').checked = false;
+  metingConceptBasis = null;
+  annuleerMetingConceptTimer();
   $('#mToelichting').value = '';
   vulMetingProcesKeuze();
   const p = zoekProces($('#mProces').value);
@@ -2970,6 +3268,7 @@ function resetMetingFormulier(behoudAlgemeen) {
   werkEenheidLabelsBij();
   laadProcesStappenInFormulier(p ? p.procesId : null);
   werkMetingIdBij();
+  werkKalenderweekBij();
 }
 
 /** Laadt een bestaande meting in het formulier om aan te passen. */
@@ -2988,6 +3287,10 @@ function bewerkMeting(metingId) {
   $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === m.casustype; });
   $('#mAantal').value = 'aantalUitvoeringen' in m ? naarInvoer(m.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(m.omvang);
+  $('#mActiefTotaal').value = naarInvoer(m.actieveTijdTotaal);
+  $('#mWachtTotaal').value = naarInvoer(m.wachttijdTotaal);
+  $('#mTest').checked = isTestmeting(m);
+  metingConceptBasis = m.gewijzigd || m.aangemaakt || '';
   // Vastgelegde eenheden van de meting; ontbrekende (meting uit versie 1.0) aangevuld vanuit het proces.
   const kopie = eenhedenKopie(m.procesId);
   formulierEenheden = Object.fromEntries(EENHEID_VELDEN.map((k) => [k, m[k] || kopie[k] || '']));
@@ -3004,6 +3307,7 @@ function bewerkMeting(metingId) {
   $('#mAnnuleren').textContent = 'Aanpassen annuleren';
   $('#mFouten').innerHTML = '';
   renderMetingStappen(waarden);
+  werkKalenderweekBij();
   toonTab('meting');
 }
 
@@ -3112,6 +3416,161 @@ function werkEenheidLabelsBij() {
   $('#mOmvangHint').textContent = `Omvangseenheid: ${e.omvangseenheid}. Positief getal; leeg laten als onbekend.`;
 }
 
+/** Niet-blokkerende waarschuwing bij een verschil tussen procesmeting en stapmetingen. */
+function controleHtml(c) {
+  if (!c.actief && !c.wacht) return '';
+  const regel = (label, x) => (x ? `<tr><td>${label}</td><td class="getal">${esc(fmtGetal(x.procesmeting))}</td><td class="getal">${esc(fmtGetal(x.stapmetingen))}</td><td class="getal${x.afwijking ? ' afwijking' : ''}">${esc(fmtGetal(x.verschil))}</td></tr>` : '');
+  const tabel = `<table class="klein" style="max-width:560px;margin-top:6px"><thead><tr><th>Controle</th><th class="getal">Procesmeting (min)</th><th class="getal">Som stapmetingen (min)</th><th class="getal">Verschil (min)</th></tr></thead>
+    <tbody>${regel('Actieve tijd', c.actief)}${regel('Wachttijd', c.wacht)}</tbody></table>`;
+  if (!c.heeftAfwijking) return `<div class="klein mt">Controle proces- en stapmetingen: geen verschil (tolerantie ${fmtGetal(CONTROLE_TOLERANTIE)} min).</div>${tabel}`;
+  return `<div class="melding waarschuwing mt">${controleTekst(c).map(esc).join('<br>')}<br><span class="klein">U kunt de meting toch opslaan; de afwijking wordt vastgelegd in de export. Voor de berekeningen wordt de som van de stapmetingen gebruikt.</span>${tabel}</div>`;
+}
+
+// ---------- Meting dupliceren ----------
+
+/** Laadt een kopie van een bestaande meting als NIEUWE meting in het formulier (pas opgeslagen na controle). */
+async function dupliceerMeting(metingId) {
+  const bron = zoekMeting(metingId);
+  if (!bron) return;
+  if (!zoekProces(bron.procesId)) {
+    await informeer('Dupliceren niet mogelijk', `<p>Proces ${esc(bron.procesId)} bestaat niet meer, dus er kan geen nieuwe meting voor worden aangemaakt.</p>`);
+    return;
+  }
+  if (heeftConcept('meting')) {
+    const ok = await bevestig('Huidige invoer vervangen?', '<p>Het formulier Nieuwe procesmeting bevat een niet-opgeslagen concept. Dit wordt vervangen door de kopie.</p>', 'Vervangen door kopie', true);
+    if (!ok) return;
+  }
+  resetMetingFormulier(false);
+  $('#mProces').value = bron.procesId;
+  formulierEenheden = eenhedenKopie(bron.procesId);
+  werkEenheidLabelsBij();
+  // Stappen volgens de huidige procesdefinitie; waarden overnemen waar de StapID overeenkomt.
+  laadProcesStappenInFormulier(bron.procesId);
+  const waarden = {};
+  for (const s of stapmetingenVan(metingId)) {
+    const stap = formulierStappen.find((x) => x.stapId === s.stapId);
+    if (!stap) continue;
+    waarden[s.stapId] = { actieveTijd: s.actieveTijd, wachttijd: s.wachttijd, redenWachttijd: s.redenWachttijd, opmerking: s.opmerking };
+    stap.tijdvastlegging = 'Gekopieerd';
+  }
+  $('#mDatum').value = vandaagIso();
+  $('#mMedewerker').value = bron.medewerkerId || '';
+  $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === bron.casustype; });
+  $('#mAantal').value = 'aantalUitvoeringen' in bron ? naarInvoer(bron.aantalUitvoeringen) : '';
+  $('#mOmvang').value = naarInvoer(bron.omvang);
+  $('#mMeetwijze').value = bron.meetwijze || '';
+  $('#mToelichting').value = bron.toelichting || '';
+  $('#mActiefTotaal').value = naarInvoer(bron.actieveTijdTotaal);
+  $('#mWachtTotaal').value = naarInvoer(bron.wachttijdTotaal);
+  $('#mTest').checked = isTestmeting(bron);
+  renderMetingStappen(waarden);
+  werkMetingIdBij();
+  werkKalenderweekBij();
+  $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Kopie van meting ${esc(metingId)} – nog niet opgeslagen.</strong>
+    De meetdatum is op vandaag gezet en de meting krijgt een nieuw MetingID. Controleer en pas zo nodig medewerker, omvang, tijden, casustype en toelichting aan, en sla daarna op.
+    Gekopieerde tijden zijn gemarkeerd als "Gekopieerd".</div>`;
+  toonTab('meting');
+  bewaarMetingConcept();
+}
+
+// ---------- Concept: automatisch tussentijds opslaan ----------
+
+let metingConceptBasis = null; // bij aanpassen: 'gewijzigd'-tijdstip van de meting bij het begin van het concept
+let metingConceptTimer = null;
+
+function planMetingConcept() {
+  clearTimeout(metingConceptTimer);
+  metingConceptTimer = setTimeout(() => { metingConceptTimer = null; bewaarMetingConcept(); }, 400);
+}
+
+function annuleerMetingConceptTimer() {
+  clearTimeout(metingConceptTimer);
+  metingConceptTimer = null;
+}
+
+/** Alleen echte invoer is een concept waard (niet alleen een gekozen proces). */
+function metingConceptHeeftInhoud(g) {
+  const v = g.velden;
+  return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
+    || Object.values(g.waarden).some((w) => Object.values(w).some((x) => String(x).trim() !== ''))
+    || /Kopie van meting/.test(g.melding || ''));
+}
+
+function metingConceptGegevens() {
+  const waarden = {};
+  for (const rij of $$('tr[data-stap]', $('#mStappen'))) {
+    waarden[rij.dataset.stap] = Object.fromEntries(['actieveTijd', 'wachttijd', 'redenWachttijd', 'opmerking'].map((v) => [v, $(`[data-veld="${v}"]`, rij).value]));
+  }
+  const casus = $('input[name="casustype"]:checked');
+  return {
+    bewerkId: metingBewerkId,
+    basis: metingConceptBasis,
+    melding: $('#metingBewerkMelding').innerHTML,
+    procesId: metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value,
+    velden: {
+      datum: $('#mDatum').value, medewerker: $('#mMedewerker').value, casustype: casus ? casus.value : '',
+      aantal: $('#mAantal').value, omvang: $('#mOmvang').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
+      actiefTotaal: $('#mActiefTotaal').value, wachtTotaal: $('#mWachtTotaal').value, test: $('#mTest').checked,
+    },
+    stappen: formulierStappen,
+    waarden,
+  };
+}
+
+function bewaarMetingConcept() {
+  annuleerMetingConceptTimer();
+  const g = metingConceptGegevens();
+  if (!g.procesId || !metingConceptHeeftInhoud(g)) { if (heeftConcept('meting') && !g.bewerkId) verwijderConcept('meting'); return; }
+  if (bewaarConcept('meting', g)) toonConceptStatus('m', true);
+  else toonConceptStatus('m', false);
+}
+
+function herstelMetingConcept() {
+  const c = laadConcept('meting');
+  if (!c || !c.gegevens || !c.gegevens.procesId) return false;
+  const g = c.gegevens;
+  if (g.bewerkId) {
+    if (!zoekMeting(g.bewerkId)) { verwijderConcept('meting'); return false; }
+    bewerkMeting(g.bewerkId);
+    metingConceptBasis = g.basis;
+  } else {
+    if (!zoekProces(g.procesId)) { verwijderConcept('meting'); return false; }
+    resetMetingFormulier(false);
+    $('#mProces').value = g.procesId;
+    formulierEenheden = eenhedenKopie(g.procesId);
+    werkEenheidLabelsBij();
+  }
+  const v = g.velden;
+  $('#mDatum').value = v.datum || '';
+  $('#mMedewerker').value = v.medewerker || '';
+  $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === v.casustype; });
+  $('#mAantal').value = v.aantal || '';
+  $('#mOmvang').value = v.omvang || '';
+  $('#mMeetwijze').value = v.meetwijze || '';
+  $('#mToelichting').value = v.toelichting || '';
+  $('#mActiefTotaal').value = v.actiefTotaal || '';
+  $('#mWachtTotaal').value = v.wachtTotaal || '';
+  $('#mTest').checked = !!v.test;
+  formulierStappen = Array.isArray(g.stappen) ? g.stappen : formulierStappen;
+  renderMetingStappen(g.waarden || {});
+  werkMetingIdBij();
+  werkKalenderweekBij();
+  $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Niet-afgerond concept hersteld</strong> (automatisch opgeslagen op ${esc(fmtTijdstip(c.opgeslagen))}).
+    Controleer de invoer en sla de meting op, of verwijder het concept.${g.bewerkId ? ` Dit is een concept voor het aanpassen van meting ${esc(g.bewerkId)}.` : ''}</div>`;
+  toonConceptStatus('m', true, c.opgeslagen);
+  return true;
+}
+
+async function verwijderMetingConceptMetBevestiging() {
+  const ok = await bevestig('Concept verwijderen', '<p>Het automatisch opgeslagen concept en de niet-opgeslagen invoer in het formulier worden verwijderd. Opgeslagen metingen blijven ongewijzigd.</p>', 'Concept verwijderen', true);
+  if (!ok) return;
+  const wasBewerking = !!metingBewerkId;
+  verwijderConcept('meting');
+  resetMetingFormulier(false);
+  toonMelding('Concept verwijderd.');
+  if (wasBewerking) toonTab('overzicht');
+}
+
 // ===== ui-frequentie.js =====
 // ---------- 3. Frequentie registreren ----------
 
@@ -3148,6 +3607,16 @@ function initFrequentieFormulier() {
     werkFrequentieIdBij();
   });
   $('#frequentieFormulier').addEventListener('submit', (e) => { e.preventDefault(); slaFrequentieOp(); });
+  $('#fDatum').value = vandaagIso();
+  const bijInvoer = () => { werkFrequentieKalenderweekBij(); planFrequentieConcept(); };
+  $('#frequentieFormulier').addEventListener('input', bijInvoer);
+  $('#frequentieFormulier').addEventListener('change', bijInvoer);
+  werkFrequentieKalenderweekBij();
+}
+
+function werkFrequentieKalenderweekBij() {
+  const v = $('#fDatum').value;
+  $('#fKalenderweek').textContent = v ? `Meetmoment: ${kalenderweekTekst(v)}` : 'Optioneel. Zonder meetdatum is de kalenderweek onbekend.';
 }
 
 async function slaFrequentieOp() {
@@ -3159,8 +3628,9 @@ async function slaFrequentieOp() {
   if (volume.fout) fouten.push(`Totale omvang (aantal ${e.omvangseenheidMeervoud}): ` + volume.fout);
   $('#fAantal').classList.toggle('ongeldig', !!aantal.fout);
   $('#fVolume').classList.toggle('ongeldig', !!volume.fout);
+  if ($('#fDatum').value && !isGeldigeDatum($('#fDatum').value)) fouten.push('De meetdatum is ongeldig.');
   const f = {
-    frequentieId: $('#fId').value,
+    frequentieId: frequentieBewerkId || volgendeId('frequentie', $('#fProces').value || '-').id,
     procesId: frequentieBewerkId ? zoekFrequentie(frequentieBewerkId).procesId : $('#fProces').value,
     meetperiode: $('#fPeriode').value.trim(),
     aantalUitvoeringen: aantal.fout ? NaN : aantal.waarde,
@@ -3172,7 +3642,9 @@ async function slaFrequentieOp() {
     periodeEenheid: $('#fPeriodeEenheid').value || null,
     bereik: $('#fBereik').value || null,
     afbakening: $('#fAfbakening').value.trim(),
+    meetdatum: $('#fDatum').value || null,
   };
+  if ($('#fTest').checked) f.testmeting = true;
   // Alleen vastleggen als de gebruiker een keuze heeft gemaakt; anders blijft het 'nog niet bepaald'.
   if ($('#fMeetellen').dataset.onbepaald !== '1') f.meetellenInTotaal = $('#fMeetellen').checked;
   if (!fouten.length) fouten.push(...valideerFrequentie(f, frequentieBewerkId));
@@ -3189,6 +3661,7 @@ async function slaFrequentieOp() {
   const wasBewerking = !!frequentieBewerkId;
   // Bij aanpassen blijft een eerder 'nog niet bepaald' meetellen-veld ontbreken als de gebruiker het niet heeft aangeraakt.
   const record = bewaarFrequentie(f, frequentieBewerkId);
+  verwijderConcept('frequentie');
   resetFrequentieFormulier();
   await naWijziging(`Frequentiemeting ${record.frequentieId} is ${wasBewerking ? 'bijgewerkt' : 'opgeslagen'}.`);
   if (wasBewerking) toonTab('overzicht');
@@ -3204,6 +3677,9 @@ function resetFrequentieFormulier() {
   for (const id of ['#fPeriode', '#fAantal', '#fVolume', '#fBron', '#fMedewerker', '#fAfbakening']) $(id).value = '';
   for (const id of ['#fMeetwijze', '#fPeriodeEenheid', '#fBereik']) $(id).value = '';
   $('#fMeetellen').checked = false;
+  $('#fTest').checked = false;
+  $('#fDatum').value = vandaagIso();
+  annuleerFrequentieConceptTimer();
   $('#fMeetellen').indeterminate = false;
   $('#fMeetellen').dataset.onbepaald = '';
   werkMeetellenStatusBij();
@@ -3234,6 +3710,9 @@ function bewerkFrequentie(frequentieId) {
   $('#fPeriodeEenheid').value = f.periodeEenheid || '';
   $('#fBereik').value = f.bereik || '';
   $('#fAfbakening').value = f.afbakening || '';
+  $('#fDatum').value = f.meetdatum || '';
+  $('#fTest').checked = isTestmeting(f);
+  werkFrequentieKalenderweekBij();
   const onbepaald = typeof f.meetellenInTotaal !== 'boolean';
   $('#fMeetellen').checked = f.meetellenInTotaal === true;
   $('#fMeetellen').indeterminate = onbepaald;
@@ -3248,7 +3727,7 @@ function renderFrequentieRecent() {
   const lijst = [...staat.frequentiemetingen].sort((a, b) => String(b.aangemaakt || '').localeCompare(String(a.aangemaakt || ''))).slice(0, 8);
   $('#frequentieRecent').innerHTML = lijst.length
     ? `<table><thead><tr><th>FrequentieID</th><th>Proces</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th></tr></thead><tbody>
-      ${lijst.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}${demoLabel(f)}</td><td>${esc(procesLabel(f.procesId))}</td><td>${htmlTekst(f.meetperiode)}</td>
+      ${lijst.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}${demoLabel(f)}</td><td>${esc(procesLabel(f.procesId))}</td><td>${htmlTekst(f.meetperiode)}${f.meetdatum ? `<br><span class="klein zacht">${esc(kalenderweekTekst(f.meetdatum, true))}</span>` : ''}${testLabel(f)}</td>
         <td class="getal">${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</td><td>${meetwijzeHtml(f.meetwijze)}</td></tr>`).join('')}
       </tbody></table><p class="klein zacht">Alle frequentiemetingen staan onder <em>Metingen bekijken</em>.</p>`
     : '<p class="zacht">Nog geen frequentiemetingen.</p>';
@@ -3277,6 +3756,68 @@ function werkMeetellenStatusBij() {
   $('#fMeetellenStatus').textContent = el.dataset.onbepaald === '1'
     ? 'Huidige stand: nog niet bepaald (vastgelegd met een eerdere versie). Deze frequentie telt niet mee in het totaal tot u het vinkje aan- of uitzet.'
     : '';
+}
+
+// ---------- Concept frequentiemeting ----------
+
+let frequentieConceptTimer = null;
+const FREQ_CONCEPT_VELDEN = ['fProces', 'fMedewerker', 'fPeriode', 'fDatum', 'fPeriodeEenheid', 'fAantal', 'fVolume', 'fMeetwijze', 'fBereik', 'fAfbakening', 'fBron'];
+
+function planFrequentieConcept() {
+  clearTimeout(frequentieConceptTimer);
+  frequentieConceptTimer = setTimeout(() => { frequentieConceptTimer = null; bewaarFrequentieConcept(); }, 400);
+}
+
+function annuleerFrequentieConceptTimer() {
+  clearTimeout(frequentieConceptTimer);
+  frequentieConceptTimer = null;
+}
+
+function bewaarFrequentieConcept() {
+  annuleerFrequentieConceptTimer();
+  const velden = Object.fromEntries(FREQ_CONCEPT_VELDEN.map((id) => [id, $('#' + id).value]));
+  const g = { bewerkId: frequentieBewerkId, velden, meetellen: $('#fMeetellen').checked, onbepaald: $('#fMeetellen').dataset.onbepaald || '', test: $('#fTest').checked };
+  const inhoud = frequentieBewerkId || ['fMedewerker', 'fPeriode', 'fAantal', 'fVolume', 'fAfbakening', 'fBron'].some((id) => velden[id].trim()) || g.meetellen || g.test;
+  if (!velden.fProces || !inhoud) { if (!frequentieBewerkId && heeftConcept('frequentie')) verwijderConcept('frequentie'); return; }
+  toonConceptStatus('f', bewaarConcept('frequentie', g));
+}
+
+function herstelFrequentieConcept() {
+  const c = laadConcept('frequentie');
+  if (!c || !c.gegevens || !c.gegevens.velden) return false;
+  const g = c.gegevens;
+  if (g.bewerkId) {
+    if (!zoekFrequentie(g.bewerkId)) { verwijderConcept('frequentie'); return false; }
+    bewerkFrequentie(g.bewerkId);
+  } else {
+    if (!zoekProces(g.velden.fProces)) { verwijderConcept('frequentie'); return false; }
+    resetFrequentieFormulier();
+  }
+  for (const id of FREQ_CONCEPT_VELDEN) if (!(g.bewerkId && id === 'fProces')) $('#' + id).value = g.velden[id] || '';
+  if (!g.bewerkId) {
+    frequentieEenheden = eenhedenKopie(g.velden.fProces);
+    werkFrequentieIdBij();
+  }
+  werkFrequentieLabelsBij();
+  $('#fMeetellen').checked = !!g.meetellen;
+  $('#fMeetellen').dataset.onbepaald = g.onbepaald || '';
+  $('#fMeetellen').indeterminate = g.onbepaald === '1';
+  $('#fTest').checked = !!g.test;
+  werkMeetellenStatusBij();
+  werkFrequentieKalenderweekBij();
+  $('#frequentieBewerkMelding').innerHTML = `<div class="melding info"><strong>Niet-afgerond concept hersteld</strong> (automatisch opgeslagen op ${esc(fmtTijdstip(c.opgeslagen))}). Controleer de invoer en sla op, of verwijder het concept.${g.bewerkId ? ` Concept voor het aanpassen van ${esc(g.bewerkId)}.` : ''}</div>`;
+  toonConceptStatus('f', true, c.opgeslagen);
+  return true;
+}
+
+async function verwijderFrequentieConceptMetBevestiging() {
+  const ok = await bevestig('Concept verwijderen', '<p>Het automatisch opgeslagen concept en de niet-opgeslagen invoer in het formulier worden verwijderd. Opgeslagen frequentiemetingen blijven ongewijzigd.</p>', 'Concept verwijderen', true);
+  if (!ok) return;
+  const was = !!frequentieBewerkId;
+  verwijderConcept('frequentie');
+  resetFrequentieFormulier();
+  toonMelding('Concept verwijderd.');
+  if (was) toonTab('overzicht');
 }
 
 // ===== ui-overzicht.js =====
@@ -3359,7 +3900,8 @@ function renderProcesmetingenTabel(f) {
     .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
       ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
-  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen`;
+  const nTest = lijst.filter(isTestmeting).length;
+  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen (${lijst.length - nTest} echt, ${nTest} test/fictief)`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen procesmetingen gevonden.</p>'; return; }
   const rijen = lijst.map((m) => {
     const b = berekenMeting(m);
@@ -3367,21 +3909,22 @@ function renderProcesmetingenTabel(f) {
     const stappen = stapmetingenVan(m.metingId);
     let html = `<tr>
       <td><button type="button" class="klein" data-actie="meting-uitklappen" data-id="${esc(m.metingId)}" aria-expanded="${open}" title="Stapmetingen tonen of verbergen">${open ? '▾' : '▸'} ${stappen.length}</button></td>
-      <td class="mono">${esc(m.metingId)}${demoLabel(m)}</td>
-      <td>${esc(fmtDatum(m.datum))}</td>
+      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}</td>
+      <td>${esc(fmtDatum(m.datum))}<br><span class="klein zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
       <td>${esc(m.casustype)}</td>
       <td class="getal">${htmlMetEenheid(m.aantalUitvoeringen, eenhedenVan(m), 'uitvoering')}</td>
       <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}</td>
       <td>${meetwijzeHtml(m.meetwijze)}</td>
-      <td class="getal berekend">${htmlGetal(b.totaalActief)}</td>
+      <td class="getal berekend">${htmlGetal(b.totaalActief)}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
       <td class="getal berekend">${htmlGetal(b.totaalWacht)}</td>
       <td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}<span class="klein"> /${esc(eenhedenVan(m).uitvoeringseenheid)}</span></td>
       <td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}<span class="klein"> /${esc(eenhedenVan(m).omvangseenheid)}</span></td>
       <td class="acties">
         <button type="button" class="klein" data-actie="meting-openen" data-id="${esc(m.metingId)}">Openen</button>
         <button type="button" class="klein" data-actie="meting-bewerken" data-id="${esc(m.metingId)}">Aanpassen</button>
+        <button type="button" class="klein" data-actie="meting-dupliceren" data-id="${esc(m.metingId)}" title="Nieuwe meting op basis van deze meting">Meting dupliceren</button>
         <button type="button" class="klein gevaar" data-actie="meting-verwijderen" data-id="${esc(m.metingId)}">Verwijderen</button>
       </td>
     </tr>`;
@@ -3419,7 +3962,7 @@ function renderStapmetingenTabel(f) {
     <thead><tr><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th></th></tr></thead>
     <tbody>${lijst.map((s) => {
       const m = metingen.get(s.metingId);
-      return `<tr><td class="mono">${esc(s.metingId)}${demoLabel(s)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${esc(m.procesId)}</td><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td>
+      return `<tr><td class="mono">${esc(s.metingId)}${demoLabel(s)}${testLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${esc(m.procesId)}</td><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td>
         <td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td><td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td>
         <td class="acties"><button type="button" class="klein" data-actie="meting-openen" data-id="${esc(s.metingId)}">Meting openen</button></td></tr>`;
     }).join('')}</tbody></table>
@@ -3433,11 +3976,12 @@ function renderFrequentiesTabel(f) {
     .filter((x) => bevatZoekterm([x.frequentieId, x.procesId, procesNaam(x.procesId), x.meetperiode, x.aantalUitvoeringen, x.totaalVolume, ...EENHEID_VELDEN.map((k) => x[k]), x.meetwijze, x.bron,
       x.medewerkerId, x.periodeEenheid, x.bereik, x.afbakening, meetellenTekst(x)], f.zoek))
     .sort((a, b) => vergelijkTekst(b.frequentieId, a.frequentieId));
-  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.frequentiemetingen.length} frequentiemetingen`;
+  const nFTest = lijst.filter(isTestmeting).length;
+  $('#overzichtTelling').textContent = `${lijst.length} van ${staat.frequentiemetingen.length} frequentiemetingen (${lijst.length - nFTest} echt, ${nFTest} test/fictief)`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen frequentiemetingen gevonden.</p>'; return; }
   $('#overzichtTabel').innerHTML = `<table>
     <thead><tr><th>FrequentieID</th><th>ProcesID</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th><th>Bron of toelichting</th><th>Medewerker</th><th>Periode</th><th>Bereik</th><th>Afbakening</th><th>Meetellen in totaal</th><th></th></tr></thead>
-    <tbody>${lijst.map((x) => `<tr><td class="mono">${esc(x.frequentieId)}${demoLabel(x)}</td><td>${esc(x.procesId)}${zoekProces(x.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td><td>${htmlTekst(x.meetperiode)}</td>
+    <tbody>${lijst.map((x) => `<tr><td class="mono">${esc(x.frequentieId)}${demoLabel(x)}${testLabel(x)}</td><td>${esc(x.procesId)}${zoekProces(x.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td><td>${htmlTekst(x.meetperiode)}${x.meetdatum ? `<br><span class="klein zacht">${esc(kalenderweekTekst(x.meetdatum, true))}</span>` : ''}</td>
       <td class="getal">${htmlMetEenheid(x.aantalUitvoeringen, eenhedenVan(x), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(x.totaalVolume, eenhedenVan(x), 'omvang')}</td><td>${meetwijzeHtml(x.meetwijze)}</td><td>${esc(x.bron || '')}</td>
       <td>${htmlTekst(x.medewerkerId)}</td><td>${x.periodeEenheid ? 'per ' + esc(x.periodeEenheid.toLowerCase()) : '<span class="onbekend">Nog niet bepaald</span>'}</td>
       <td>${x.bereik ? esc(x.bereik) : '<span class="onbekend">Nog niet bepaald</span>'}</td><td class="klein">${esc(x.afbakening || '')}</td><td>${esc(meetellenTekst(x))}</td>
@@ -3457,7 +4001,9 @@ function metingDetailHtml(m) {
       ${m.demo ? '<div class="melding neutraal"><span class="demolabel">DEMO</span> Dit is een fictieve demometing.</div>' : ''}
       <dl class="gegevens">
         <dt>MetingID</dt><dd class="mono">${esc(m.metingId)}</dd>
-        <dt>Datum</dt><dd>${esc(fmtDatum(m.datum))}</dd>
+        <dt>Meetdatum</dt><dd>${esc(fmtDatum(m.datum))}</dd>
+        <dt>Meetmoment ${infoHtml('kalenderweek')}</dt><dd>${esc(kalenderweekTekst(m.datum) || ONBEKEND)}</dd>
+        <dt>Test/fictief</dt><dd>${isTestmeting(m) ? '<strong>Ja</strong> – telt standaard niet mee in resultaten' : 'Nee'}</dd>
         <dt>Proces</dt><dd>${esc(m.procesId)} – ${htmlTekst(m.procesnaam)}${zoekProces(m.procesId) ? '' : ' <span class="zacht">(proces is inmiddels verwijderd)</span>'}</dd>
         <dt>MedewerkerID</dt><dd>${htmlTekst(m.medewerkerId)}</dd>
         <dt>Casustype</dt><dd>${esc(m.casustype)}</dd>
@@ -3478,6 +4024,7 @@ function metingDetailHtml(m) {
       <dl class="gegevens">
         <dt>Totale actieve tijd</dt><dd>${htmlGetal(b.totaalActief, 2, ' min')}</dd>
         <dt>Totale wachttijd</dt><dd>${htmlGetal(b.totaalWacht, 2, ' min')}</dd>
+        <dt>Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</dt><dd>${htmlGetal(isGetal(b.totaalActief) && isGetal(b.totaalWacht) ? b.totaalActief + b.totaalWacht : null, 2, ' min')}</dd>
         <dt><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</dt><dd><strong>${htmlGetal(b.actiefPerUitvoering, 2, ' min')}</strong></dd>
         <dt>Wachttijd per ${esc(e.uitvoeringseenheid)}</dt><dd>${htmlGetal(b.wachtPerUitvoering, 2, ' min')}</dd>
         <dt>Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</dt><dd>${htmlGetal(b.actiefPerOmvang, 2, ' min')}</dd>
@@ -3488,6 +4035,7 @@ function metingDetailHtml(m) {
       ${isGetal(b.actiefPerOmvang) ? `<div class="formule">Actieve tijd per ${esc(e.omvangseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.omvang))} = ${fmtGetal(b.actiefPerOmvang)}</div>` : ''}
       ${b.ontbrekendActief.length ? `<div class="klein">Actieve tijd ontbreekt bij: ${esc(b.ontbrekendActief.join(', '))}</div>` : ''}
       ${b.ontbrekendWacht.length ? `<div class="klein">Wachttijd ontbreekt bij: ${esc(b.ontbrekendWacht.join(', '))}</div>` : ''}
+      ${controleHtml(controleProcesStap(m, stappen))}
       ${!b.aantalBekend ? `<div class="klein">Aantal ${esc(e.uitvoeringseenheidMeervoud)} ontbreekt; tijd per ${esc(e.uitvoeringseenheid)} is niet berekend.</div>` : ''}
       ${!b.omvangBekend ? `<div class="klein">Omvang (aantal ${esc(e.omvangseenheidMeervoud)}) ontbreekt; tijd per ${esc(e.omvangseenheid)} is niet berekend.</div>` : ''}
     </div>`;
@@ -3501,11 +4049,13 @@ async function openMeting(metingId) {
     inhoud: metingDetailHtml(m),
     knoppen: [
       { label: 'Verwijderen', waarde: 'verwijderen', soort: 'gevaar' },
+      { label: 'Meting dupliceren', waarde: 'dupliceren' },
       { label: 'Aanpassen', waarde: 'bewerken' },
       { label: 'Sluiten', waarde: null, soort: 'primair' },
     ],
   });
   if (keuze === 'bewerken') bewerkMeting(metingId);
+  if (keuze === 'dupliceren') dupliceerMeting(metingId);
   if (keuze === 'verwijderen') verwijderMetingMetBevestiging(metingId);
 }
 
@@ -3534,7 +4084,9 @@ async function openFrequentie(frequentieId) {
       <dl class="gegevens">
       <dt>FrequentieID</dt><dd class="mono">${esc(f.frequentieId)}</dd>
       <dt>Proces</dt><dd>${esc(procesLabel(f.procesId))}</dd>
-      <dt>Meetperiode</dt><dd>${htmlTekst(f.meetperiode)}</dd>
+      <dt>Meetperiode (omschrijving)</dt><dd>${htmlTekst(f.meetperiode)}</dd>
+      <dt>Meetdatum / meetmoment</dt><dd>${f.meetdatum ? esc(fmtDatum(f.meetdatum) + ' – ' + kalenderweekTekst(f.meetdatum)) : 'Niet vastgelegd'}</dd>
+      <dt>Test/fictief</dt><dd>${isTestmeting(f) ? '<strong>Ja</strong>' : 'Nee'}</dd>
       <dt>Aantal uitvoeringen</dt><dd>${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</dd>
       <dt>Totale omvang</dt><dd>${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</dd>
       <dt>Meetwijze / bron</dt><dd>${meetwijzeHtml(f.meetwijze)}</dd>
@@ -3575,13 +4127,18 @@ async function verwijderFrequentieMetBevestiging(frequentieId) {
 let resultaatCasustype = 'Normaal';
 const gekozenFrequentie = {}; // per ProcesID het gekozen FrequentieID
 const gekozenTotaalPeriode = {}; // per ProcesID de gekozen periode-eenheid voor het totaaloverzicht
+const gekozenTotaalWeek = {}; // per ProcesID de gekozen kalenderweek ('' = alle kalenderweken)
 
 function initResultaten() {
   vulSelect($('#rMeetwijze'), [{ waarde: 'alle', label: 'Alle meetwijzen (gemengd, wordt vermeld)' }, ...MEETWIJZE_GROEPEN.map((g) => ({ waarde: g.code, label: g.label }))], 'alle');
-  for (const id of ['#rProces', '#rMeetwijze', '#rMedewerker', '#rVan', '#rTot']) $(id).addEventListener('change', renderResultaten);
+  for (const id of ['#rProces', '#rMeetwijze', '#rMedewerker', '#rVan', '#rTot', '#rMetTest']) $(id).addEventListener('change', renderResultaten);
   $('#resultatenInhoud').addEventListener('change', (e) => {
     if (e.target.id === 'rFrequentie') {
       gekozenFrequentie[$('#rProces').value] = e.target.value;
+      renderResultaten();
+    }
+    if (e.target.id === 'rTotaalWeek') {
+      gekozenTotaalWeek[$('#rProces').value] = e.target.value;
       renderResultaten();
     }
     if (e.target.id === 'rTotaalPeriode') {
@@ -3592,11 +4149,13 @@ function initResultaten() {
 }
 
 function resultaatFilters() {
-  return { meetwijze: $('#rMeetwijze').value || 'alle', medewerker: $('#rMedewerker').value || '', van: $('#rVan').value, tot: $('#rTot').value };
+  return { meetwijze: $('#rMeetwijze').value || 'alle', medewerker: $('#rMedewerker').value || '', van: $('#rVan').value, tot: $('#rTot').value, metTest: $('#rMetTest').checked };
 }
 
 function kiesFrequentie(procesId) {
-  const lijst = frequentiesVanProces(procesId);
+  // Testmetingen alleen als 'Testmetingen meenemen' aan staat.
+  const metTest = !!($('#rMetTest') && $('#rMetTest').checked);
+  const lijst = frequentiesVanProces(procesId).filter((f) => metTest || !isTestmeting(f));
   const gekozen = gekozenFrequentie[procesId];
   if (gekozen === '') return null;
   return lijst.find((f) => f.frequentieId === gekozen) || lijst[0] || null;
@@ -3632,6 +4191,14 @@ function renderResultaten() {
   const belasting = berekenTijdsbelasting(freq, N, procesId);
 
   const meldingen = [legacyMeldingHtml(procesId)];
+  const eenheidMelding = eenheidWaarschuwing(procesId);
+  if (eenheidMelding) meldingen.push(`<div class="melding waarschuwing">${esc(eenheidMelding)}</div>`);
+  // Aantallen echte en fictieve metingen binnen de overige filters.
+  const metEnZonderTest = staat.procesmetingen.filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId, metTest: true }));
+  const aantalTest = metEnZonderTest.filter(isTestmeting).length;
+  const freqTest = frequentiesVanProces(procesId).filter(isTestmeting).length;
+  meldingen.push(`<div class="melding neutraal">Beschikbaar: <strong>${metEnZonderTest.length - aantalTest} echte</strong> en <strong>${aantalTest} test/fictieve</strong> procesmeting(en)${freqTest ? `; ${freqTest} test/fictieve frequentiemeting(en)` : ''}.
+    Test/fictieve metingen zijn <strong>${filters.metTest ? 'meegenomen' : 'uitgesloten'}</strong> in de resultaten hieronder (zie <em>Testmetingen meenemen</em>).</div>`);
   if (filters.medewerker) {
     meldingen.push(`<div class="melding waarschuwing"><strong>Gefilterd op medewerker ${esc(medewerkerLabel(filters.medewerker === MEDEWERKER_LEEG ? '' : filters.medewerker))}.</strong>
       Alle uitkomsten hieronder (ook de geschatte tijdsbelasting en de grafiek) zijn alleen gebaseerd op de metingen van deze medewerker. Kies <em>Alle medewerkers</em> voor het gecombineerde resultaat van het hele proces.</div>`);
@@ -3741,21 +4308,30 @@ function bronLabel(meetwijze) {
 }
 
 /** Onderdeel 'Totale frequentie en geschatte tijdsbelasting' op het resultatenscherm. */
+/** Gekozen kalenderweek voor het totaaloverzicht ('' = alle kalenderweken). */
+function kiesTotaalWeek(procesId) {
+  const gekozen = gekozenTotaalWeek[procesId] || '';
+  return totaalWekenVanProces(procesId).includes(gekozen) ? gekozen : '';
+}
+
 function totaalOverzichtHtml(procesId, filters) {
   const perioden = totaalPeriodenVanProces(procesId);
   const periode = kiesTotaalPeriode(procesId);
-  const t = berekenTotaalOverzicht(procesId, filters, periode);
+  const weken = totaalWekenVanProces(procesId);
+  const week = kiesTotaalWeek(procesId);
+  const t = berekenTotaalOverzicht(procesId, filters, periode, week);
   const e = t.eenheden;
   const perTekst = periode ? `per ${periode.toLowerCase()}` : '';
-  const keuze = perioden.length
-    ? `<div class="veld" style="max-width:260px"><label for="rTotaalPeriode">Periode</label><select id="rTotaalPeriode">${perioden.map((p) => `<option value="${esc(p)}" ${p === periode ? 'selected' : ''}>per ${esc(p.toLowerCase())}</option>`).join('')}</select></div>`
-    : '';
+  const keuze = `<div class="filterbalk" style="margin:8px 0 0">
+      ${perioden.length ? `<div class="veld" style="width:220px"><label for="rTotaalPeriode">Frequentieperiode ${infoHtml('frequentieperiode')}</label><select id="rTotaalPeriode">${perioden.map((p) => `<option value="${esc(p)}" ${p === periode ? 'selected' : ''}>per ${esc(p.toLowerCase())}</option>`).join('')}</select></div>` : ''}
+      ${weken.length ? `<div class="veld" style="width:260px"><label for="rTotaalWeek">Kalenderweek (meetmoment) ${infoHtml('kalenderweek')}</label><select id="rTotaalWeek"><option value="">Alle kalenderweken</option>${weken.map((w) => `<option value="${esc(w)}" ${w === week ? 'selected' : ''}>${esc(kalenderweekSleutelTekst(w))}</option>`).join('')}</select></div>` : ''}
+    </div>`;
   const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
   const waarde = (v, dec, eenheid) => (isGetal(v) ? `<strong>${esc(fmtGetal(v, dec))}</strong> ${eenheid}` : `<span class="onbekend">${ONBEKEND}</span>`);
   const statusRijen = t.status.map(({ frequentie: f, geselecteerd, reden }) => `<tr${geselecteerd ? ' class="gekozen"' : ''}>
-      <td class="mono">${esc(f.frequentieId)}${demoLabel(f)}</td><td>${htmlTekst(f.medewerkerId)}</td><td>${f.bereik ? esc(f.bereik) : '<span class="onbekend">Nog niet bepaald</span>'}</td>
-      <td class="klein">${esc(f.afbakening || '')}</td><td>${f.periodeEenheid ? 'per ' + esc(f.periodeEenheid.toLowerCase()) : '<span class="onbekend">Nog niet bepaald</span>'}</td><td>${htmlTekst(f.meetperiode)}</td>
-      <td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td>${meetwijzeHtml(f.meetwijze)}</td><td>${esc(meetellenTekst(f))}</td>
+      <td class="mono">${esc(f.frequentieId)}${demoLabel(f)}${testLabel(f)}</td><td>${htmlTekst(f.medewerkerId)}</td><td>${f.bereik ? esc(f.bereik) : '<span class="onbekend">Nog niet bepaald</span>'}</td>
+      <td class="klein">${esc(f.afbakening || '')}</td><td>${f.periodeEenheid ? 'per ' + esc(f.periodeEenheid.toLowerCase()) : '<span class="onbekend">Nog niet bepaald</span>'}</td><td>${f.meetdatum ? esc(kalenderweekTekst(f.meetdatum, true)) : htmlTekst(f.meetperiode)}</td>
+      <td class="getal">${htmlMetEenheid(f.aantalUitvoeringen, e, 'uitvoering')}</td><td>${meetwijzeHtml(f.meetwijze)}</td><td>${esc(meetellenTekst(f))}</td>
       <td>${geselecteerd ? '<strong>Ja</strong>' : `Nee <span class="klein zacht">(${esc(reden)})</span>`}</td>
       <td class="acties"><button type="button" class="klein" data-actie="frequentie-bewerken" data-id="${esc(f.frequentieId)}">Aanpassen</button></td></tr>`).join('');
   return `
@@ -3770,23 +4346,26 @@ function totaalOverzichtHtml(procesId, filters) {
         = ${isGetal(t.totaleFrequentie) ? esc(fmtAantal(t.totaleFrequentie)) : ONBEKEND} × ${isGetal(t.gemiddeldeActief) ? esc(fmtGetal(t.gemiddeldeActief)) : ONBEKEND} min = <strong>${isGetal(t.minuten) ? esc(fmtGetal(t.minuten)) + ' min' : ONBEKEND}</strong>
         ${isGetal(t.uren) ? ` = <strong>${esc(fmtGetal(t.uren, 2))} uur</strong> ${esc(perTekst)}` : ''}</div>
       <dl class="gegevens">
-        <dt>Periode</dt><dd>${periode ? esc(perTekst) : `<span class="onbekend">${ONBEKEND}</span>`}${t.meetperioden.length ? ` <span class="klein">(meetperiode: ${esc(t.meetperioden.join(', '))})</span>` : ''}</dd>
-        <dt>Totale frequentie</dt><dd>${waarde(t.totaleFrequentie, Number.isInteger(t.totaleFrequentie) ? 0 : 2, `${esc(e.uitvoeringseenheidMeervoud)} ${esc(perTekst)}`)}</dd>
+        <dt>Frequentieperiode ${infoHtml('frequentieperiode')}</dt><dd>${periode ? esc(perTekst) : `<span class="onbekend">${ONBEKEND}</span>`}</dd>
+        <dt>Kalenderweek (meetmoment) ${infoHtml('kalenderweek')}</dt><dd>${week ? `<strong>${esc(kalenderweekSleutelTekst(week))}</strong> (geselecteerd)` : 'alle kalenderweken'}${t.kalenderweken.length ? ` <span class="klein">– gebruikte frequenties: ${esc(t.kalenderweken.map(kalenderweekSleutelTekst).join(', '))}</span>` : ''}${t.meetperioden.length ? ` <span class="klein">(omschrijving meetperiode: ${esc(t.meetperioden.join(', '))})</span>` : ''}</dd>
+        <dt>Totale frequentie ${infoHtml('frequentie')}</dt><dd>${waarde(t.totaleFrequentie, Number.isInteger(t.totaleFrequentie) ? 0 : 2, `${esc(e.uitvoeringseenheidMeervoud)} ${esc(perTekst)}`)}</dd>
         <dt>Gemiddelde actieve tijd per ${esc(e.uitvoeringseenheid)}</dt><dd>${waarde(t.gemiddeldeActief, 2, `min per ${esc(e.uitvoeringseenheid)}`)}${t.aantalProcesmetingen ? ` <span class="klein">(n = ${t.aantalProcesmetingen}; bandbreedte ${esc(fmtGetal(t.minimumActief))}–${esc(fmtGetal(t.maximumActief))} min)</span>` : ''}</dd>
-        <dt>Keuze gemiddelde</dt><dd><strong>${esc(keuzeGemiddeldeTekst(filters))}</strong> <span class="klein">(normale gevallen; wijzig via het filter Medewerker bovenaan)</span></dd>
-        <dt>Geschatte actieve tijdsbelasting</dt><dd>${waarde(t.minuten, 2, `minuten ${esc(perTekst)}`)} · ${waarde(t.uren, 2, `uur ${esc(perTekst)}`)}</dd>
-        <dt>Gemiddelde wachttijd (apart, niet meegeteld)</dt><dd>${waarde(t.gemiddeldeWacht, 2, `min per ${esc(e.uitvoeringseenheid)}`)}${t.nWacht ? ` <span class="klein">(n = ${t.nWacht}; onderdeel van de doorlooptijd)</span>` : ''}</dd>
+        <dt>Medewerkerselectie</dt><dd><strong>${esc(keuzeGemiddeldeTekst(filters))}</strong> <span class="klein">(normale gevallen; wijzig via het filter Medewerker bovenaan)</span></dd>
+        <dt>Test/fictieve metingen ${infoHtml('test')}</dt><dd><strong>${filters.metTest ? 'meegenomen' : 'uitgesloten'}</strong></dd>
+        <dt>Mogelijke overlap</dt><dd>${t.frequenties.length < 2 ? 'niet van toepassing (minder dan twee frequenties)' : t.mogelijkeOverlap ? '<strong class="schatting">ja – totaal niet berekend, controleer de selectie</strong>' : 'nee (eigen werkzaamheden van verschillende medewerkers)'}</dd>
+        <dt>Geschatte actieve tijdsbelasting ${infoHtml('tijdsbelasting')}</dt><dd>${waarde(t.minuten, 2, `minuten ${esc(perTekst)}`)} · ${waarde(t.uren, 2, `uur ${esc(perTekst)}`)}</dd>
+        <dt>Gemiddelde wachttijd (apart, niet meegeteld) ${infoHtml('wacht')}</dt><dd>${waarde(t.gemiddeldeWacht, 2, `min per ${esc(e.uitvoeringseenheid)}`)}${t.nWacht ? ` <span class="klein">(n = ${t.nWacht}; onderdeel van de doorlooptijd)</span>` : ''}</dd>
         <dt>Frequentiemetingen in totaal</dt><dd>${t.frequenties.length}${t.frequenties.length ? ` <span class="mono klein">(${esc(t.frequenties.map((f) => f.frequentieId).join(', '))})</span>` : ''}</dd>
         <dt>Procesmetingen voor gemiddelde</dt><dd>${t.aantalProcesmetingen}${t.metingIds.length ? ` <span class="mono klein">(${esc(t.metingIds.join(', '))})</span>` : ''}</dd>
         <dt>Medewerker-ID's (procesmetingen)</dt><dd>${esc(t.medewerkerIds.join(', ') || '—')}</dd>
         <dt>Bron(nen) frequentie</dt><dd>${esc(t.bronnen.map(bronLabel).join('; ') || '—')}</dd>
-        <dt>Meetwijze(n) tijd</dt><dd>${esc(t.meetwijzenTijd.join('; ') || '—')}</dd>
+        <dt>Verwerkingstijd gemeten / geschat / uit systeem</dt><dd>${esc(meetwijzeVerdelingTekst(t.gebruikteMetingen.reduce((v, m) => { v[m.meetwijze] = (v[m.meetwijze] || 0) + 1; return v; }, {})))}</dd>
       </dl>
       <div class="knoppen"><button type="button" class="klein" data-actie="totaal-onderliggend">Onderliggende gegevens bekijken</button></div>
     </div>
     ${t.status.length ? `<h4>Frequentiemetingen van dit proces</h4>
       <div class="tabelhouder"><table class="klein">
-        <thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Periode</th><th>Meetperiode</th><th class="getal">Aantal</th><th>Bron</th><th>Meetellen</th><th>In dit totaal</th><th></th></tr></thead>
+        <thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Periode</th><th>Meetmoment</th><th class="getal">Aantal</th><th>Bron</th><th>Meetellen</th><th>In dit totaal</th><th></th></tr></thead>
         <tbody>${statusRijen}</tbody></table></div>` : '<p class="zacht klein mt">Er zijn voor dit proces nog geen frequentiemetingen.</p>'}`;
 }
 
@@ -3794,13 +4373,13 @@ function totaalOverzichtHtml(procesId, filters) {
 function toonTotaalOnderliggend() {
   const procesId = $('#rProces').value;
   const filters = resultaatFilters();
-  const t = berekenTotaalOverzicht(procesId, filters, kiesTotaalPeriode(procesId));
+  const t = berekenTotaalOverzicht(procesId, filters, kiesTotaalPeriode(procesId), kiesTotaalWeek(procesId));
   const e = t.eenheden;
   informeer(`Onderliggende gegevens totaaloverzicht – ${procesId}`, `
-    <p class="klein">Periode: ${t.periodeEenheid ? 'per ' + esc(t.periodeEenheid.toLowerCase()) : ONBEKEND} · Keuze gemiddelde: ${esc(keuzeGemiddeldeTekst(filters))} (normale gevallen) · Filters: ${esc(filtersAlsTekst(filters))}</p>
+    <p class="klein">Frequentieperiode: ${t.periodeEenheid ? 'per ' + esc(t.periodeEenheid.toLowerCase()) : ONBEKEND} · Kalenderweek: ${t.weekSleutel ? esc(kalenderweekSleutelTekst(t.weekSleutel)) : 'alle'} · Keuze gemiddelde: ${esc(keuzeGemiddeldeTekst(filters))} (normale gevallen) · Filters: ${esc(filtersAlsTekst(filters))}</p>
     <h4>Gebruikte frequentiemetingen (${t.frequenties.length})</h4>
-    ${t.frequenties.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Meetperiode</th><th class="getal">Aantal ${esc(e.uitvoeringseenheidMeervoud)}</th><th>Meetwijze / bron</th><th>Bron of toelichting</th></tr></thead><tbody>
-      ${t.frequenties.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}</td><td>${htmlTekst(f.medewerkerId)}</td><td>${esc(f.bereik || '')}</td><td>${esc(f.afbakening || '')}</td><td>${htmlTekst(f.meetperiode)}</td><td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td>${meetwijzeHtml(f.meetwijze)}</td><td>${esc(f.bron || '')}</td></tr>`).join('')}
+    ${t.frequenties.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Meetmoment</th><th class="getal">Aantal ${esc(e.uitvoeringseenheidMeervoud)}</th><th>Meetwijze / bron</th><th>Bron of toelichting</th></tr></thead><tbody>
+      ${t.frequenties.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}${testLabel(f)}</td><td>${htmlTekst(f.medewerkerId)}</td><td>${esc(f.bereik || '')}</td><td>${esc(f.afbakening || '')}</td><td>${f.meetdatum ? esc(kalenderweekTekst(f.meetdatum)) : htmlTekst(f.meetperiode)}</td><td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td>${meetwijzeHtml(f.meetwijze)}</td><td>${esc(f.bron || '')}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="zacht">Geen.</p>'}
     <h4>Gebruikte procesmetingen (${t.gebruikteMetingen.length})</h4>
     ${metingenTabelHtml(t.gebruikteMetingen, e)}`);
@@ -3849,7 +4428,7 @@ function metingenTabelHtml(metingen, e) {
       <th class="getal berekend">Totaal actief (min)</th><th class="getal berekend">Actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal berekend">Actief per ${esc(e.omvangseenheid)}</th></tr></thead>
       <tbody>${metingen.map((m) => {
         const b = berekenMeting(m);
-        return `<tr><td class="mono">${esc(m.metingId)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${htmlTekst(m.medewerkerId)}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td class="getal">${htmlAantal(m.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(m.omvang)}</td>
+        return `<tr><td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}</td><td>${esc(fmtDatum(m.datum))} <span class="klein zacht">(${esc(kalenderweekTekst(m.datum, true))})</span></td><td>${htmlTekst(m.medewerkerId)}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td class="getal">${htmlAantal(m.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(m.omvang)}</td>
           <td class="getal berekend">${htmlGetal(b.totaalActief)}</td><td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.wachtPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}</td></tr>`;
       }).join('')}</tbody></table></div>`;
 }
@@ -3928,7 +4507,7 @@ function grafiekGegevens(procesId, filters) {
     titel: `${procesLabel(procesId)}: mediane tijd per processtap`,
     ondertitels: [
       `Casustype: ${resultaatCasustype} · ${sam.perCasustype[resultaatCasustype].aantal} procesmetingen · Medewerker: ${filters.medewerker ? medewerkerLabel(filters.medewerker === MEDEWERKER_LEEG ? '' : filters.medewerker) : 'alle'} · Meetwijze: ${groep ? groep.label : 'alle meetwijzen (' + meetwijzeVerdelingTekst(sam.perCasustype[resultaatCasustype].meetwijzen) + ')'} · Periode: ${periode}`,
-      `Minuten per ${e.uitvoeringseenheid} (mediaan; één uitvoering = één ${e.uitvoeringseenheid}); n = aantal waarnemingen per stap.`,
+      `Minuten per ${e.uitvoeringseenheid} (mediaan; één uitvoering = één ${e.uitvoeringseenheid}); n = aantal waarnemingen per stap. Test/fictieve metingen: ${filters.metTest ? 'meegenomen' : 'uitgesloten'}.`,
     ],
     asLabel: `Minuten per ${e.uitvoeringseenheid} (mediaan)`,
     voetnoot: `Bron: Meettool ${VERSIE} · ${fmtDatum(vandaagIso())} · Ontbrekende waarden zijn niet als nul meegeteld.${bevatDemo() ? ' · BEVAT DEMOGEGEVENS' : ''}`,
@@ -3992,9 +4571,20 @@ function renderImportExport() {
 
 // ---------- Kolomdefinities voor ruwe gegevens (CSV en Excel) ----------
 
+/** Kalenderjaar, -week en begin/einde van de week, afgeleid uit een datum (nooit opgeslagen). */
+function KALENDER_KOLOMMEN(datum) {
+  const k = (r) => kalenderweek(datum(r));
+  return [
+    ['Kalenderjaar (ISO-week, afgeleid)', (r) => (k(r) ? k(r).jaar : null)],
+    ['Kalenderweek (afgeleid)', (r) => (k(r) ? k(r).week : null)],
+    ['Begin kalenderweek (afgeleid)', (r) => (k(r) ? k(r).begin : '')],
+    ['Einde kalenderweek (afgeleid)', (r) => (k(r) ? k(r).eind : '')],
+  ];
+}
+
 const KOLOMMEN_PROCESMETINGEN = [
   ['MetingID', (m) => m.metingId],
-  ['Datum', (m) => m.datum],
+  ['Meetdatum', (m) => m.datum],
   ['ProcesID', (m) => m.procesId],
   ['Procesnaam (bij meting)', (m) => m.procesnaam],
   ['MedewerkerID', (m) => m.medewerkerId || ''],
@@ -4009,6 +4599,11 @@ const KOLOMMEN_PROCESMETINGEN = [
   ['Vastgelegd op', (m) => m.aangemaakt || ''],
   ['Laatst gewijzigd', (m) => m.gewijzigd || ''],
   ['Demogegevens', (m) => (m.demo ? 'Ja' : 'Nee')],
+  // Sinds versie 1.4 (achteraan toegevoegd)
+  ['Test/fictief', (m) => (isTestmeting(m) ? 'Ja' : 'Nee')],
+  ['Controle: totale actieve tijd volgens procesmeting (min)', (m) => (isGetal(m.actieveTijdTotaal) ? m.actieveTijdTotaal : null)],
+  ['Controle: totale wachttijd volgens procesmeting (min)', (m) => (isGetal(m.wachttijdTotaal) ? m.wachttijdTotaal : null)],
+  ...KALENDER_KOLOMMEN((m) => m.datum),
 ];
 
 const KOLOMMEN_STAPMETINGEN = [
@@ -4022,6 +4617,7 @@ const KOLOMMEN_STAPMETINGEN = [
   ['Opmerking', (s) => s.opmerking || ''],
   ['Tijdvastlegging', (s) => s.tijdvastlegging || ''],
   ['Demogegevens', (s) => (s.demo ? 'Ja' : 'Nee')],
+  ['Test/fictief (via procesmeting)', (s) => (isTestStapmeting(s) ? 'Ja' : 'Nee')],
 ];
 
 const KOLOMMEN_FREQUENTIE = [
@@ -4043,6 +4639,10 @@ const KOLOMMEN_FREQUENTIE = [
   ['Bereik', (f) => f.bereik || 'Nog niet bepaald'],
   ['Afbakening / toelichting', (f) => f.afbakening || ''],
   ['Meetellen in totaal', (f) => meetellenTekst(f)],
+  // Sinds versie 1.4
+  ['Meetdatum', (f) => f.meetdatum || ''],
+  ['Test/fictief', (f) => (isTestmeting(f) ? 'Ja' : 'Nee')],
+  ...KALENDER_KOLOMMEN((f) => f.meetdatum),
 ];
 
 function gesorteerdeProcesmetingen() {
@@ -4172,26 +4772,55 @@ function totaalBlad(filters) {
   rijen.push(['Keuze gemiddelde', keuzeGemiddeldeTekst(filters) + ' (normale gevallen)']);
   rijen.push(['Formule', 'Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering; uren = minuten / 60. Wachttijd telt niet mee. Totale frequentie = som van frequentiemetingen met "Meetellen in totaal" = Ja en dezelfde periode, alleen als ze niet (mogelijk) overlappen.']);
   rijen.push([]);
-  const koppen = ['ProcesID', 'Procesnaam', 'Periode', 'Meetperiode(n)', 'Uitvoeringseenheid', 'Totale frequentie', 'Gemiddelde actieve tijd per uitvoering (min)',
+  const koppen = ['ProcesID', 'Procesnaam', 'Periode', 'Kalenderweek (selectie)', 'Kalenderweken gebruikte frequenties', 'Meetperiode(n) (omschrijving)', 'Uitvoeringseenheid', 'Totale frequentie', 'Gemiddelde actieve tijd per uitvoering (min)',
     'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)', 'Geschatte actieve tijdsbelasting (min)', 'Geschatte actieve tijdsbelasting (uur)',
-    'Gemiddelde wachttijd per uitvoering (min, niet meegeteld)', 'Aantal procesmetingen', 'Aantal frequentiemetingen', 'Keuze gemiddelde',
+    'Gemiddelde wachttijd per uitvoering (min, niet meegeteld)', 'Aantal procesmetingen', 'Aantal frequentiemetingen', 'Keuze gemiddelde', 'Test/fictieve metingen', 'Mogelijke overlap',
     'Gebruikte medewerker-ID\'s', 'Gebruikte MetingID\'s', 'Gebruikte frequentie-ID\'s', 'Bronnen frequentie', 'Meetwijzen tijd', 'Status', 'Waarschuwingen'];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
   for (const procesId of alleProcesIds()) {
     const perioden = totaalPeriodenVanProces(procesId);
+    // Per periode: eerst alle kalenderweken samen, daarna iedere kalenderweek afzonderlijk.
     for (const periode of perioden.length ? perioden : [null]) {
-      const t = berekenTotaalOverzicht(procesId, filters, periode);
-      const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
-      rijen.push([procesId, procesNaam(procesId), periode ? 'per ' + periode.toLowerCase() : ONBEKEND, t.meetperioden.join(', '), t.eenheden.uitvoeringseenheid,
-        getalOfLeeg(t.totaleFrequentie), getalOfLeeg(t.gemiddeldeActief), getalOfLeeg(t.minimumActief), getalOfLeeg(t.maximumActief),
-        getalOfLeeg(t.minuten), getalOfLeeg(t.uren), getalOfLeeg(t.gemiddeldeWacht), t.aantalProcesmetingen, t.frequenties.length,
-        keuzeGemiddeldeTekst(filters), t.medewerkerIds.join(', '), t.metingIds.join(', '), t.frequenties.map((f) => f.frequentieId).join(', '),
-        t.bronnen.map(bronLabel).join('; '), t.meetwijzenTijd.join('; '),
-        isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | ')]);
+      for (const week of ['', ...totaalWekenVanProces(procesId)]) {
+        const t = berekenTotaalOverzicht(procesId, filters, periode, week);
+        if (week && !t.frequenties.length) continue;
+        const blokkades = [...t.frequentieBlokkades, ...t.tijdBlokkades];
+        rijen.push([procesId, procesNaam(procesId), periode ? 'per ' + periode.toLowerCase() : ONBEKEND, week ? kalenderweekSleutelTekst(week) : 'alle kalenderweken',
+          t.kalenderweken.map(kalenderweekSleutelTekst).join(', '), t.meetperioden.join(', '), t.eenheden.uitvoeringseenheid,
+          getalOfLeeg(t.totaleFrequentie), getalOfLeeg(t.gemiddeldeActief), getalOfLeeg(t.minimumActief), getalOfLeeg(t.maximumActief),
+          getalOfLeeg(t.minuten), getalOfLeeg(t.uren), getalOfLeeg(t.gemiddeldeWacht), t.aantalProcesmetingen, t.frequenties.length,
+          keuzeGemiddeldeTekst(filters), filters.metTest ? 'meegenomen' : 'uitgesloten',
+          t.frequenties.length < 2 ? 'n.v.t.' : t.mogelijkeOverlap ? 'Ja – totaal niet berekend' : 'Nee',
+          t.medewerkerIds.join(', '), t.metingIds.join(', '), t.frequenties.map((f) => f.frequentieId).join(', '),
+          t.bronnen.map(bronLabel).join('; '), t.meetwijzenTijd.join('; '),
+          isGetal(t.minuten) ? 'Berekend' : 'Niet (volledig) berekend', [...blokkades, ...t.waarschuwingen].join(' | ')]);
+      }
     }
   }
-  return { naam: 'Totaaloverzicht', rijen, kolombreedtes: [12, 28, 12, 18, 14, 12, 16, 12, 12, 16, 14, 16, 10, 10, 26, 22, 30, 30, 34, 24, 18, 90], kopRij };
+  rijen.push([]);
+  rijen.push([{ v: 'Status per frequentiemeting (alle kalenderweken, per eigen periode)', s: 'titel' }]);
+  rijen.push(['FrequentieID', 'ProcesID', 'MedewerkerID', 'Meetdatum', 'Kalenderweek', 'Periode', 'Bereik', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Bron', 'Meetellen in totaal', 'Test/fictief', 'Meegenomen in totaal', 'Reden'].map(kop));
+  for (const procesId of alleProcesIds()) {
+    for (const f of frequentiesVanProces(procesId).slice().sort((a, b) => vergelijkTekst(a.frequentieId, b.frequentieId))) {
+      const t = berekenTotaalOverzicht(procesId, filters, f.periodeEenheid || null, '');
+      const st = t.status.find((x) => x.frequentie.frequentieId === f.frequentieId);
+      const meegeteld = st && st.geselecteerd && isGetal(t.totaleFrequentie);
+      const reden = st && !st.geselecteerd ? st.reden : (!isGetal(t.totaleFrequentie) ? 'totaal niet berekend: ' + t.frequentieBlokkades.join(' ') : '');
+      rijen.push([f.frequentieId, procesId, f.medewerkerId || '', f.meetdatum || '', kalenderweekTekst(f.meetdatum, true), f.periodeEenheid ? 'per ' + f.periodeEenheid.toLowerCase() : 'Nog niet bepaald',
+        f.bereik || 'Nog niet bepaald', getalOfLeeg(f.aantalUitvoeringen), eenhedenVan(f).uitvoeringseenheid, bronLabel(f.meetwijze), meetellenTekst(f), isTestmeting(f) ? 'Ja' : 'Nee',
+        meegeteld ? 'Ja' : 'Nee', reden]);
+    }
+  }
+  return { naam: 'Totaaloverzicht', rijen, kolombreedtes: [12, 28, 12, 22, 26, 18, 14, 12, 16, 12, 12, 16, 14, 16, 10, 10, 26, 14, 18, 22, 30, 30, 34, 24, 18, 90], kopRij };
+}
+
+/** Of een procesmeting met de huidige filters in de resultaten is meegenomen, met reden. */
+function meegenomenStatus(m, filters, b) {
+  if (isTestmeting(m) && !filters.metTest) return 'Nee – test/fictieve meting (uitgesloten)';
+  if (!metingVoldoetAanFilters(m, { ...filters, procesId: m.procesId })) return 'Nee – buiten de gekozen filters (meetwijze, medewerker of datum)';
+  if (!isGetal((b || berekenMeting(m)).actiefPerUitvoering)) return `Ja (${m.casustype}), maar actieve tijd per uitvoering is Onbekend`;
+  return `Ja (${m.casustype})`;
 }
 
 /** Tabblad 'Per medewerker': samenvatting per medewerker en de individuele metingen met berekende waarden. */
@@ -4209,7 +4838,6 @@ function medewerkerBlad(filters) {
     'n wachttijd', 'Gemiddelde wachttijd per uitvoering (min)', 'n omvang', 'Gemiddelde omvang per uitvoering', 'MetingID\'s'];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
-  const individueel = [];
   for (const procesId of alleProcesIds()) {
     const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
     for (const c of CASUSTYPEN) {
@@ -4220,22 +4848,26 @@ function medewerkerBlad(filters) {
         g.wacht.n, getalOfLeeg(g.wacht.gemiddelde), g.omvang.n, getalOfLeeg(g.omvang.gemiddelde), g.metingIds.join(', ')];
       for (const g of ms.perMedewerker) rijen.push(regel(medewerkerLabel(g.medewerkerId), g));
       rijen.push(regel('Alle medewerkers (gecombineerd)', ms.totaal));
-      for (const id of ms.totaal.metingIds) individueel.push(zoekMeting(id));
     }
   }
   rijen.push([]);
-  rijen.push([{ v: 'Individuele procesmetingen (iedere meting afzonderlijk, met berekende waarden)', s: 'titel' }]);
-  rijen.push(['MetingID', 'Datum', 'ProcesID', 'Casustype', 'MedewerkerID', 'Meetwijze', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Omvang', 'Omvangseenheid',
-    'Totale actieve tijd (min)', 'Actieve tijd per uitvoering (min)', 'Totale wachttijd (min)', 'Wachttijd per uitvoering (min)', 'Omvang per uitvoering', 'Actieve tijd per omvangseenheid (min)'].map(kop));
-  for (const m of individueel.sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
+  rijen.push([{ v: 'Individuele procesmetingen – alle metingen afzonderlijk, met berekende waarden, controles en of ze in de resultaten zijn meegenomen', s: 'titel' }]);
+  rijen.push(['MetingID', 'Meetdatum', 'Kalenderweek', 'ProcesID', 'Casustype', 'MedewerkerID', 'Meetwijze', 'Test/fictief', 'Meegenomen in resultaten', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Omvang', 'Omvangseenheid',
+    'Totale actieve tijd (min)', 'Actieve tijd per uitvoering (min)', 'Totale wachttijd (min)', 'Wachttijd per uitvoering (min)', 'Omvang per uitvoering', 'Actieve tijd per omvangseenheid (min)',
+    'Controle actief: procesmeting (min)', 'Controle actief: som stapmetingen (min)', 'Controle actief: verschil (min)',
+    'Controle wacht: procesmeting (min)', 'Controle wacht: som stapmetingen (min)', 'Controle wacht: verschil (min)', 'Afwijking proces/stappen'].map(kop));
+  for (const m of [...staat.procesmetingen].sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
     const b = berekenMeting(m);
     const e = eenhedenVan(m);
-    rijen.push([m.metingId, m.datum, m.procesId, m.casustype, m.medewerkerId || '(niet ingevuld)', m.meetwijze,
+    const c = controleProcesStap(m, stapmetingenVan(m.metingId));
+    const ctl = (x) => (x ? [x.procesmeting, x.stapmetingen, x.verschil] : ['', '', '']);
+    rijen.push([m.metingId, m.datum, kalenderweekTekst(m.datum, true), m.procesId, m.casustype, m.medewerkerId || '(niet ingevuld)', m.meetwijze, isTestmeting(m) ? 'Ja' : 'Nee', meegenomenStatus(m, filters, b),
       'aantalUitvoeringen' in m ? getalOfLeeg(m.aantalUitvoeringen) : ONBEKEND, e.uitvoeringseenheid, getalOfLeeg(m.omvang), e.omvangseenheid,
       getalOfLeeg(b.totaalActief), getalOfLeeg(b.actiefPerUitvoering), getalOfLeeg(b.totaalWacht), getalOfLeeg(b.wachtPerUitvoering),
-      getalOfLeeg(b.omvangPerUitvoering), getalOfLeeg(b.actiefPerOmvang)]);
+      getalOfLeeg(b.omvangPerUitvoering), getalOfLeeg(b.actiefPerOmvang),
+      ...ctl(c.actief), ...ctl(c.wacht), c.actief || c.wacht ? (c.heeftAfwijking ? 'Ja: ' + controleTekst(c).join(' ') : 'Nee') : 'Niet te controleren (geen totaal bij procesmeting)']);
   }
-  return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 28, 13, 26, 16, 16, 10, 10, 18, 18, 18, 10, 18, 10, 16, 50], kopRij };
+  return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 14, 18, 26, 16, 16, 18, 10, 34, 12, 14, 10, 14, 14, 16, 14, 16, 14, 16, 14, 14, 14, 14, 14, 14, 50], kopRij };
 }
 
 function methodeBlad(filters) {
@@ -4279,6 +4911,11 @@ function methodeBlad(filters) {
   r.push(['Geteld (frequentie)', 'Het aantal uitvoeringen is handmatig geteld.']);
   r.push(['Resultaten per medewerker', 'Per MedewerkerID: aantal metingen, gemiddelde/minimum/maximum actieve tijd per uitvoering, gemiddelde wachttijd per uitvoering en gemiddelde omvang per uitvoering (omvang / aantal uitvoeringen), elk met het aantal gebruikte metingen (n). Het gecombineerde resultaat (alle medewerkers) wordt berekend uit alle individuele metingen samen, niet uit de gemiddelden per medewerker. MedewerkerID\'s zijn anonieme codes (bijv. PZ01); er worden geen namen vastgelegd.']);
   r.push(['Filter op medewerker', 'Resultaten kunnen worden berekend voor alle medewerkers samen (standaard) of voor één MedewerkerID. Het gebruikte filter staat bij de resultaten vermeld.']);
+  r.push(['Meetmoment en kalenderweek', 'Meetdatum = de datum waarop de meting is uitgevoerd. Kalenderjaar, kalenderweek en begin/einde van de week worden automatisch uit de meetdatum berekend volgens ISO 8601 (Nederlandse weekindeling, maandag t/m zondag; week 1 bevat de eerste donderdag van het jaar). Kalenderjaar is het ISO-weekjaar. Het meetmoment is iets anders dan de frequentieperiode (per dag, week, maand of jaar).']);
+  r.push(['Doorlooptijd', 'Actieve tijd + wachttijd van een uitvoering. Alleen actieve tijd telt mee in de geschatte tijdsbelasting.']);
+  r.push(['Test/fictieve metingen', 'Gemarkeerd met Test/fictief = Ja. Ze blijven in de ruwe gegevens staan, maar worden standaard uitgesloten van gemiddelden, grafieken, totale frequenties en tijdsbelasting (tenzij bij de resultaten "Testmetingen meenemen" is gekozen; dat staat in de gebruikte filters). Stapmetingen van een test-procesmeting gelden ook als test. Metingen uit eerdere versies gelden als echt.']);
+  r.push(['Controle proces- en stapmetingen', `Als bij een procesmeting een totale actieve tijd of wachttijd is genoteerd, wordt die vergeleken met de som van de stapmetingen. Een verschil groter dan ${fmtGetal(CONTROLE_TOLERANTIE)} minuut geeft een waarschuwing (opslaan blijft mogelijk) en staat in het tabblad Per medewerker. Voor alle berekeningen wordt de som van de stapmetingen gebruikt.`]);
+  r.push(['Gekopieerde tijden', 'Tijdvastlegging "Gekopieerd" = waarde overgenomen bij het dupliceren van een eerdere meting; "Gekopieerd, handmatig aangepast" = daarna door de gebruiker gewijzigd.']);
   r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
   r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
   r.push(['Meetellen in totaal', 'Ja / Nee door de gebruiker gekozen. Bij frequentiemetingen uit eerdere versies is dit "Nog niet bepaald"; die tellen niet mee in het totaal, zodat oude frequenties niet automatisch dubbel worden geteld.']);
@@ -4322,12 +4959,18 @@ async function exporteerExcel() {
 
 // ---------- JSON-back-up ----------
 
+/**
+ * Volledige back-up. De lijsten met records zijn de bron; medewerkerIds, koppelingen en teststatussen
+ * zijn afgeleide overzichten die bij herstel worden gecontroleerd op consistentie.
+ */
 function maakBackup() {
+  const tijd = nuIso();
   return {
     formaat: BACKUP_FORMAAT,
     toolversie: VERSIE,
     schemaversie: staat.schemaversie,
-    exportdatum: nuIso(),
+    exportdatum: tijd,
+    aangemaaktOp: tijd,
     bevatDemogegevens: bevatDemo(),
     processen: staat.processen,
     processtappen: staat.processtappen,
@@ -4335,7 +4978,21 @@ function maakBackup() {
     stapmetingen: staat.stapmetingen,
     frequentiemetingen: staat.frequentiemetingen,
     volgnummers: staat.volgnummers,
+    instellingen: { volgnummers: staat.volgnummers },
+    medewerkerIds: uniek([...staat.procesmetingen, ...staat.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst),
+    koppelingen: staat.procesmetingen.map((m) => ({ metingId: m.metingId, procesId: m.procesId, stapIds: stapmetingenVan(m.metingId).map((x) => x.stapId) })),
+    teststatussen: {
+      procesmetingen: staat.procesmetingen.filter(isTestmeting).map((m) => m.metingId),
+      frequentiemetingen: staat.frequentiemetingen.filter(isTestmeting).map((f) => f.frequentieId),
+    },
   };
+}
+
+/** Veiligheidsback-up vóór vervangen: als download én lokaal in de browser (localStorage, indien mogelijk). */
+function maakVeiligheidsbackup() {
+  const tekst = JSON.stringify(maakBackup(), null, 2);
+  downloadTekst(tekst, `Meettool_veiligheidsbackup_${bestandsdatum()}.json`, 'application/json');
+  try { localStorage.setItem('meettool-veiligheidsbackup', tekst); } catch (e) { /* te groot of niet beschikbaar; de download blijft */ }
 }
 
 async function downloadBackup() {
@@ -4402,6 +5059,24 @@ function controleerBackup(json) {
     if (f.bereik && !BEREIKEN.includes(f.bereik)) fouten.push(`${l}: bereik is ongeldig.`);
     if (f.meetellenInTotaal !== undefined && f.meetellenInTotaal !== null && typeof f.meetellenInTotaal !== 'boolean') fouten.push(`${l}: "Meetellen in totaal" is ongeldig.`);
   });
+  // Afgeleide overzichten (sinds versie 1.4) moeten kloppen met de records; een afwijking duidt op een beschadigd bestand.
+  if (Array.isArray(json.koppelingen)) {
+    for (const k of json.koppelingen) {
+      const echt = json.stapmetingen.filter((x) => x.metingId === k.metingId).map((x) => x.stapId).sort();
+      if (!metingIds.has(k.metingId) || JSON.stringify(echt) !== JSON.stringify([...(k.stapIds || [])].sort())) {
+        fouten.push(`Koppeling van meting ${k.metingId} komt niet overeen met de stapmetingen in het bestand (bestand mogelijk beschadigd).`);
+      }
+    }
+    if (json.koppelingen.length !== json.procesmetingen.length) fouten.push('Het aantal koppelingen komt niet overeen met het aantal procesmetingen (bestand mogelijk beschadigd).');
+  }
+  if (json.teststatussen && Array.isArray(json.teststatussen.procesmetingen)) {
+    const echt = json.procesmetingen.filter((m) => m.testmeting === true).map((m) => m.metingId).sort();
+    if (JSON.stringify(echt) !== JSON.stringify([...json.teststatussen.procesmetingen].sort())) fouten.push('De teststatussen komen niet overeen met de procesmetingen (bestand mogelijk beschadigd).');
+  }
+  for (const r of [...json.procesmetingen, ...json.frequentiemetingen]) {
+    if (r.testmeting !== undefined && typeof r.testmeting !== 'boolean') fouten.push(`${r.metingId || r.frequentieId}: teststatus is ongeldig.`);
+  }
+  json.frequentiemetingen.forEach((f) => { if (f.meetdatum && !isGeldigeDatum(f.meetdatum)) fouten.push(`Frequentiemeting ${f.frequentieId}: meetdatum is ongeldig.`); });
   dubbel(json.processen, (p) => p.procesId, 'ProcesID');
   dubbel(json.processtappen, (s) => s.stapId, 'StapID');
   dubbel(json.procesmetingen, (m) => m.metingId, 'MetingID');
@@ -4502,6 +5177,9 @@ async function importeerBackup(bestand) {
         <dt>Exportdatum</dt><dd>${esc(fmtTijdstip(json.exportdatum))}</dd>
         <dt>Inhoud</dt><dd>${gegevens.processen.length} processen, ${gegevens.processtappen.length} processtappen, ${gegevens.procesmetingen.length} procesmetingen, ${gegevens.stapmetingen.length} stapmetingen, ${gegevens.frequentiemetingen.length} frequentiemetingen</dd>
         <dt>Demogegevens</dt><dd>${json.bevatDemogegevens ? '<strong>Ja</strong>' : 'Nee'}</dd>
+        <dt>Test/fictief</dt><dd>${gegevens.procesmetingen.filter(isTestmeting).length} procesmeting(en), ${gegevens.frequentiemetingen.filter(isTestmeting).length} frequentiemeting(en)</dd>
+        <dt>Medewerker-ID's</dt><dd>${esc(uniek([...gegevens.procesmetingen, ...gegevens.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst).join(', ') || '—')}</dd>
+        <dt>Schemaversie</dt><dd>${esc(json.schemaversie || 1)}${(json.schemaversie || 1) < 3 ? ' (ouder formaat; wordt veilig omgezet, opgeslagen waarden blijven gelijk)' : ''}</dd>
       </dl>
       <div class="melding info mt">Het bestand is gecontroleerd: het formaat klopt, verplichte velden zijn aanwezig en alle identificatiecodes zijn uniek.</div>
       <h4>Kies hoe u wilt importeren</h4>
@@ -4522,8 +5200,9 @@ async function importeerBackup(bestand) {
     await informeer('Samenvoegen voltooid', `<p>Toegevoegd: ${verslag.toegevoegd.processen} processen, ${verslag.toegevoegd.procesmetingen} procesmetingen, ${verslag.toegevoegd.frequentiemetingen} frequentiemetingen.</p>
       ${verslag.conflicten.length ? `<div class="melding waarschuwing"><strong>Niet geïmporteerd (conflict):</strong><ul>${verslag.conflicten.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}`);
   } else if (keuze === 'vervangen') {
-    const ok = await bevestig('Huidige gegevens vervangen', '<div class="melding waarschuwing">Alle huidige gegevens worden gewist en vervangen door de back-up. Maak eventueel eerst een back-up van de huidige gegevens.</div><p>Weet u het zeker?</p>', 'Ja, vervangen', true);
+    const ok = await bevestig('Huidige gegevens vervangen', '<div class="melding waarschuwing">Alle huidige gegevens worden gewist en vervangen door de back-up.</div><p>Vóór het vervangen wordt automatisch een <strong>veiligheidsback-up</strong> van de huidige gegevens gedownload (en lokaal bewaard). Weet u het zeker?</p>', 'Ja, vervangen', true);
     if (!ok) return;
+    maakVeiligheidsbackup();
     staat = gegevens;
     metingBewerkId = null;
     frequentieBewerkId = null;
@@ -4605,18 +5284,37 @@ const ACTIES = {
   'stap-verwijderen': (el) => { procesBewerking.stappen.splice(Number(el.dataset.index), 1); renderProcesEditor(); },
   'processen-csv-export': () => exporteerProcessenCsv(),
   'processen-csv-import': () => $('#processenCsvBestand').click(),
-  'meting-annuleren': () => { const was = !!metingBewerkId; resetMetingFormulier(false); if (was) toonTab('overzicht'); },
-  'frequentie-annuleren': () => { const was = !!frequentieBewerkId; resetFrequentieFormulier(); if (was) toonTab('overzicht'); },
+  'meting-annuleren': () => { const was = !!metingBewerkId; verwijderConcept('meting'); resetMetingFormulier(false); if (was) toonTab('overzicht'); },
+  'frequentie-annuleren': () => { const was = !!frequentieBewerkId; verwijderConcept('frequentie'); resetFrequentieFormulier(); if (was) toonTab('overzicht'); },
+  'concept-meting-verwijderen': () => verwijderMetingConceptMetBevestiging(),
+  'concept-frequentie-verwijderen': () => verwijderFrequentieConceptMetBevestiging(),
+  'meting-dupliceren': (el) => dupliceerMeting(el.dataset.id),
   'meting-uitklappen': (el) => {
     const id = el.dataset.id;
     if (uitgeklapteMetingen.has(id)) uitgeklapteMetingen.delete(id); else uitgeklapteMetingen.add(id);
     renderOverzichtTabel();
   },
   'meting-openen': (el) => openMeting(el.dataset.id),
-  'meting-bewerken': (el) => bewerkMeting(el.dataset.id),
+  'meting-bewerken': async (el) => {
+    const c = laadConcept('meting');
+    if (c && c.gegevens && c.gegevens.bewerkId !== el.dataset.id) {
+      const ok = await bevestig('Niet-opgeslagen concept', '<p>Het formulier Nieuwe procesmeting bevat een niet-opgeslagen concept. Als u deze meting gaat aanpassen, wordt dat concept vervangen.</p>', 'Toch aanpassen', true);
+      if (!ok) return;
+      verwijderConcept('meting');
+    }
+    bewerkMeting(el.dataset.id);
+  },
   'meting-verwijderen': (el) => verwijderMetingMetBevestiging(el.dataset.id),
   'frequentie-openen': (el) => openFrequentie(el.dataset.id),
-  'frequentie-bewerken': (el) => bewerkFrequentie(el.dataset.id),
+  'frequentie-bewerken': async (el) => {
+    const c = laadConcept('frequentie');
+    if (c && c.gegevens && c.gegevens.bewerkId !== el.dataset.id) {
+      const ok = await bevestig('Niet-opgeslagen concept', '<p>Het formulier Frequentie registreren bevat een niet-opgeslagen concept. Als u deze frequentiemeting gaat aanpassen, wordt dat concept vervangen.</p>', 'Toch aanpassen', true);
+      if (!ok) return;
+      verwijderConcept('frequentie');
+    }
+    bewerkFrequentie(el.dataset.id);
+  },
   'frequentie-verwijderen': (el) => verwijderFrequentieMetBevestiging(el.dataset.id),
   'filters-wissen': () => wisOverzichtFilters(),
   'onderliggende-metingen': (el) => toonOnderliggendeMetingen(el.dataset.casustype),
@@ -4677,10 +5375,24 @@ async function start() {
   initResultaten();
   renderAlles();
   werkOpslagStatusBij();
+  // Uitleg-icoontjes in de vaste HTML
+  for (const el of $$('[data-uitleg]')) el.outerHTML = infoHtml(el.dataset.uitleg);
+  const herstelMeting = herstelMetingConcept();
+  const herstelFrequentie = herstelFrequentieConcept();
+  // Concepten direct wegschrijven bij sluiten of wegklikken van de pagina.
+  const bewaarOpenConcepten = () => {
+    if (metingConceptTimer) bewaarMetingConcept();
+    if (frequentieConceptTimer) bewaarFrequentieConcept();
+  };
+  window.addEventListener('pagehide', bewaarOpenConcepten);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') bewaarOpenConcepten(); });
 
   let starttab = staat.processen.length ? 'meting' : 'processen';
   try { starttab = sessionStorage.getItem('meettool-tab') || starttab; } catch (e) { /* niet kritiek */ }
+  if (herstelMeting) starttab = 'meting';
+  else if (herstelFrequentie) starttab = 'frequentie';
   toonTab(starttab);
+  if (herstelMeting || herstelFrequentie) toonMelding('Niet-afgerond concept hersteld.');
 
   window.addEventListener('beforeunload', (e) => {
     // Waarschuw bij sluiten als er nog een timer loopt of een wijziging nog wordt opgeslagen.
@@ -4702,6 +5414,9 @@ async function start() {
     berekenTijdsbelasting,
     kiesFrequentie,
     leesGetal,
+    kalenderweek,
+    kalenderweekTekst,
+    controleProcesStap,
     isGeldigeDatum,
     mediaan,
     wachtOpOpslag: () => Opslag.wachtrij.then(() => true, () => false),

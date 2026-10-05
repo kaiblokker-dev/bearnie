@@ -83,3 +83,50 @@ const Opslag = {
     return Promise.reject(new Error('Er is geen lokale opslag beschikbaar in deze browser.'));
   },
 };
+
+// ---------- Concepten (niet-afgeronde invoer) ----------
+// Concepten staan los van de definitieve gegevens in localStorage, omdat dat synchroon schrijft:
+// ook bij direct sluiten of vernieuwen van de pagina blijft de laatste invoer bewaard.
+// Een concept wordt nooit automatisch als meting opgeslagen.
+
+const CONCEPT_PREFIX = 'meettool-concept-';
+
+function bewaarConcept(soort, gegevens) {
+  try {
+    localStorage.setItem(CONCEPT_PREFIX + soort, JSON.stringify({ opgeslagen: nuIso(), versie: VERSIE, gegevens }));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function laadConcept(soort) {
+  try {
+    const t = localStorage.getItem(CONCEPT_PREFIX + soort);
+    return t ? JSON.parse(t) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function heeftConcept(soort) {
+  return !!laadConcept(soort);
+}
+
+function verwijderConcept(soort) {
+  try { localStorage.removeItem(CONCEPT_PREFIX + soort); } catch (e) { /* niet kritiek */ }
+  toonConceptStatus(soort === 'meting' ? 'm' : 'f', null);
+}
+
+/** Toont "Concept automatisch opgeslagen" bij het formulier (prefix 'm' = meting, 'f' = frequentie). */
+function toonConceptStatus(prefix, gelukt, tijdstip) {
+  const status = document.getElementById(prefix + 'ConceptStatus');
+  const knop = document.getElementById(prefix + 'ConceptVerwijderen');
+  if (!status || !knop) return;
+  if (gelukt === null) { status.textContent = ''; knop.hidden = true; return; }
+  if (!gelukt) { status.textContent = 'Concept kon niet lokaal worden bewaard (opslag niet beschikbaar).'; knop.hidden = true; return; }
+  const t = tijdstip ? new Date(tijdstip) : new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  status.textContent = `Concept automatisch opgeslagen om ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`;
+  knop.hidden = false;
+}

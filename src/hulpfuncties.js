@@ -242,3 +242,82 @@ function htmlAantal(n, achtervoegsel = '') {
   if (!isGetal(n)) return `<span class="onbekend">${ONBEKEND}</span>`;
   return esc(fmtAantal(n) + achtervoegsel);
 }
+
+// ---------- Kalenderweek (ISO 8601, Nederlandse weekindeling: maandag t/m zondag) ----------
+
+const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+
+/**
+ * Kalenderweek van een datum (JJJJ-MM-DD). Week 1 is de week met de eerste donderdag van het jaar.
+ * jaar = ISO-weekjaar (bijv. 1 januari 2027 valt in week 53 van 2026). Volledig in UTC, dus tijdzone-onafhankelijk.
+ */
+function kalenderweek(isoDatum) {
+  if (!isGeldigeDatum(isoDatum)) return null;
+  const [j, m, d] = isoDatum.split('-').map(Number);
+  const datum = Date.UTC(j, m - 1, d);
+  const dagNr = new Date(datum).getUTCDay() || 7; // 1 = maandag … 7 = zondag
+  const DAG = 864e5;
+  const begin = datum - (dagNr - 1) * DAG;
+  const donderdag = new Date(begin + 3 * DAG);
+  const jaar = donderdag.getUTCFullYear();
+  const jan4 = Date.UTC(jaar, 0, 4);
+  const maandagWeek1 = jan4 - ((new Date(jan4).getUTCDay() || 7) - 1) * DAG;
+  const naarIso = (t) => new Date(t).toISOString().slice(0, 10);
+  return { jaar, week: Math.round((begin - maandagWeek1) / (7 * DAG)) + 1, begin: naarIso(begin), eind: naarIso(begin + 6 * DAG) };
+}
+
+/** Bijv. "5 t/m 11 oktober 2026" of "28 december 2026 t/m 3 januari 2027". */
+function weekBereikTekst(beginIso, eindIso) {
+  const [bj, bm, bd] = beginIso.split('-').map(Number);
+  const [ej, em, ed] = eindIso.split('-').map(Number);
+  if (bj !== ej) return `${bd} ${MAANDEN[bm - 1]} ${bj} t/m ${ed} ${MAANDEN[em - 1]} ${ej}`;
+  if (bm !== em) return `${bd} ${MAANDEN[bm - 1]} t/m ${ed} ${MAANDEN[em - 1]} ${ej}`;
+  return `${bd} t/m ${ed} ${MAANDEN[em - 1]} ${ej}`;
+}
+
+/** Bijv. "Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)". */
+function kalenderweekTekst(isoDatum, kort) {
+  const k = kalenderweek(isoDatum);
+  if (!k) return '';
+  return kort ? `week ${k.week} van ${k.jaar}` : `Kalenderweek ${k.week} van ${k.jaar} (${weekBereikTekst(k.begin, k.eind)})`;
+}
+
+/** Sleutel voor groeperen/kiezen van een kalenderweek, bijv. "2026-W41". */
+function kalenderweekSleutel(isoDatum) {
+  const k = kalenderweek(isoDatum);
+  return k ? `${k.jaar}-W${String(k.week).padStart(2, '0')}` : '';
+}
+
+function kalenderweekSleutelTekst(sleutel) {
+  const m = /^(\d{4})-W(\d{2})$/.exec(sleutel || '');
+  return m ? `kalenderweek ${Number(m[2])} van ${m[1]}` : '';
+}
+
+// ---------- Eenheden ----------
+
+/** Lege of nietszeggende eenheden ("n.v.t.", "-", "onbekend") gelden als ontbrekend. */
+function isOntbrekendeEenheid(tekst) {
+  const t = String(tekst || '').trim().toLowerCase();
+  return !t || /^(n\.?\s?v\.?\s?t\.?|nvt|-+|\?+|onbekend|geen|x)$/.test(t);
+}
+
+// ---------- Korte uitleg bij begrippen ----------
+
+const UITLEG = {
+  actief: 'Actieve tijd: tijd waarin een medewerker daadwerkelijk aan het dossier werkt.',
+  wacht: 'Wachttijd: tijd waarin het proces stilligt zonder dat de medewerker eraan werkt (bijv. wachten op een reactie of systeem).',
+  doorlooptijd: 'Doorlooptijd: actieve tijd + wachttijd; de totale tijd van begin tot einde van de uitvoering.',
+  omvang: 'Omvang: het aantal items dat binnen één procesuitvoering wordt verwerkt, uitgedrukt in de omvangseenheid (bijv. diensttijdregistraties).',
+  uitvoeringseenheid: 'Uitvoeringseenheid: wat één uitvoering van het proces is (bijv. één dossier). Tijden worden per uitvoeringseenheid berekend.',
+  frequentie: 'Frequentie: hoe vaak het proces binnen een bepaalde periode wordt uitgevoerd (bijv. 25 dossiers per week).',
+  frequentieperiode: 'Frequentieperiode: de periode waarop het aantal betrekking heeft (per dag, week, maand, kwartaal of jaar). Dit is iets anders dan het meetmoment.',
+  kalenderweek: 'Kalenderweek (meetmoment): de ISO-week (maandag t/m zondag) waarin de meetdatum valt. Wordt automatisch uit de datum berekend.',
+  tijdsbelasting: 'Geschatte actieve tijdsbelasting: totale frequentie × gemiddelde actieve tijd per procesuitvoering. Wachttijd telt niet mee.',
+  meetellen: 'Meetellen in totaal: alleen aanvinken als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Alleen aangevinkte frequenties worden opgeteld.',
+  test: 'Test/fictieve meting: blijft zichtbaar in de ruwe gegevens, maar telt standaard niet mee in gemiddelden, grafieken, totalen en tijdsbelasting.',
+};
+
+function infoHtml(term) {
+  const t = UITLEG[term] || '';
+  return `<span class="uitleg-i" tabindex="0" role="img" title="${esc(t)}" aria-label="${esc('Uitleg: ' + t)}">i</span>`;
+}
