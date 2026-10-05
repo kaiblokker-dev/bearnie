@@ -1,0 +1,277 @@
+<header class="kop">
+  <h1>Meettool administratieve processen <span class="versie" id="versieLabel"></span></h1>
+  <div class="opslagstatus" id="opslagStatus">Gegevens laden…</div>
+</header>
+
+<div class="demobalk" id="demoBalk" hidden>
+  <strong>Demogegevens geladen.</strong>
+  <span>Een deel van de gegevens is fictief en uitsluitend bedoeld om de tool te verkennen. Deze gegevens zijn gemarkeerd met <span class="demolabel">DEMO</span>.</span>
+  <button type="button" class="klein" data-actie="demo-verwijderen">Demogegevens verwijderen</button>
+</div>
+
+<nav class="tabs" id="tabs">
+  <button type="button" data-tab="processen"><span class="nr">1</span>Processen beheren</button>
+  <button type="button" data-tab="meting"><span class="nr">2</span>Nieuwe procesmeting</button>
+  <button type="button" data-tab="frequentie"><span class="nr">3</span>Frequentie registreren</button>
+  <button type="button" data-tab="overzicht"><span class="nr">4</span>Metingen bekijken</button>
+  <button type="button" data-tab="resultaten"><span class="nr">5</span>Resultaten</button>
+  <button type="button" data-tab="importexport"><span class="nr">6</span>Importeren en exporteren</button>
+</nav>
+
+<main>
+  <!-- 1. Processen beheren -->
+  <section class="tab" id="tab-processen" hidden>
+    <h2>Processen beheren</h2>
+    <p class="uitleg">Leg hier de processen en processtappen vast die u wilt meten. Bestaande metingen bewaren hun eigen kopie van de proces- en stapnamen, zodat ze leesbaar blijven als een proces later wordt aangepast of verwijderd.</p>
+    <div class="kaart">
+      <div class="knoppen" style="margin-top:0">
+        <button type="button" class="primair" data-actie="proces-nieuw">Nieuw proces</button>
+        <button type="button" data-actie="processen-csv-export">Processen exporteren (CSV)</button>
+        <button type="button" data-actie="processen-csv-import">Processen importeren (CSV)</button>
+        <input type="file" id="processenCsvBestand" accept=".csv,text/csv" hidden>
+      </div>
+    </div>
+    <div class="kaart" id="procesEditor" hidden></div>
+    <div class="kaart">
+      <h3>Vastgelegde processen</h3>
+      <div class="tabelhouder" id="processenLijst"></div>
+    </div>
+  </section>
+
+  <!-- 2. Nieuwe procesmeting -->
+  <section class="tab" id="tab-meting" hidden>
+    <h2 id="metingTitel">Nieuwe procesmeting</h2>
+    <p class="uitleg">Vul eerst de algemene gegevens in en daarna per processtap de tijden in minuten. Decimalen mogen met een komma of een punt (bijvoorbeeld 1,5). Laat een veld leeg als de waarde onbekend is: lege velden worden niet als nul geteld.</p>
+    <div id="metingBewerkMelding"></div>
+    <form id="metingFormulier" novalidate autocomplete="off">
+      <div class="kaart ruw-kader">
+        <span class="etiket ruw">Invoer</span>
+        <h3>Algemene gegevens</h3>
+        <div class="velden">
+          <div class="veld">
+            <label for="mMetingId">MetingID</label>
+            <input type="text" id="mMetingId" readonly>
+            <span class="hint">Wordt automatisch toegekend.</span>
+          </div>
+          <div class="veld">
+            <label for="mDatum" class="verplicht">Datum</label>
+            <input type="date" id="mDatum">
+          </div>
+          <div class="veld">
+            <label for="mProces" class="verplicht">ProcesID</label>
+            <select id="mProces"></select>
+          </div>
+          <div class="veld">
+            <label for="mMedewerker">MedewerkerID</label>
+            <input type="text" id="mMedewerker" placeholder="bijv. M01" maxlength="20">
+            <span class="hint">Optioneel. Gebruik een anonieme code, geen naam.</span>
+          </div>
+          <div class="veld">
+            <span class="label verplicht">Casustype</span>
+            <div class="keuzes" id="mCasustype">
+              <label><input type="radio" name="casustype" value="Normaal"> Normaal</label>
+              <label><input type="radio" name="casustype" value="Uitzondering"> Uitzondering</label>
+            </div>
+          </div>
+          <div class="veld">
+            <label for="mOmvang">Omvang</label>
+            <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 12">
+            <span class="hint">Positief getal. Leeg laten als onbekend.</span>
+          </div>
+          <div class="veld">
+            <label for="mEenheid">Eenheid</label>
+            <input type="text" id="mEenheid" list="eenhedenLijst">
+          </div>
+          <div class="veld">
+            <label for="mMeetwijze" class="verplicht">Meetwijze</label>
+            <select id="mMeetwijze"></select>
+          </div>
+          <div class="veld breed">
+            <label for="mToelichting">Algemene toelichting</label>
+            <textarea id="mToelichting" placeholder="Optioneel"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="kaart ruw-kader">
+        <span class="etiket ruw">Invoer</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <h3 style="margin:0">Processtappen</h3>
+          <label class="klein"><input type="checkbox" id="mTimerTonen"> Timer tonen (optioneel hulpmiddel)</label>
+        </div>
+        <div id="mStappen" class="mt"></div>
+      </div>
+
+      <div class="berekend-kader" id="mBerekend"></div>
+
+      <div id="mFouten" class="mt"></div>
+      <div class="knoppen">
+        <button type="submit" class="primair" id="mOpslaan">Meting opslaan</button>
+        <button type="button" data-actie="meting-annuleren" id="mAnnuleren">Formulier leegmaken</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- 3. Frequentie registreren -->
+  <section class="tab" id="tab-frequentie" hidden>
+    <h2 id="frequentieTitel">Frequentie registreren</h2>
+    <p class="uitleg">Een frequentiemeting hoort bij een proces als geheel (niet bij een processtap). Leg vast hoe vaak het proces in een meetperiode is uitgevoerd en welk volume daarbij is verwerkt.</p>
+    <div id="frequentieBewerkMelding"></div>
+    <form id="frequentieFormulier" novalidate autocomplete="off">
+      <div class="kaart ruw-kader">
+        <span class="etiket ruw">Invoer</span>
+        <div class="velden">
+          <div class="veld">
+            <label for="fId">FrequentieID</label>
+            <input type="text" id="fId" readonly>
+            <span class="hint">Wordt automatisch toegekend.</span>
+          </div>
+          <div class="veld">
+            <label for="fProces" class="verplicht">ProcesID</label>
+            <select id="fProces"></select>
+          </div>
+          <div class="veld">
+            <label for="fPeriode" class="verplicht">Meetperiode</label>
+            <input type="text" id="fPeriode" placeholder="bijv. maart 2026 of week 12">
+          </div>
+          <div class="veld">
+            <label for="fAantal">Aantal uitvoeringen</label>
+            <input type="text" id="fAantal" inputmode="decimal" placeholder="bijv. 120">
+          </div>
+          <div class="veld">
+            <label for="fVolume">Totaal volume</label>
+            <input type="text" id="fVolume" inputmode="decimal" placeholder="bijv. 1450">
+          </div>
+          <div class="veld">
+            <label for="fEenheid">Eenheid</label>
+            <input type="text" id="fEenheid" list="eenhedenLijst">
+          </div>
+          <div class="veld">
+            <label for="fMeetwijze" class="verplicht">Meetwijze</label>
+            <select id="fMeetwijze"></select>
+          </div>
+          <div class="veld breed">
+            <label for="fBron">Bron of toelichting</label>
+            <textarea id="fBron" placeholder="bijv. telling uit zaaksysteem, rapport X"></textarea>
+          </div>
+        </div>
+      </div>
+      <div id="fFouten"></div>
+      <div class="knoppen">
+        <button type="submit" class="primair">Frequentie opslaan</button>
+        <button type="button" data-actie="frequentie-annuleren" id="fAnnuleren">Formulier leegmaken</button>
+      </div>
+    </form>
+    <div class="kaart mt">
+      <h3>Laatst geregistreerde frequenties</h3>
+      <div class="tabelhouder" id="frequentieRecent"></div>
+    </div>
+  </section>
+
+  <!-- 4. Metingen bekijken -->
+  <section class="tab" id="tab-overzicht" hidden>
+    <h2>Metingen bekijken</h2>
+    <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
+    <div class="subtabs" id="overzichtSubtabs">
+      <button type="button" data-subtab="procesmetingen" class="actief">Procesmetingen</button>
+      <button type="button" data-subtab="stapmetingen">Stapmetingen</button>
+      <button type="button" data-subtab="frequentiemetingen">Frequentiemetingen</button>
+    </div>
+    <div class="kaart">
+      <div class="filterbalk" id="overzichtFilters">
+        <div class="veld zoek"><label for="ozZoek">Zoeken</label><input type="text" id="ozZoek" placeholder="Zoek in alle kolommen"></div>
+        <div class="veld"><label for="ozProces">Proces</label><select id="ozProces"></select></div>
+        <div class="veld" data-filter="datum"><label for="ozVan">Datum vanaf</label><input type="date" id="ozVan"></div>
+        <div class="veld" data-filter="datum"><label for="ozTot">Datum tot en met</label><input type="date" id="ozTot"></div>
+        <div class="veld" data-filter="medewerker"><label for="ozMedewerker">Medewerker</label><select id="ozMedewerker"></select></div>
+        <div class="veld" data-filter="casustype"><label for="ozCasustype">Casustype</label><select id="ozCasustype"></select></div>
+        <div class="veld"><label for="ozMeetwijze">Meetwijze</label><select id="ozMeetwijze"></select></div>
+        <div class="veld"><button type="button" data-actie="filters-wissen">Filters wissen</button></div>
+      </div>
+      <div id="overzichtTelling" class="klein zacht"></div>
+      <div class="tabelhouder mt" id="overzichtTabel"></div>
+    </div>
+  </section>
+
+  <!-- 5. Resultaten -->
+  <section class="tab" id="tab-resultaten" hidden>
+    <h2>Resultaten</h2>
+    <p class="uitleg">Alle waarden op deze pagina zijn <strong>automatisch berekend</strong> uit de opgeslagen metingen. De mediaan is de belangrijkste uitkomst. Normale gevallen en uitzonderingen worden altijd afzonderlijk berekend.</p>
+    <div class="kaart">
+      <div class="filterbalk">
+        <div class="veld" style="width:260px"><label for="rProces">Proces</label><select id="rProces"></select></div>
+        <div class="veld" style="width:230px"><label for="rMeetwijze">Meetwijze</label><select id="rMeetwijze"></select></div>
+        <div class="veld"><label for="rVan">Datum vanaf</label><input type="date" id="rVan"></div>
+        <div class="veld"><label for="rTot">Datum tot en met</label><input type="date" id="rTot"></div>
+      </div>
+    </div>
+    <div id="resultatenInhoud"></div>
+  </section>
+
+  <!-- 6. Importeren en exporteren -->
+  <section class="tab" id="tab-importexport" hidden>
+    <h2>Importeren en exporteren</h2>
+    <p class="uitleg">Alle gegevens staan uitsluitend lokaal in deze browser op dit apparaat. Maak regelmatig een JSON-back-up: als de browsergegevens worden gewist, zijn de metingen anders verloren.</p>
+
+    <div class="twee-kolommen">
+      <div class="kaart">
+        <h3>Excel-export</h3>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze en datum).</p>
+        <div id="exportFilterInfo" class="klein"></div>
+        <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
+      </div>
+      <div class="kaart">
+        <h3>CSV-export</h3>
+        <p class="klein zacht">Puntkomma-gescheiden, met decimale komma (geschikt voor Nederlandstalige Excel). Bevat alleen oorspronkelijke invoer.</p>
+        <div class="knoppen">
+          <button type="button" data-actie="csv-procesmetingen">Procesmetingen (CSV)</button>
+          <button type="button" data-actie="csv-stapmetingen">Stapmetingen (CSV)</button>
+          <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
+        </div>
+      </div>
+      <div class="kaart">
+        <h3>Back-up</h3>
+        <p class="klein zacht">Een JSON-back-up bevat alle processen, processtappen, procesmetingen, stapmetingen, frequentiemetingen en het versienummer van de tool.</p>
+        <div class="knoppen">
+          <button type="button" class="primair" data-actie="backup-download">Back-up downloaden (JSON)</button>
+          <button type="button" data-actie="backup-import">Back-up importeren (JSON)</button>
+          <input type="file" id="backupBestand" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <div class="kaart">
+        <h3>Demogegevens</h3>
+        <p class="klein zacht">Laad fictieve voorbeeldgegevens om de tool te verkennen. Demogegevens worden nooit automatisch geladen en zijn overal gemarkeerd met <span class="demolabel">DEMO</span>. Bij een export met demogegevens verschijnt eerst een waarschuwing.</p>
+        <div class="knoppen">
+          <button type="button" data-actie="demo-laden">Demogegevens laden</button>
+          <button type="button" data-actie="demo-verwijderen">Demogegevens verwijderen</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="kaart">
+      <h3>Opslag op dit apparaat</h3>
+      <div id="opslagInfo" class="klein"></div>
+      <div class="knoppen">
+        <button type="button" class="gevaar" data-actie="alles-wissen">Alle gegevens wissen</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<datalist id="eenhedenLijst">
+  <option value="documenten"></option>
+  <option value="dossiers"></option>
+  <option value="regels"></option>
+  <option value="mutaties"></option>
+  <option value="beschikkingen"></option>
+  <option value="facturen"></option>
+  <option value="aanvragen"></option>
+</datalist>
+
+<dialog id="dialoog">
+  <div class="dialoog-kop" id="dialoogKop"></div>
+  <div class="dialoog-inhoud" id="dialoogInhoud"></div>
+  <div class="dialoog-knoppen" id="dialoogKnoppen"></div>
+</dialog>
+
+<div id="meldingen" aria-live="polite"></div>
