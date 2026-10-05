@@ -1,6 +1,7 @@
 // ---------- 3. Frequentie registreren ----------
 
 let frequentieBewerkId = null;
+let frequentieEenheden = null; // kopie van de eenheden van het proces (of van de bestaande frequentiemeting)
 
 function vulFrequentieProcesKeuze() {
   const select = $('#fProces');
@@ -8,6 +9,8 @@ function vulFrequentieProcesKeuze() {
   const huidig = select.value;
   vulSelect(select, staat.processen.map((p) => ({ waarde: p.procesId, label: `${p.procesId} – ${p.naam}${p.demo ? ' [DEMO]' : ''}` })), huidig, staat.processen.length ? '— Kies een proces —' : '— Leg eerst een proces vast (tabblad 1) —');
   werkFrequentieIdBij();
+  frequentieEenheden = select.value ? eenhedenKopie(select.value) : null;
+  werkFrequentieLabelsBij();
 }
 
 function werkFrequentieIdBij() {
@@ -20,7 +23,8 @@ function initFrequentieFormulier() {
   vulFrequentieProcesKeuze();
   $('#fProces').addEventListener('change', () => {
     const p = zoekProces($('#fProces').value);
-    $('#fEenheid').value = p ? p.eenheid : '';
+    frequentieEenheden = p ? eenhedenKopie(p.procesId) : null;
+    werkFrequentieLabelsBij();
     werkFrequentieIdBij();
   });
   $('#frequentieFormulier').addEventListener('submit', (e) => { e.preventDefault(); slaFrequentieOp(); });
@@ -30,8 +34,9 @@ async function slaFrequentieOp() {
   const fouten = [];
   const aantal = leesGetal($('#fAantal').value);
   const volume = leesGetal($('#fVolume').value);
-  if (aantal.fout) fouten.push('Aantal uitvoeringen: ' + aantal.fout);
-  if (volume.fout) fouten.push('Totaal volume: ' + volume.fout);
+  const e = eenhedenVan(frequentieEenheden, frequentieBewerkId ? zoekFrequentie(frequentieBewerkId).procesId : $('#fProces').value);
+  if (aantal.fout) fouten.push(`Aantal ${e.uitvoeringseenheidMeervoud}: ` + aantal.fout);
+  if (volume.fout) fouten.push(`Totale omvang (aantal ${e.omvangseenheidMeervoud}): ` + volume.fout);
   $('#fAantal').classList.toggle('ongeldig', !!aantal.fout);
   $('#fVolume').classList.toggle('ongeldig', !!volume.fout);
   const f = {
@@ -40,7 +45,7 @@ async function slaFrequentieOp() {
     meetperiode: $('#fPeriode').value.trim(),
     aantalUitvoeringen: aantal.fout ? NaN : aantal.waarde,
     totaalVolume: volume.fout ? NaN : volume.waarde,
-    eenheid: $('#fEenheid').value.trim(),
+    ...(frequentieEenheden || eenhedenKopie(null)),
     meetwijze: $('#fMeetwijze').value,
     bron: $('#fBron').value.trim(),
   };
@@ -69,7 +74,8 @@ function resetFrequentieFormulier() {
   $('#fMeetwijze').value = '';
   vulFrequentieProcesKeuze();
   const p = zoekProces($('#fProces').value);
-  $('#fEenheid').value = p ? p.eenheid : '';
+  frequentieEenheden = p ? eenhedenKopie(p.procesId) : null;
+  werkFrequentieLabelsBij();
 }
 
 function bewerkFrequentie(frequentieId) {
@@ -84,7 +90,9 @@ function bewerkFrequentie(frequentieId) {
   $('#fPeriode').value = f.meetperiode || '';
   $('#fAantal').value = naarInvoer(f.aantalUitvoeringen);
   $('#fVolume').value = naarInvoer(f.totaalVolume);
-  $('#fEenheid').value = f.eenheid || '';
+  const kopie = eenhedenKopie(f.procesId);
+  frequentieEenheden = Object.fromEntries(EENHEID_VELDEN.map((k) => [k, f[k] || kopie[k] || '']));
+  werkFrequentieLabelsBij();
   $('#fMeetwijze').value = f.meetwijze || '';
   $('#fBron').value = f.bron || '';
   $('#fAnnuleren').textContent = 'Aanpassen annuleren';
@@ -95,9 +103,23 @@ function bewerkFrequentie(frequentieId) {
 function renderFrequentieRecent() {
   const lijst = [...staat.frequentiemetingen].sort((a, b) => String(b.aangemaakt || '').localeCompare(String(a.aangemaakt || ''))).slice(0, 8);
   $('#frequentieRecent').innerHTML = lijst.length
-    ? `<table><thead><tr><th>FrequentieID</th><th>Proces</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totaal volume</th><th>Meetwijze</th></tr></thead><tbody>
+    ? `<table><thead><tr><th>FrequentieID</th><th>Proces</th><th>Meetperiode</th><th class="getal">Aantal uitvoeringen</th><th class="getal">Totale omvang</th><th>Meetwijze</th></tr></thead><tbody>
       ${lijst.map((f) => `<tr><td class="mono">${esc(f.frequentieId)}${demoLabel(f)}</td><td>${esc(procesLabel(f.procesId))}</td><td>${htmlTekst(f.meetperiode)}</td>
-        <td class="getal">${htmlAantal(f.aantalUitvoeringen)}</td><td class="getal">${htmlAantal(f.totaalVolume)} ${esc(f.eenheid || '')}</td><td>${meetwijzeHtml(f.meetwijze)}</td></tr>`).join('')}
+        <td class="getal">${htmlMetEenheid(f.aantalUitvoeringen, eenhedenVan(f), 'uitvoering')}</td><td class="getal">${htmlMetEenheid(f.totaalVolume, eenhedenVan(f), 'omvang')}</td><td>${meetwijzeHtml(f.meetwijze)}</td></tr>`).join('')}
       </tbody></table><p class="klein zacht">Alle frequentiemetingen staan onder <em>Metingen bekijken</em>.</p>`
     : '<p class="zacht">Nog geen frequentiemetingen.</p>';
+}
+
+function werkFrequentieLabelsBij() {
+  const pid = frequentieBewerkId ? zoekFrequentie(frequentieBewerkId).procesId : $('#fProces').value;
+  if (!pid) {
+    $('#fAantalLabel').textContent = 'Aantal uitvoeringen';
+    $('#fVolumeLabel').textContent = 'Totale omvang';
+    return;
+  }
+  const e = eenhedenVan(frequentieEenheden, pid);
+  $('#fAantalLabel').textContent = `Aantal ${e.uitvoeringseenheidMeervoud} (uitvoeringen) in de meetperiode`;
+  $('#fAantalHint').textContent = `Nodig voor de geschatte tijdsbelasting: aantal ${e.uitvoeringseenheidMeervoud} × mediane actieve tijd per ${e.uitvoeringseenheid}.`;
+  $('#fVolumeLabel').textContent = `Totaal aantal ${e.omvangseenheidMeervoud} in de meetperiode`;
+  $('#fVolumeHint').textContent = 'Mag onbekend blijven (leeg laten). Wordt niet gebruikt in de tijdsbelasting.';
 }

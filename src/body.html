@@ -74,13 +74,14 @@
             </div>
           </div>
           <div class="veld">
-            <label for="mOmvang">Omvang</label>
-            <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 12">
-            <span class="hint">Positief getal. Leeg laten als onbekend.</span>
+            <label for="mAantal" class="verplicht" id="mAantalLabel">Aantal uitvoeringen</label>
+            <input type="text" id="mAantal" inputmode="decimal" placeholder="bijv. 1">
+            <span class="hint" id="mAantalHint">Uitvoeringseenheid volgt uit het proces.</span>
           </div>
           <div class="veld">
-            <label for="mEenheid">Eenheid</label>
-            <input type="text" id="mEenheid" list="eenhedenLijst">
+            <label for="mOmvang" id="mOmvangLabel">Omvang</label>
+            <input type="text" id="mOmvang" inputmode="decimal" placeholder="bijv. 7">
+            <span class="hint" id="mOmvangHint">Positief getal. Leeg laten als onbekend.</span>
           </div>
           <div class="veld">
             <label for="mMeetwijze" class="verplicht">Meetwijze</label>
@@ -135,16 +136,14 @@
             <input type="text" id="fPeriode" placeholder="bijv. maart 2026 of week 12">
           </div>
           <div class="veld">
-            <label for="fAantal">Aantal uitvoeringen</label>
+            <label for="fAantal" id="fAantalLabel">Aantal uitvoeringen</label>
             <input type="text" id="fAantal" inputmode="decimal" placeholder="bijv. 120">
+            <span class="hint" id="fAantalHint">Nodig voor de geschatte tijdsbelasting.</span>
           </div>
           <div class="veld">
-            <label for="fVolume">Totaal volume</label>
-            <input type="text" id="fVolume" inputmode="decimal" placeholder="bijv. 1450">
-          </div>
-          <div class="veld">
-            <label for="fEenheid">Eenheid</label>
-            <input type="text" id="fEenheid" list="eenhedenLijst">
+            <label for="fVolume" id="fVolumeLabel">Totale omvang</label>
+            <input type="text" id="fVolume" inputmode="decimal" placeholder="Leeg laten als onbekend">
+            <span class="hint" id="fVolumeHint">Mag onbekend blijven.</span>
           </div>
           <div class="veld">
             <label for="fMeetwijze" class="verplicht">Meetwijze</label>
@@ -172,6 +171,7 @@
   <section class="tab" id="tab-overzicht" hidden>
     <h2>Metingen bekijken</h2>
     <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
+    <div id="overzichtLegacy"></div>
     <div class="subtabs" id="overzichtSubtabs">
       <button type="button" data-subtab="procesmetingen" class="actief">Procesmetingen</button>
       <button type="button" data-subtab="stapmetingen">Stapmetingen</button>
@@ -258,15 +258,6 @@
   </section>
 </main>
 
-<datalist id="eenhedenLijst">
-  <option value="documenten"></option>
-  <option value="dossiers"></option>
-  <option value="regels"></option>
-  <option value="mutaties"></option>
-  <option value="beschikkingen"></option>
-  <option value="facturen"></option>
-  <option value="aanvragen"></option>
-</datalist>
 
 <dialog id="dialoog">
   <div class="dialoog-kop" id="dialoogKop"></div>

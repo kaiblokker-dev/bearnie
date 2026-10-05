@@ -24,56 +24,66 @@ function berekenMeting(m) {
   const ontbrekendWacht = stappen.filter((s) => !isGetal(s.wachttijd)).map((s) => s.stapId);
   const totaalActief = stappen.length && !ontbrekendActief.length ? som(stappen.map((s) => s.actieveTijd)) : null;
   const totaalWacht = stappen.length && !ontbrekendWacht.length ? som(stappen.map((s) => s.wachttijd)) : null;
+  const aantalBekend = isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0;
   const omvangBekend = isGetal(m.omvang) && m.omvang > 0;
+  const deel = (teller, noemerBekend, noemer) => (isGetal(teller) && noemerBekend ? teller / noemer : null);
   return {
     aantalStappen: stappen.length,
     totaalActief,
     totaalWacht,
-    actiefPerEenheid: isGetal(totaalActief) && omvangBekend ? totaalActief / m.omvang : null,
-    wachtPerEenheid: isGetal(totaalWacht) && omvangBekend ? totaalWacht / m.omvang : null,
+    // Primair: per uitvoeringseenheid (bijv. per dossier)
+    actiefPerUitvoering: deel(totaalActief, aantalBekend, m.aantalUitvoeringen),
+    wachtPerUitvoering: deel(totaalWacht, aantalBekend, m.aantalUitvoeringen),
+    // Aanvullend: per omvangseenheid (bijv. per dienstperiode)
+    actiefPerOmvang: deel(totaalActief, omvangBekend, m.omvang),
+    wachtPerOmvang: deel(totaalWacht, omvangBekend, m.omvang),
     ontbrekendActief,
     ontbrekendWacht,
+    aantalBekend,
+    aantalNietVastgelegd: !('aantalUitvoeringen' in m),
     omvangBekend,
   };
 }
 
 function redenOntbrekend(m, b, soort) {
+  const e = eenhedenVan(m);
   if (!b.aantalStappen) return 'geen stapmetingen';
-  if (soort === 'actief' && b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
-  if (soort === 'wacht' && b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
-  if (soort === 'actiefPerEenheid') {
-    if (b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
-    if (!b.omvangBekend) return 'omvang ontbreekt';
+  const tijd = soort.startsWith('actief') ? 'actief' : 'wacht';
+  if (tijd === 'actief' && b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
+  if (tijd === 'wacht' && b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
+  if (soort.endsWith('PerUitvoering') && !b.aantalBekend) {
+    return b.aantalNietVastgelegd
+      ? `aantal ${e.uitvoeringseenheidMeervoud} niet vastgelegd (meting uit versie 1.0)`
+      : `aantal ${e.uitvoeringseenheidMeervoud} ontbreekt`;
   }
-  if (soort === 'wachtPerEenheid') {
-    if (b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
-    if (!b.omvangBekend) return 'omvang ontbreekt';
-  }
+  if (soort.endsWith('PerOmvang') && !b.omvangBekend) return `omvang (aantal ${e.omvangseenheidMeervoud}) ontbreekt`;
   return 'onbekend';
 }
+
+const SAMENVATTING_SLEUTELS = ['actiefPerUitvoering', 'wachtPerUitvoering', 'actiefPerOmvang', 'wachtPerOmvang'];
 
 /** Samenvatting van één groep procesmetingen (één casustype). */
 function vatGroepSamen(metingen) {
   const rijen = metingen.map((m) => ({ m, b: berekenMeting(m) }));
-  const reeks = (sleutel) => rijen.map(({ m, b }) => ({ metingId: m.metingId, waarde: b[sleutel] }));
   const meetwijzen = {};
   for (const m of metingen) meetwijzen[m.meetwijze] = (meetwijzen[m.meetwijze] || 0) + 1;
-  return {
+  const groep = {
     aantal: metingen.length,
     metingIds: metingen.map((m) => m.metingId),
     meetwijzen,
-    actief: beschrijf(reeks('totaalActief')),
-    wacht: beschrijf(reeks('totaalWacht')),
-    actiefPerEenheid: beschrijf(reeks('actiefPerEenheid')),
-    wachtPerEenheid: beschrijf(reeks('wachtPerEenheid')),
-    uitgesloten: {
-      actief: rijen.filter(({ b }) => !isGetal(b.totaalActief)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'actief') })),
-      wacht: rijen.filter(({ b }) => !isGetal(b.totaalWacht)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'wacht') })),
-      actiefPerEenheid: rijen.filter(({ b }) => !isGetal(b.actiefPerEenheid)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'actiefPerEenheid') })),
-      wachtPerEenheid: rijen.filter(({ b }) => !isGetal(b.wachtPerEenheid)).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, 'wachtPerEenheid') })),
+    aantalUitvoeringen: som(metingen.filter((m) => isGetal(m.aantalUitvoeringen)).map((m) => m.aantalUitvoeringen)),
+    metingenZonderAantal: metingen.filter((m) => !isGetal(m.aantalUitvoeringen)).map((m) => m.metingId),
+    uitgesloten: {},
+    eenheden: {
+      uitvoering: uniek(metingen.map((m) => eenhedenVan(m).uitvoeringseenheid)),
+      omvang: uniek(metingen.map((m) => eenhedenVan(m).omvangseenheid)),
     },
-    eenheden: uniek(metingen.map((m) => m.eenheid || '').filter(Boolean)),
   };
+  for (const k of SAMENVATTING_SLEUTELS) {
+    groep[k] = beschrijf(rijen.map(({ m, b }) => ({ metingId: m.metingId, waarde: b[k] })));
+    groep.uitgesloten[k] = rijen.filter(({ b }) => !isGetal(b[k])).map(({ m, b }) => ({ metingId: m.metingId, reden: redenOntbrekend(m, b, k) }));
+  }
+  return groep;
 }
 
 /** Samenvatting per proces, afzonderlijk voor Normaal en Uitzondering. */
@@ -88,11 +98,14 @@ function procesSamenvatting(procesId, filters) {
   return { procesId, aantal: metingen.length, metingen, perCasustype, meetwijzen };
 }
 
-/** Resultaten per processtap voor één casustype. */
+/**
+ * Resultaten per processtap voor één casustype, uitgedrukt per uitvoering:
+ * stapwaarde / aantal uitvoeringen van de meting. Zonder bekend aantal uitvoeringen: Onbekend.
+ */
 function stapSamenvatting(procesId, filters, casustype) {
   const metingen = staat.procesmetingen.filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId }) && m.casustype === casustype);
-  const metingIds = new Set(metingen.map((m) => m.metingId));
-  const stapmetingen = staat.stapmetingen.filter((s) => metingIds.has(s.metingId));
+  const metingPerId = new Map(metingen.map((m) => [m.metingId, m]));
+  const stapmetingen = staat.stapmetingen.filter((s) => metingPerId.has(s.metingId));
   // Volgorde: eerst de huidige stappen van het proces, daarna stappen die alleen in metingen voorkomen.
   const huidige = stappenVanProces(procesId);
   const volgorde = [...huidige.map((s) => s.stapId)];
@@ -102,12 +115,18 @@ function stapSamenvatting(procesId, filters, casustype) {
     const vb = stapmetingen.find((s) => s.stapId === b).volgorde;
     return va - vb || vergelijkTekst(a, b);
   });
+  const perUitvoering = (s, veld) => {
+    const m = metingPerId.get(s.metingId);
+    return isGetal(s[veld]) && isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0 ? s[veld] / m.aantalUitvoeringen : null;
+  };
   return [...volgorde, ...extra].map((stapId) => {
     const huidig = huidige.find((s) => s.stapId === stapId);
     const waarnemingen = stapmetingen.filter((s) => s.stapId === stapId);
-    const actief = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: s.actieveTijd })));
-    const wacht = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: s.wachttijd })));
-    const metWacht = wacht.items.filter((i) => i.waarde > 0).length;
+    const actief = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: perUitvoering(s, 'actieveTijd') })));
+    const wacht = beschrijf(waarnemingen.map((s) => ({ metingId: s.metingId, waarde: perUitvoering(s, 'wachttijd') })));
+    // Percentage met wachttijd: op basis van de ruwe stapwaarde (ook zonder bekend aantal uitvoeringen).
+    const bekendeWacht = waarnemingen.filter((s) => isGetal(s.wachttijd));
+    const metWacht = bekendeWacht.filter((s) => s.wachttijd > 0).length;
     return {
       stapId,
       naam: huidig ? huidig.naam : (waarnemingen[0] ? waarnemingen[0].stapnaam : ''),
@@ -116,30 +135,34 @@ function stapSamenvatting(procesId, filters, casustype) {
       actief,
       wacht,
       aantalMetWacht: metWacht,
-      percentageMetWacht: wacht.n ? (metWacht / wacht.n) * 100 : null,
+      aantalBekendeWacht: bekendeWacht.length,
+      percentageMetWacht: bekendeWacht.length ? (metWacht / bekendeWacht.length) * 100 : null,
       metingIds: waarnemingen.map((s) => s.metingId),
     };
   });
 }
 
 /**
- * Geschatte actieve tijd per meetperiode = aantal uitvoeringen × mediaan actieve tijd per uitvoering.
- * Gebruikt de mediaan van de normale gevallen. Berekent niets als invoer ontbreekt.
+ * Geschatte actieve tijd per meetperiode = aantal uitvoeringen in de meetperiode
+ * × mediaan actieve tijd per uitvoering (normale gevallen). Het totale volume
+ * (omvang) in de meetperiode wordt hierbij niet gebruikt en mag onbekend zijn.
+ * Berekent niets als invoer ontbreekt.
  */
-function berekenTijdsbelasting(frequentie, groepNormaal) {
+function berekenTijdsbelasting(frequentie, groepNormaal, procesId) {
+  const e = eenhedenVan(frequentie, procesId);
   const ontbreekt = [];
   if (!frequentie) ontbreekt.push('Er is voor dit proces geen frequentiemeting geregistreerd (tabblad Frequentie registreren).');
-  else if (!isGetal(frequentie.aantalUitvoeringen)) ontbreekt.push(`In frequentiemeting ${frequentie.frequentieId} is het aantal uitvoeringen niet ingevuld.`);
-  if (!groepNormaal || !isGetal(groepNormaal.actief.mediaan)) {
-    ontbreekt.push('Er is (binnen de gekozen filters) geen normale procesmeting met een volledig ingevulde actieve tijd, dus er is geen mediaan actieve tijd per uitvoering.');
+  else if (!isGetal(frequentie.aantalUitvoeringen)) ontbreekt.push(`In frequentiemeting ${frequentie.frequentieId} is het aantal ${e.uitvoeringseenheidMeervoud} (aantal uitvoeringen) niet ingevuld.`);
+  if (!groepNormaal || !isGetal(groepNormaal.actiefPerUitvoering.mediaan)) {
+    ontbreekt.push(`Er is (binnen de gekozen filters) geen normale procesmeting met een volledig ingevulde actieve tijd én een bekend aantal ${e.uitvoeringseenheidMeervoud}, dus er is geen mediaan actieve tijd per ${e.uitvoeringseenheid}.`);
   }
   if (ontbreekt.length) return { waarde: null, ontbreekt, frequentie };
   return {
-    waarde: frequentie.aantalUitvoeringen * groepNormaal.actief.mediaan,
+    waarde: frequentie.aantalUitvoeringen * groepNormaal.actiefPerUitvoering.mediaan,
     aantalUitvoeringen: frequentie.aantalUitvoeringen,
-    mediaan: groepNormaal.actief.mediaan,
-    metingIds: groepNormaal.actief.metingIds,
-    n: groepNormaal.actief.n,
+    mediaan: groepNormaal.actiefPerUitvoering.mediaan,
+    metingIds: groepNormaal.actiefPerUitvoering.metingIds,
+    n: groepNormaal.actiefPerUitvoering.n,
     frequentie,
     ontbreekt: [],
   };

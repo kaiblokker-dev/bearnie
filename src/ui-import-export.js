@@ -29,10 +29,13 @@ const KOLOMMEN_PROCESMETINGEN = [
   ['Procesnaam (bij meting)', (m) => m.procesnaam],
   ['MedewerkerID', (m) => m.medewerkerId || ''],
   ['Casustype', (m) => m.casustype],
+  ['Aantal uitvoeringen', (m) => ('aantalUitvoeringen' in m ? m.aantalUitvoeringen : null)],
+  ['Uitvoeringseenheid', (m) => m.uitvoeringseenheid || ''],
   ['Omvang', (m) => m.omvang],
-  ['Eenheid', (m) => m.eenheid],
+  ['Omvangseenheid', (m) => m.omvangseenheid || ''],
   ['Meetwijze', (m) => m.meetwijze],
   ['Algemene toelichting', (m) => m.toelichting || ''],
+  ['Herkomst aantal uitvoeringen', (m) => m.aantalUitvoeringenHerkomst || ('aantalUitvoeringen' in m ? 'Ingevoerd' : 'Niet vastgelegd (meting uit versie 1.0)')],
   ['Vastgelegd op', (m) => m.aangemaakt || ''],
   ['Laatst gewijzigd', (m) => m.gewijzigd || ''],
   ['Demogegevens', (m) => (m.demo ? 'Ja' : 'Nee')],
@@ -56,8 +59,9 @@ const KOLOMMEN_FREQUENTIE = [
   ['ProcesID', (f) => f.procesId],
   ['Meetperiode', (f) => f.meetperiode],
   ['Aantal uitvoeringen', (f) => f.aantalUitvoeringen],
-  ['Totaal volume', (f) => f.totaalVolume],
-  ['Eenheid', (f) => f.eenheid],
+  ['Uitvoeringseenheid', (f) => f.uitvoeringseenheid || ''],
+  ['Totale omvang', (f) => f.totaalVolume],
+  ['Omvangseenheid', (f) => f.omvangseenheid || ''],
   ['Meetwijze', (f) => f.meetwijze],
   ['Bron of toelichting', (f) => f.bron || ''],
   ['Vastgelegd op', (f) => f.aangemaakt || ''],
@@ -117,69 +121,70 @@ function resultatenBlad(filters) {
   rijen.push(['Gebruikte filters', filtersAlsTekst(filters)]);
   rijen.push(['Exportdatum', exportdatum]);
   rijen.push(['Toolversie', VERSIE]);
-  rijen.push(['Toelichting', 'Tijden in minuten. Getallen zijn onafgerond opgeslagen en worden met twee decimalen weergegeven. "Onbekend" = niet te berekenen door ontbrekende invoer (niet als nul verwerkt). n = aantal metingen met een bekende waarde.']);
+  rijen.push(['Toelichting', 'Tijden in minuten. "Per uitvoering" = per uitvoeringseenheid van het proces (zie kolom Uitvoeringseenheid, bijv. per dossier); dit is de primaire uitkomst. "Per omvangseenheid" (zie kolom Omvangseenheid, bijv. per dienstperiode) is een aanvullende uitkomst. Getallen zijn onafgerond opgeslagen en worden met twee decimalen weergegeven. "Onbekend" = niet te berekenen door ontbrekende invoer (niet als nul verwerkt). n = aantal metingen met een bekende waarde.']);
   rijen.push([]);
   rijen.push([{ v: 'Samenvatting per proces en casustype', s: 'titel' }]);
   const koppen = [
-    'ProcesID', 'Procesnaam', 'Casustype', 'Gebruikte filters', 'Meetwijzen in selectie', 'Aantal metingen',
-    'n actieve tijd', 'Mediaan actieve tijd (min)', 'Gemiddelde actieve tijd (min)', 'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)',
-    'n wachttijd', 'Mediaan wachttijd (min)', 'Gemiddelde wachttijd (min)',
-    'Eenheid', 'n per eenheid', 'Mediaan actieve tijd per eenheid (min)', 'Gemiddelde actieve tijd per eenheid (min)',
-    'FrequentieID', 'Meetperiode', 'Aantal uitvoeringen', 'Totaal volume', 'Meetwijze frequentie',
+    'ProcesID', 'Procesnaam', 'Casustype', 'Uitvoeringseenheid', 'Omvangseenheid', 'Gebruikte filters', 'Meetwijzen in selectie',
+    'Aantal metingen', 'Aantal uitvoeringen (som)', 'Metingen met onbekend aantal uitvoeringen',
+    'Primaire uitkomst', 'n primair', 'Mediaan actieve tijd per uitvoering (min) – primair', 'Gemiddelde actieve tijd per uitvoering (min)', 'Minimum actieve tijd per uitvoering (min)', 'Maximum actieve tijd per uitvoering (min)',
+    'n wachttijd per uitvoering', 'Mediaan wachttijd per uitvoering (min)', 'Gemiddelde wachttijd per uitvoering (min)',
+    'Aanvullende uitkomst', 'n aanvullend', 'Mediaan actieve tijd per omvangseenheid (min) – aanvullend', 'Gemiddelde actieve tijd per omvangseenheid (min)', 'Minimum actieve tijd per omvangseenheid (min)', 'Maximum actieve tijd per omvangseenheid (min)',
+    'FrequentieID', 'Meetperiode', 'Aantal uitvoeringen in meetperiode', 'Totale omvang in meetperiode', 'Meetwijze frequentie',
     'Geschatte actieve tijd per meetperiode (min)', 'Geschatte actieve tijd per meetperiode (uur)', 'Toelichting tijdsbelasting',
-    'Onderliggende MetingID\'s', 'MetingID\'s actieve tijd', 'Niet meegenomen (reden)',
+    'Onderliggende MetingID\'s', 'MetingID\'s primaire uitkomst', 'MetingID\'s aanvullende uitkomst', 'Niet meegenomen (reden)',
   ];
   rijen.push(koppen.map(kop));
   const kopRij = rijen.length;
   for (const procesId of alleProcesIds()) {
     const sam = procesSamenvatting(procesId, filters);
     const freq = kiesFrequentie(procesId);
-    const eenheid = eenheidVanProces(procesId, Object.values(sam.perCasustype));
+    const e = eenhedenVoorResultaat(procesId, sam.metingen);
     for (const c of CASUSTYPEN) {
       const g = sam.perCasustype[c];
       let belasting = null;
       let belastingTekst = '';
       if (c === 'Normaal') {
-        const b = berekenTijdsbelasting(freq, g);
+        const b = berekenTijdsbelasting(freq, g, procesId);
         belasting = b.waarde;
         belastingTekst = isGetal(b.waarde)
-          ? `${fmtAantal(b.aantalUitvoeringen)} uitvoeringen × mediaan ${fmtGetal(b.mediaan)} min (normale gevallen, n = ${b.n})`
+          ? `${fmtAantal(b.aantalUitvoeringen)} ${e.uitvoeringseenheidMeervoud} × mediaan ${fmtGetal(b.mediaan)} min per ${e.uitvoeringseenheid} (normale gevallen, n = ${b.n})`
           : 'Niet berekend: ' + b.ontbreekt.join(' ');
       } else {
         belastingTekst = 'Niet berekend voor uitzonderingen (tijdsbelasting gebruikt de mediaan van normale gevallen).';
       }
-      const uitgesloten = [
-        ...g.uitgesloten.actief.map((u) => `${u.metingId}: ${u.reden}`),
-        ...g.uitgesloten.actiefPerEenheid.filter((u) => !g.uitgesloten.actief.some((x) => x.metingId === u.metingId)).map((u) => `${u.metingId} (per eenheid): ${u.reden}`),
-        ...g.uitgesloten.wacht.filter((u) => !g.uitgesloten.actief.some((x) => x.metingId === u.metingId)).map((u) => `${u.metingId} (wachttijd): ${u.reden}`),
-      ];
+      const uitgesloten = [];
+      const labels = { actiefPerUitvoering: 'primair', wachtPerUitvoering: 'wachttijd', actiefPerOmvang: 'aanvullend' };
+      for (const [k, label] of Object.entries(labels)) for (const u of g.uitgesloten[k]) uitgesloten.push(`${u.metingId} (${label}): ${u.reden}`);
       rijen.push([
-        procesId, procesNaam(procesId), c, filtersAlsTekst(filters), meetwijzeVerdelingTekst(g.meetwijzen), g.aantal,
-        g.actief.n, getalOfLeeg(g.actief.mediaan), getalOfLeeg(g.actief.gemiddelde), getalOfLeeg(g.actief.minimum), getalOfLeeg(g.actief.maximum),
-        g.wacht.n, getalOfLeeg(g.wacht.mediaan), getalOfLeeg(g.wacht.gemiddelde),
-        eenheid, g.actiefPerEenheid.n, getalOfLeeg(g.actiefPerEenheid.mediaan), getalOfLeeg(g.actiefPerEenheid.gemiddelde),
+        procesId, procesNaam(procesId), c, e.uitvoeringseenheid, e.omvangseenheid, filtersAlsTekst(filters), meetwijzeVerdelingTekst(g.meetwijzen),
+        g.aantal, g.aantalUitvoeringen, g.metingenZonderAantal.join(', '),
+        `Actieve tijd per ${e.uitvoeringseenheid}`, g.actiefPerUitvoering.n, getalOfLeeg(g.actiefPerUitvoering.mediaan), getalOfLeeg(g.actiefPerUitvoering.gemiddelde), getalOfLeeg(g.actiefPerUitvoering.minimum), getalOfLeeg(g.actiefPerUitvoering.maximum),
+        g.wachtPerUitvoering.n, getalOfLeeg(g.wachtPerUitvoering.mediaan), getalOfLeeg(g.wachtPerUitvoering.gemiddelde),
+        `Actieve tijd per ${e.omvangseenheid}`, g.actiefPerOmvang.n, getalOfLeeg(g.actiefPerOmvang.mediaan), getalOfLeeg(g.actiefPerOmvang.gemiddelde), getalOfLeeg(g.actiefPerOmvang.minimum), getalOfLeeg(g.actiefPerOmvang.maximum),
         freq ? freq.frequentieId : ONBEKEND, freq ? freq.meetperiode : '', freq ? getalOfLeeg(freq.aantalUitvoeringen) : '', freq ? getalOfLeeg(freq.totaalVolume) : '', freq ? freq.meetwijze : '',
         c === 'Normaal' ? getalOfLeeg(belasting) : '', c === 'Normaal' ? (isGetal(belasting) ? belasting / 60 : ONBEKEND) : '', belastingTekst,
-        g.metingIds.join(', '), g.actief.metingIds.join(', '), uitgesloten.join('; '),
+        g.metingIds.join(', '), g.actiefPerUitvoering.metingIds.join(', '), g.actiefPerOmvang.metingIds.join(', '), uitgesloten.join('; '),
       ]);
     }
   }
   rijen.push([]);
-  rijen.push([{ v: 'Resultaten per processtap', s: 'titel' }]);
-  const stapKoppen = ['ProcesID', 'Casustype', 'StapID', 'Processtap', 'Aantal waarnemingen', 'n actieve tijd', 'Mediaan actieve tijd (min)', 'Gemiddelde actieve tijd (min)',
-    'Minimum actieve tijd (min)', 'Maximum actieve tijd (min)', 'n wachttijd', 'Mediaan wachttijd (min)', 'Gemiddelde wachttijd (min)', 'Percentage metingen met wachttijd', 'Onderliggende MetingID\'s'];
+  rijen.push([{ v: 'Resultaten per processtap (tijden per uitvoering: stapwaarde / aantal uitvoeringen van de meting)', s: 'titel' }]);
+  const stapKoppen = ['ProcesID', 'Casustype', 'Uitvoeringseenheid', 'StapID', 'Processtap', 'Aantal waarnemingen', 'n actieve tijd', 'Mediaan actieve tijd per uitvoering (min)', 'Gemiddelde actieve tijd per uitvoering (min)',
+    'Minimum actieve tijd per uitvoering (min)', 'Maximum actieve tijd per uitvoering (min)', 'n wachttijd', 'Mediaan wachttijd per uitvoering (min)', 'Gemiddelde wachttijd per uitvoering (min)', 'Percentage metingen met wachttijd', 'Onderliggende MetingID\'s'];
   rijen.push(stapKoppen.map(kop));
   for (const procesId of alleProcesIds()) {
+    const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
     for (const c of CASUSTYPEN) {
       for (const r of stapSamenvatting(procesId, filters, c)) {
         if (!r.aantalWaarnemingen) continue;
-        rijen.push([procesId, c, r.stapId, r.naam, r.aantalWaarnemingen, r.actief.n, getalOfLeeg(r.actief.mediaan), getalOfLeeg(r.actief.gemiddelde),
+        rijen.push([procesId, c, e.uitvoeringseenheid, r.stapId, r.naam, r.aantalWaarnemingen, r.actief.n, getalOfLeeg(r.actief.mediaan), getalOfLeeg(r.actief.gemiddelde),
           getalOfLeeg(r.actief.minimum), getalOfLeeg(r.actief.maximum), r.wacht.n, getalOfLeeg(r.wacht.mediaan), getalOfLeeg(r.wacht.gemiddelde),
           getalOfLeeg(r.percentageMetWacht), r.metingIds.join(', ')]);
       }
     }
   }
-  return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 40, 28, 10, 10, 14, 14, 14, 14, 10, 14, 14, 14, 10, 16, 16, 16, 16, 12, 12, 20, 18, 18, 50, 40, 40, 50], kopRij };
+  return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 16, 16, 40, 28, 10, 12, 20, 24, 8, 18, 16, 16, 16, 10, 16, 16, 24, 8, 18, 16, 16, 16, 16, 16, 14, 14, 20, 18, 18, 50, 40, 30, 30, 50], kopRij };
 }
 
 function methodeBlad(filters) {
@@ -194,21 +199,27 @@ function methodeBlad(filters) {
   r.push(t('Definities'));
   r.push(['Actieve tijd', 'De tijd in minuten waarin een medewerker daadwerkelijk aan een processtap werkt.']);
   r.push(['Wachttijd', 'De tijd in minuten waarin een processtap stilligt of wacht (bijvoorbeeld op een reactie, goedkeuring of systeem) zonder dat er actief aan wordt gewerkt. Bij wachttijd groter dan nul is een reden verplicht.']);
-  r.push(['Omvang', 'De hoeveelheid werk die in één procesmeting is verwerkt, uitgedrukt in de eenheid van het proces (bijvoorbeeld 12 documenten). Omvang moet groter zijn dan nul of ontbreekt.']);
-  r.push(['Frequentie', 'Het aantal uitvoeringen van een proces in een meetperiode, met het totale verwerkte volume. Een frequentie hoort bij het proces als geheel, niet bij een processtap.']);
-  r.push(['Procesmeting', 'Eén waargenomen uitvoering van een proces, met per processtap een stapmeting.']);
+  r.push(['Uitvoeringseenheid', 'Wat één uitvoering van een proces is, vastgelegd per proces (bijvoorbeeld bij PR24: één uitvoering = één dossier).']);
+  r.push(['Aantal uitvoeringen', 'Het aantal uitvoeringseenheden dat in één procesmeting is verwerkt (bijvoorbeeld het aantal dossiers). Verplicht bij iedere nieuwe meting en groter dan nul.']);
+  r.push(['Omvangseenheid', 'De eenheid waarin de omvang van het werk wordt uitgedrukt, vastgelegd per proces (bijvoorbeeld bij PR24: het aantal relevante dienstperioden).']);
+  r.push(['Omvang', 'Het aantal omvangseenheden dat in één procesmeting is verwerkt (bijvoorbeeld 7 dienstperioden). Groter dan nul, of leeg als onbekend.']);
+  r.push(['Frequentie', 'Het aantal uitvoeringen (uitvoeringseenheden) van een proces in een meetperiode, met eventueel de totale omvang (omvangseenheden) in die periode. De totale omvang mag onbekend zijn. Een frequentie hoort bij het proces als geheel, niet bij een processtap.']);
+  r.push(['Procesmeting', 'Eén waarneming van een proces, met het aantal uitvoeringen, de omvang en per processtap een stapmeting.']);
   r.push(['Casustype', 'Normaal of Uitzondering. Beide groepen worden altijd afzonderlijk geanalyseerd.']);
   r.push([]);
   r.push(t('Formules'));
   r.push(['Totale actieve tijd', 'Som van de actieve tijd van alle processtappen van een meting.']);
   r.push(['Totale wachttijd', 'Som van de wachttijd van alle processtappen van een meting.']);
-  r.push(['Actieve tijd per eenheid', 'Totale actieve tijd / omvang.']);
-  r.push(['Wachttijd per eenheid', 'Totale wachttijd / omvang.']);
+  r.push(['Actieve tijd per uitvoering (PRIMAIRE UITKOMST)', 'Totale actieve tijd / aantal uitvoeringen (bijv. minuten per dossier).']);
+  r.push(['Wachttijd per uitvoering', 'Totale wachttijd / aantal uitvoeringen.']);
+  r.push(['Actieve tijd per omvangseenheid (aanvullende uitkomst)', 'Totale actieve tijd / omvang (bijv. minuten per dienstperiode).']);
+  r.push(['Wachttijd per omvangseenheid', 'Totale wachttijd / omvang.']);
+  r.push(['Tijd per processtap', 'Actieve tijd (of wachttijd) van de stap / aantal uitvoeringen van de meting, dus per uitvoeringseenheid.']);
   r.push(['Mediaan', 'De middelste waarde na sorteren; bij een even aantal waarden het gemiddelde van de twee middelste waarden. De mediaan is de belangrijkste uitkomst.']);
   r.push(['Gemiddelde', 'Som van de waarden / aantal waarden.']);
   r.push(['Minimum en maximum', 'Kleinste en grootste waarde.']);
   r.push(['Percentage met wachttijd', 'Aantal stapmetingen met wachttijd > 0 / aantal stapmetingen met een bekende wachttijd × 100.']);
-  r.push(['Geschatte actieve tijd per meetperiode', 'Aantal uitvoeringen (uit de gekozen frequentiemeting) × mediaan actieve tijd per uitvoering van de normale gevallen.']);
+  r.push(['Geschatte actieve tijd per meetperiode', 'Aantal uitvoeringen in de meetperiode (uit de gekozen frequentiemeting, bijv. aantal dossiers) × mediaan actieve tijd per uitvoering van de normale gevallen (bijv. minuten per dossier). De totale omvang in de meetperiode (bijv. dienstperioden) wordt hierbij niet gebruikt en mag onbekend zijn.']);
   r.push([]);
   r.push(t('Meetwijzen'));
   r.push(['Gemeten', 'De tijd is tijdens de uitvoering gemeten (handmatig genoteerd of met de timer in de tool).']);
@@ -219,11 +230,20 @@ function methodeBlad(filters) {
   r.push(['Tijdvastlegging', 'Handmatig = tijd rechtstreeks ingevoerd; Timer = tijd met de timer vastgelegd (tot op 0,01 minuut); "Timer, handmatig aangepast" = timerwaarde daarna door de gebruiker gewijzigd.']);
   r.push([]);
   r.push(t('Behandeling van ontbrekende waarden en afronding'));
-  r.push(['Ontbrekende waarden', 'Ontbrekende waarden zijn NIET automatisch als nul verwerkt. Als bij een meting een stapwaarde ontbreekt, is de totale tijd van die meting Onbekend en telt de meting niet mee in de betreffende statistiek. Ontbreekt de omvang, dan is de tijd per eenheid Onbekend. Het aantal gebruikte metingen (n) en de niet meegenomen MetingID\'s staan in Resultaten.']);
+  r.push(['Ontbrekende waarden', 'Ontbrekende waarden zijn NIET automatisch als nul verwerkt. Als bij een meting een stapwaarde ontbreekt, is de totale tijd van die meting Onbekend en telt de meting niet mee in de betreffende statistiek. Ontbreekt het aantal uitvoeringen, dan is de tijd per uitvoering Onbekend; ontbreekt de omvang, dan is de tijd per omvangseenheid Onbekend. Het aantal gebruikte metingen (n) en de niet meegenomen MetingID\'s staan in Resultaten.']);
   r.push(['Ruwe gegevens', 'De tabbladen Procesmetingen, Stapmetingen en Frequentie bevatten uitsluitend de oorspronkelijke invoer en automatisch vastgelegde identificatievelden. Ruwe meetgegevens worden nooit automatisch aangepast. Alle berekeningen staan in het tabblad Resultaten.']);
   r.push(['Afronding', 'Er wordt intern met volledige precisie gerekend. Alleen de weergave wordt afgerond (standaard op twee decimalen).']);
   r.push(['Weinig metingen', 'Bij minder dan drie metingen toont de tool de melding: "Er zijn nog weinig metingen beschikbaar. Interpreteer de uitkomsten voorzichtig." Er wordt geen betrouwbaarheidsscore berekend.']);
-  return { naam: 'Methode', rijen: r, kolombreedtes: [38, 120] };
+  r.push(['Overgang van versie 1.0', 'Versie 1.0 kende één eenheid per proces; die is overgenomen als omvangseenheid (alleen de veldnaam is gewijzigd, niet de waarde). In versie 1.0 gold één procesmeting als één uitvoering, maar het aantal werd niet vastgelegd. Voor zulke metingen is het aantal uitvoeringen Onbekend, tenzij de gebruiker het heeft aangevuld; de kolom "Herkomst aantal uitvoeringen" in Procesmetingen vermeldt dat.']);
+  r.push([]);
+  r.push(t('Eenheden per proces'));
+  r.push(['ProcesID', 'Procesnaam', 'Uitvoeringseenheid', 'Omvangseenheid', 'Primaire uitkomst', 'Aanvullende uitkomst'].map(kop));
+  for (const procesId of alleProcesIds()) {
+    const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
+    r.push([procesId, procesNaam(procesId), `${e.uitvoeringseenheid} (meervoud: ${e.uitvoeringseenheidMeervoud})`, `${e.omvangseenheid} (meervoud: ${e.omvangseenheidMeervoud})`,
+      `Actieve tijd per ${e.uitvoeringseenheid} (min)`, `Actieve tijd per ${e.omvangseenheid} (min)`]);
+  }
+  return { naam: 'Methode', rijen: r, kolombreedtes: [38, 60, 30, 30, 30, 30] };
 }
 
 async function exporteerExcel() {
@@ -301,6 +321,7 @@ function controleerBackup(json) {
     if (!CASUSTYPEN.includes(m.casustype)) fouten.push(`${l}: casustype ontbreekt of is ongeldig.`);
     if (!MEETWIJZEN_METING.includes(m.meetwijze)) fouten.push(`${l}: meetwijze ontbreekt of is ongeldig.`);
     if (!getalOfNull(m.omvang) || (isGetal(m.omvang) && m.omvang <= 0)) fouten.push(`${l}: omvang moet groter zijn dan nul of leeg.`);
+    if ('aantalUitvoeringen' in m && (!getalOfNull(m.aantalUitvoeringen) || (isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen <= 0))) fouten.push(`${l}: aantal uitvoeringen moet groter zijn dan nul of leeg.`);
   });
   const metingIds = new Set(json.procesmetingen.map((m) => m.metingId));
   json.stapmetingen.forEach((s, i) => {
@@ -327,7 +348,12 @@ function controleerBackup(json) {
   const normaliseerGetal = (v) => (isGetal(v) ? v : null);
   const gegevens = normaliseerStaat(json);
   // Ontbrekende getallen consequent als null (nooit als 0).
-  gegevens.procesmetingen = gegevens.procesmetingen.map((m) => ({ ...m, omvang: normaliseerGetal(m.omvang) }));
+  // Een ontbrekende sleutel aantalUitvoeringen (meting uit versie 1.0) blijft ontbreken.
+  gegevens.procesmetingen = gegevens.procesmetingen.map((m) => ({
+    ...m,
+    omvang: normaliseerGetal(m.omvang),
+    ...('aantalUitvoeringen' in m ? { aantalUitvoeringen: normaliseerGetal(m.aantalUitvoeringen) } : {}),
+  }));
   gegevens.stapmetingen = gegevens.stapmetingen.map((s) => ({ ...s, actieveTijd: normaliseerGetal(s.actieveTijd), wachttijd: normaliseerGetal(s.wachttijd) }));
   gegevens.frequentiemetingen = gegevens.frequentiemetingen.map((f) => ({ ...f, aantalUitvoeringen: normaliseerGetal(f.aantalUitvoeringen), totaalVolume: normaliseerGetal(f.totaalVolume) }));
   return { fouten, gegevens };

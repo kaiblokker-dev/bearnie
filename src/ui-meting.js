@@ -4,6 +4,8 @@
 let metingBewerkId = null;
 // Stappen in het formulier: [{ stapId, volgorde, stapnaam, tijdvastlegging }]
 let formulierStappen = [];
+// Eenheden van de meting in het formulier (kopie van het proces, of van de bestaande meting bij aanpassen)
+let formulierEenheden = eenhedenKopieLeeg();
 // Timers per StapID: { status: 'gereed'|'actief'|'wacht'|'afgerond', actiefMs, wachtMs, sinds }
 let timers = {};
 let timerInterval = null;
@@ -18,7 +20,12 @@ function vulMetingProcesKeuze() {
     formulierStappen = [];
     renderMetingStappen();
   }
-  if (!metingBewerkId) werkMetingIdBij();
+  if (!metingBewerkId) {
+    werkMetingIdBij();
+    // Eenheden volgen het (mogelijk zojuist aangepaste) proces.
+    formulierEenheden = select.value ? eenhedenKopie(select.value) : eenhedenKopieLeeg();
+    werkEenheidLabelsBij();
+  }
 }
 
 function werkMetingIdBij() {
@@ -33,7 +40,8 @@ function initMetingFormulier() {
 
   $('#mProces').addEventListener('change', () => {
     const p = zoekProces($('#mProces').value);
-    $('#mEenheid').value = p ? p.eenheid : '';
+    formulierEenheden = p ? eenhedenKopie(p.procesId) : eenhedenKopieLeeg();
+    werkEenheidLabelsBij();
     laadProcesStappenInFormulier(p ? p.procesId : null);
     werkMetingIdBij();
   });
@@ -118,8 +126,12 @@ function werkRedenZichtbaarheidBij(rij) {
 /** Leest het formulier uit. Geeft { meting, stapmetingen, invoerFouten }. */
 function leesMetingFormulier() {
   const invoerFouten = [];
+  const e = eenhedenVan(formulierEenheden, metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value);
+  const aantal = leesGetal($('#mAantal').value);
+  if (aantal.fout) invoerFouten.push(`Aantal ${e.uitvoeringseenheidMeervoud}: ` + aantal.fout);
+  $('#mAantal').classList.toggle('ongeldig', !!aantal.fout || (isGetal(aantal.waarde) && aantal.waarde <= 0));
   const omvang = leesGetal($('#mOmvang').value);
-  if (omvang.fout) invoerFouten.push('Omvang: ' + omvang.fout);
+  if (omvang.fout) invoerFouten.push(`Omvang (aantal ${e.omvangseenheidMeervoud}): ` + omvang.fout);
   $('#mOmvang').classList.toggle('ongeldig', !!omvang.fout || (isGetal(omvang.waarde) && omvang.waarde <= 0));
   const casus = $('input[name="casustype"]:checked');
   const pid = metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
@@ -130,8 +142,9 @@ function leesMetingFormulier() {
     procesnaam: metingBewerkId ? zoekMeting(metingBewerkId).procesnaam : procesNaam(pid),
     medewerkerId: $('#mMedewerker').value.trim(),
     casustype: casus ? casus.value : '',
+    aantalUitvoeringen: aantal.fout ? NaN : aantal.waarde,
     omvang: omvang.fout ? NaN : omvang.waarde,
-    eenheid: $('#mEenheid').value.trim(),
+    ...formulierEenheden,
     meetwijze: $('#mMeetwijze').value,
     toelichting: $('#mToelichting').value.trim(),
   };
@@ -172,16 +185,18 @@ function werkBerekeningBij() {
   const totaalActief = actief.every(isGetal) ? som(actief) : null;
   const totaalWacht = wacht.every(isGetal) ? som(wacht) : null;
   const omvangOk = isGetal(meting.omvang) && meting.omvang > 0;
-  const eenheid = meting.eenheid || 'eenheid';
-  const enkelvoud = eenheid;
+  const aantalOk = isGetal(meting.aantalUitvoeringen) && meting.aantalUitvoeringen > 0;
+  const e = eenhedenVan(meting);
+  const deel = (t, ok, n) => (ok && isGetal(t) ? t / n : null);
   houder.innerHTML = `<span class="etiket berekend">Automatisch berekend (voorbeeld, wordt niet als invoer opgeslagen)</span>
     <div class="velden">
       <div><div class="klein">Totale actieve tijd</div><strong>${htmlGetal(totaalActief, 2, ' min')}</strong></div>
       <div><div class="klein">Totale wachttijd</div><strong>${htmlGetal(totaalWacht, 2, ' min')}</strong></div>
-      <div><div class="klein">Actieve tijd per eenheid</div><strong>${htmlGetal(omvangOk ? (isGetal(totaalActief) ? totaalActief / meting.omvang : null) : null, 2, ' min per ' + enkelvoud)}</strong></div>
-      <div><div class="klein">Wachttijd per eenheid</div><strong>${htmlGetal(omvangOk ? (isGetal(totaalWacht) ? totaalWacht / meting.omvang : null) : null, 2, ' min per ' + enkelvoud)}</strong></div>
+      <div><div class="klein"><strong>Actieve tijd per ${esc(e.uitvoeringseenheid)}</strong> (primair)</div><strong>${htmlGetal(deel(totaalActief, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
+      <div><div class="klein">Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</div><strong>${htmlGetal(deel(totaalActief, omvangOk, meting.omvang), 2, ' min')}</strong></div>
+      <div><div class="klein">Wachttijd per ${esc(e.uitvoeringseenheid)}</div><strong>${htmlGetal(deel(totaalWacht, aantalOk, meting.aantalUitvoeringen), 2, ' min')}</strong></div>
     </div>
-    ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
+    ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
 }
 
 async function slaMetingOp() {
@@ -219,14 +234,15 @@ function resetMetingFormulier(behoudAlgemeen) {
     $('#mProces').value = '';
     $('#mMedewerker').value = '';
     $('#mMeetwijze').value = '';
-    $('#mEenheid').value = '';
   }
   $$('input[name="casustype"]').forEach((r) => { r.checked = false; });
+  $('#mAantal').value = '';
   $('#mOmvang').value = '';
   $('#mToelichting').value = '';
   vulMetingProcesKeuze();
   const p = zoekProces($('#mProces').value);
-  if (p && !$('#mEenheid').value) $('#mEenheid').value = p.eenheid;
+  formulierEenheden = p ? eenhedenKopie(p.procesId) : eenhedenKopieLeeg();
+  werkEenheidLabelsBij();
   laadProcesStappenInFormulier(p ? p.procesId : null);
   werkMetingIdBij();
 }
@@ -245,8 +261,15 @@ function bewerkMeting(metingId) {
   $('#mDatum').value = m.datum || '';
   $('#mMedewerker').value = m.medewerkerId || '';
   $$('input[name="casustype"]').forEach((r) => { r.checked = r.value === m.casustype; });
+  $('#mAantal').value = 'aantalUitvoeringen' in m ? naarInvoer(m.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(m.omvang);
-  $('#mEenheid').value = m.eenheid || '';
+  // Vastgelegde eenheden van de meting; ontbrekende (meting uit versie 1.0) aangevuld vanuit het proces.
+  const kopie = eenhedenKopie(m.procesId);
+  formulierEenheden = Object.fromEntries(EENHEID_VELDEN.map((k) => [k, m[k] || kopie[k] || '']));
+  werkEenheidLabelsBij();
+  if (!('aantalUitvoeringen' in m)) {
+    $('#metingBewerkMelding').innerHTML += `<div class="melding info">Deze meting is vastgelegd met versie 1.0. Toen was één procesmeting één uitvoering en werd het aantal ${esc(eenhedenVan(m).uitvoeringseenheidMeervoud)} niet apart vastgelegd. Vul het aantal nu zelf in.</div>`;
+  }
   $('#mMeetwijze').value = m.meetwijze || '';
   $('#mToelichting').value = m.toelichting || '';
   const sm = stapmetingenVan(metingId);
@@ -341,4 +364,25 @@ function regelTimerInterval() {
     clearInterval(timerInterval);
     timerInterval = null;
   }
+}
+
+function eenhedenKopieLeeg() {
+  return Object.fromEntries(EENHEID_VELDEN.map((k) => [k, '']));
+}
+
+/** Zet de labels van aantal en omvang in het formulier op de eenheden van het proces. */
+function werkEenheidLabelsBij() {
+  const pid = metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
+  if (!pid) {
+    $('#mAantalLabel').textContent = 'Aantal uitvoeringen';
+    $('#mAantalHint').textContent = 'Kies eerst een proces; de eenheden volgen uit het proces.';
+    $('#mOmvangLabel').textContent = 'Omvang';
+    $('#mOmvangHint').textContent = 'Positief getal. Leeg laten als onbekend.';
+    return;
+  }
+  const e = eenhedenVan(formulierEenheden, pid);
+  $('#mAantalLabel').textContent = `Aantal ${e.uitvoeringseenheidMeervoud} (uitvoeringen)`;
+  $('#mAantalHint').textContent = `Uitvoeringseenheid: ${e.uitvoeringseenheid}. Eén uitvoering = één ${e.uitvoeringseenheid}.`;
+  $('#mOmvangLabel').textContent = `Omvang: aantal ${e.omvangseenheidMeervoud}`;
+  $('#mOmvangHint').textContent = `Omvangseenheid: ${e.omvangseenheid}. Positief getal; leeg laten als onbekend.`;
 }

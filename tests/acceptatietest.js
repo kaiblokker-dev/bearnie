@@ -62,7 +62,14 @@ const num = (t) => Number(String(t).replace(',', '.'));
   await page.click('[data-actie="proces-nieuw"]');
   await page.fill('#peId', 'PR24');
   await page.fill('#peNaam', 'Inkomende post registreren');
-  await page.fill('#peEenheid', 'documenten');
+  // Controle: zonder eenheden wordt het proces geweigerd
+  await page.fill(`#procesEditor tr[data-index="0"] input[data-stapveld="naam"]`, 'x');
+  await page.click('[data-actie="proces-opslaan"]');
+  assert.ok((await page.textContent('#procesEditor')).includes('uitvoeringseenheid (enkelvoud)'));
+  await page.fill('#peUitvoering', 'dossier');
+  await page.fill('#peUitvoeringMv', 'dossiers');
+  await page.fill('#peOmvang', 'dienstperiode');
+  await page.fill('#peOmvangMv', 'dienstperioden');
   await page.click('[data-actie="stap-toevoegen"]');
   await page.click('[data-actie="stap-toevoegen"]');
   const namen = ['Post openen en sorteren', 'Registreren in zaaksysteem', 'Doorzetten naar behandelaar'];
@@ -71,12 +78,14 @@ const num = (t) => Number(String(t).replace(',', '.'));
   await page.click('[data-actie="proces-opslaan"]');
   let s = await staat();
   assert.deepStrictEqual(s.processtappen.map((x) => x.stapId), ['PR24-S01', 'PR24-S02', 'PR24-S03']);
-  ok('1', 'Proces PR24 met stappen PR24-S01..S03 aangemaakt');
+  const p24 = s.processen.find((p) => p.procesId === 'PR24');
+  assert.deepStrictEqual([p24.uitvoeringseenheid, p24.uitvoeringseenheidMeervoud, p24.omvangseenheid, p24.omvangseenheidMeervoud], ['dossier', 'dossiers', 'dienstperiode', 'dienstperioden']);
+  ok('1', 'Proces PR24 met stappen PR24-S01..S03 aangemaakt; uitvoeringseenheid dossier, omvangseenheid dienstperiode (proces zonder eenheden geweigerd)');
 
   await page.click('[data-actie="proces-nieuw"]');
   await page.fill('#peId', 'PR99');
   await page.fill('#peNaam', 'Leeg proces');
-  await page.fill('#peEenheid', 'dossiers');
+  for (const [id, w] of [['#peUitvoering', 'zaak'], ['#peUitvoeringMv', 'zaken'], ['#peOmvang', 'regel'], ['#peOmvangMv', 'regels']]) await page.fill(id, w);
   await page.click('[data-actie="stap-verwijderen"]');
   await page.click('[data-actie="proces-opslaan"]');
   assert.ok((await page.textContent('#procesEditor')).includes('minimaal één processtap'));
@@ -86,7 +95,8 @@ const num = (t) => Number(String(t).replace(',', '.'));
   // ---------- 2/3/5. Meting 1: normaal, handmatige invoer, wachttijd met reden ----------
   await tab('meting');
   await page.selectOption('#mProces', 'PR24');
-  assert.strictEqual(await page.inputValue('#mEenheid'), 'documenten');
+  assert.strictEqual(await page.textContent('#mAantalLabel'), 'Aantal dossiers (uitvoeringen)');
+  assert.strictEqual(await page.textContent('#mOmvangLabel'), 'Omvang: aantal dienstperioden');
   assert.strictEqual(await page.inputValue('#mMetingId'), 'M-PR24-001');
   assert.strictEqual(await page.locator('#mStappen tr[data-stap]').count(), 3);
   await page.fill('#mDatum', '2026-03-02');
@@ -103,16 +113,19 @@ const num = (t) => Number(String(t).replace(',', '.'));
   // Controle: wachttijd zonder reden wordt geweigerd
   await page.click('#mOpslaan');
   assert.ok((await page.textContent('#mFouten')).includes('reden van de wachttijd'));
-  ok('controle', 'Wachttijd > 0 zonder reden wordt geweigerd');
+  assert.ok((await page.textContent('#mFouten')).includes('Vul het aantal dossiers in'));
+  ok('controle', 'Wachttijd > 0 zonder reden wordt geweigerd; aantal dossiers is verplicht');
   // Controle: negatieve tijd en omvang 0 worden geweigerd
   await page.fill(stapVeld('PR24-S01', 'actieveTijd'), '-1');
   await page.fill('#mOmvang', '0');
+  await page.fill('#mAantal', '0');
   await page.click('#mOpslaan');
   const ft = await page.textContent('#mFouten');
-  assert.ok(ft.includes('niet negatief') && ft.includes('groter zijn dan nul'));
-  ok('controle', 'Negatieve tijd en omvang 0 worden geweigerd');
+  assert.ok(ft.includes('niet negatief') && ft.includes('aantal dienstperioden) moet groter zijn dan nul') && ft.includes('aantal dossiers moet groter zijn dan nul'));
+  ok('controle', 'Negatieve tijd, 0 dossiers en 0 dienstperioden worden geweigerd');
   await page.fill(stapVeld('PR24-S01', 'actieveTijd'), '5');
   await page.fill('#mOmvang', '10');
+  await page.fill('#mAantal', '1');
   await page.fill(stapVeld('PR24-S02', 'redenWachttijd'), 'Wachten op scan');
   await page.click('#mOpslaan');
   await page.waitForFunction(() => window.__meettool.staat().procesmetingen.length === 1);
@@ -120,6 +133,8 @@ const num = (t) => Number(String(t).replace(',', '.'));
   const sm1 = s.stapmetingen.filter((x) => x.metingId === 'M-PR24-001');
   assert.deepStrictEqual(sm1.map((x) => x.actieveTijd), [5, 10.5, 3.25]);
   assert.strictEqual(sm1[1].redenWachttijd, 'Wachten op scan');
+  const pm1 = s.procesmetingen.find((m) => m.metingId === 'M-PR24-001');
+  assert.ok(pm1.aantalUitvoeringen === 1 && pm1.omvang === 10 && pm1.uitvoeringseenheid === 'dossier' && pm1.omvangseenheid === 'dienstperiode' && pm1.aantalUitvoeringenHerkomst === 'Ingevoerd');
   ok('2/3/5', 'Meting M-PR24-001 (normaal) handmatig ingevoerd, komma en punt als decimaal opgeslagen als getal; wachttijd 15 min met reden');
 
   // ---------- 4. Meting 2: normaal, met timer ----------
@@ -127,6 +142,7 @@ const num = (t) => Number(String(t).replace(',', '.'));
   assert.strictEqual(await page.inputValue('#mMetingId'), 'M-PR24-002');
   await page.fill('#mDatum', '2026-03-03');
   await page.check('input[name="casustype"][value="Normaal"]');
+  await page.fill('#mAantal', '2');
   await page.fill('#mOmvang', '4');
   await page.selectOption('#mMeetwijze', 'Gemeten');
   await page.check('#mTimerTonen');
@@ -172,6 +188,7 @@ const num = (t) => Number(String(t).replace(',', '.'));
   await page.selectOption('#mProces', 'PR24');
   await page.fill('#mDatum', '2026-03-04');
   await page.check('input[name="casustype"][value="Uitzondering"]');
+  await page.fill('#mAantal', '1');
   await page.fill('#mOmvang', '2');
   await page.selectOption('#mMeetwijze', 'Gemeten');
   await page.fill(stapVeld('PR24-S01', 'actieveTijd'), '8');
@@ -190,6 +207,7 @@ const num = (t) => Number(String(t).replace(',', '.'));
   await page.fill('#mDatum', '2026-03-05');
   await page.check('input[name="casustype"][value="Normaal"]');
   await page.selectOption('#mMeetwijze', 'Geschat door medewerker');
+  await page.fill('#mAantal', '1');
   await page.fill(stapVeld('PR24-S01', 'actieveTijd'), '6');
   await page.fill(stapVeld('PR24-S02', 'actieveTijd'), '');
   await page.fill(stapVeld('PR24-S03', 'actieveTijd'), '2');
@@ -205,11 +223,11 @@ const num = (t) => Number(String(t).replace(',', '.'));
   assert.strictEqual(s.procesmetingen.find((m) => m.metingId === 'M-PR24-004').omvang, null);
   ok('controle', 'Lege velden worden als null (Onbekend) opgeslagen, niet als 0 (M-PR24-004, geschat)');
 
-  // ---------- 6/7. Totale actieve tijd en tijd per eenheid ----------
+  // ---------- 6/7. Totale actieve tijd en tijd per dossier / per dienstperiode ----------
   const verwacht = {
-    'M-PR24-001': { actief: 5 + 10.5 + 3.25, wacht: 15, omvang: 10 },
-    'M-PR24-002': { actief: 4 + 9 + 3, wacht: 0, omvang: 4 },
-    'M-PR24-003': { actief: 8 + 20 + 4, wacht: 60, omvang: 2 },
+    'M-PR24-001': { actief: 5 + 10.5 + 3.25, wacht: 15, aantal: 1, omvang: 10 },
+    'M-PR24-002': { actief: 4 + 9 + 3, wacht: 0, aantal: 2, omvang: 4 },
+    'M-PR24-003': { actief: 8 + 20 + 4, wacht: 60, aantal: 1, omvang: 2 },
   };
   for (const [id, v] of Object.entries(verwacht)) {
     const b = await page.evaluate((id) => {
@@ -218,19 +236,24 @@ const num = (t) => Number(String(t).replace(',', '.'));
     }, id);
     assert.ok(bijna(b.totaalActief, v.actief), id);
     assert.ok(bijna(b.totaalWacht, v.wacht), id);
-    assert.ok(bijna(b.actiefPerEenheid, v.actief / v.omvang), id);
+    assert.ok(bijna(b.actiefPerUitvoering, v.actief / v.aantal), id);
+    assert.ok(bijna(b.wachtPerUitvoering, v.wacht / v.aantal), id);
+    assert.ok(bijna(b.actiefPerOmvang, v.actief / v.omvang), id);
   }
   const b4 = await page.evaluate(() => window.__meettool.berekenMeting(window.__meettool.staat().procesmetingen.find((x) => x.metingId === 'M-PR24-004')));
   assert.strictEqual(b4.totaalActief, null);
-  assert.strictEqual(b4.actiefPerEenheid, null);
+  assert.strictEqual(b4.actiefPerUitvoering, null);
+  assert.strictEqual(b4.actiefPerOmvang, null);
   // Controle in de weergave (Metingen bekijken)
   await tab('overzicht');
   const rijTekst = await page.locator('#overzichtTabel tr', { hasText: 'M-PR24-001' }).first().innerText();
-  assert.ok(rijTekst.includes('18,75') && rijTekst.includes('1,88') && rijTekst.includes('15,00'), rijTekst);
+  assert.ok(rijTekst.includes('1 dossier') && rijTekst.includes('10 dienstperioden') && rijTekst.includes('18,75') && rijTekst.includes('1,88') && rijTekst.includes('15,00'), rijTekst);
+  const rij2 = await page.locator('#overzichtTabel tr', { hasText: 'M-PR24-002' }).first().innerText();
+  assert.ok(rij2.includes('2 dossiers') && rij2.includes('4 dienstperioden') && rij2.includes('8,00') && rij2.includes('4,00'), rij2);
   const rij4 = await page.locator('#overzichtTabel tr', { hasText: 'M-PR24-004' }).first().innerText();
   assert.ok(rij4.includes('Onbekend'));
   ok('6', 'Totale actieve tijd handmatig gecontroleerd: M-PR24-001 = 5 + 10,5 + 3,25 = 18,75; M-PR24-002 = 16; M-PR24-003 = 32; M-PR24-004 = Onbekend');
-  ok('7', 'Actieve tijd per eenheid: 18,75/10 = 1,875 (weergave 1,88); 16/4 = 4; 32/2 = 16; zonder omvang = Onbekend');
+  ok('7', 'Per dossier (primair): 18,75/1 = 18,75; 16/2 = 8; 32/1 = 32. Per dienstperiode (aanvullend): 18,75/10 = 1,875 (weergave 1,88); 16/4 = 4; 32/2 = 16; zonder omvang = Onbekend. Overzicht toont "1 dossier · 10 dienstperioden" en "2 dossiers · 4 dienstperioden"');
 
   // Filters in overzicht
   await page.selectOption('#ozCasustype', 'Uitzondering');
@@ -263,16 +286,18 @@ const num = (t) => Number(String(t).replace(',', '.'));
   // ---------- 8. Statistiek ----------
   const sam = await page.evaluate(() => window.__meettool.procesSamenvatting('PR24', { meetwijze: 'alle' }));
   const N = sam.perCasustype.Normaal;
-  const act = [18.75, 16];
+  const act = [18.75, 8]; // per dossier
   assert.strictEqual(N.aantal, 3);
-  assert.strictEqual(N.actief.n, 2);
-  assert.deepStrictEqual(N.actief.metingIds, ['M-PR24-001', 'M-PR24-002']);
-  assert.ok(bijna(N.actief.mediaan, mediaan(act)) && bijna(N.actief.gemiddelde, gem(act)));
-  assert.ok(bijna(N.actief.minimum, 16) && bijna(N.actief.maximum, 18.75));
-  assert.ok(bijna(N.actiefPerEenheid.mediaan, mediaan([1.875, 4])));
-  assert.deepStrictEqual(N.uitgesloten.actief.map((u) => u.metingId), ['M-PR24-004']);
+  assert.strictEqual(N.aantalUitvoeringen, 4); // 1 + 2 + 1 dossiers
+  assert.strictEqual(N.actiefPerUitvoering.n, 2);
+  assert.deepStrictEqual(N.actiefPerUitvoering.metingIds, ['M-PR24-001', 'M-PR24-002']);
+  assert.ok(bijna(N.actiefPerUitvoering.mediaan, 13.375) && bijna(N.actiefPerUitvoering.mediaan, mediaan(act)) && bijna(N.actiefPerUitvoering.gemiddelde, gem(act)));
+  assert.ok(bijna(N.actiefPerUitvoering.minimum, 8) && bijna(N.actiefPerUitvoering.maximum, 18.75));
+  assert.ok(bijna(N.wachtPerUitvoering.mediaan, 7.5)); // 15/1 en 0/2
+  assert.ok(bijna(N.actiefPerOmvang.mediaan, mediaan([1.875, 4])));
+  assert.deepStrictEqual(N.uitgesloten.actiefPerUitvoering.map((u) => u.metingId), ['M-PR24-004']);
   const U = sam.perCasustype.Uitzondering;
-  assert.ok(U.aantal === 1 && bijna(U.actief.mediaan, 32) && bijna(U.wacht.mediaan, 60));
+  assert.ok(U.aantal === 1 && bijna(U.actiefPerUitvoering.mediaan, 32) && bijna(U.wachtPerUitvoering.mediaan, 60) && bijna(U.actiefPerOmvang.mediaan, 16));
   const gemeten = await page.evaluate(() => window.__meettool.procesSamenvatting('PR24', { meetwijze: 'gemeten' }));
   assert.strictEqual(gemeten.perCasustype.Normaal.aantal, 2);
   const geschat = await page.evaluate(() => window.__meettool.procesSamenvatting('PR24', { meetwijze: 'geschat' }));
@@ -280,15 +305,17 @@ const num = (t) => Number(String(t).replace(',', '.'));
   // stapniveau
   const stappen = await page.evaluate(() => window.__meettool.stapSamenvatting('PR24', { meetwijze: 'alle' }, 'Normaal'));
   assert.strictEqual(stappen[1].actief.n, 2); // M-004 heeft geen waarde bij S02
-  assert.ok(bijna(stappen[0].actief.mediaan, 5) && stappen[0].actief.n === 3); // 5, 4, 6
+  assert.ok(bijna(stappen[0].actief.mediaan, 5) && stappen[0].actief.n === 3); // per dossier: 5/1, 4/2, 6/1
+  assert.ok(bijna(stappen[1].actief.mediaan, (10.5 + 4.5) / 2)); // 10,5/1 en 9/2
   assert.ok(bijna(stappen[1].percentageMetWacht, 50)); // 15 en 0 bekend
-  ok('8', 'Normaal (n=2 bruikbaar): mediaan = (16 + 18,75)/2 = 17,375; gemiddelde 17,375; min 16; max 18,75; M-PR24-004 uitgesloten (Onbekend). Uitzondering: n=1, mediaan 32. Meetwijzefilter werkt; stapstatistiek klopt');
+  ok('8', 'Normaal, per dossier (n=2 bruikbaar): mediaan = (18,75 + 8)/2 = 13,375; gemiddelde 13,375; min 8; max 18,75; wachttijd per dossier mediaan 7,5; per dienstperiode mediaan (1,875 + 4)/2 = 2,9375; M-PR24-004 uitgesloten (Onbekend). Uitzondering: 32 per dossier, 16 per dienstperiode. Stappen per dossier genormaliseerd; meetwijzefilter werkt');
 
   // Weergave dashboard
   await tab('resultaten');
   await page.selectOption('#rProces', 'PR24');
   const dash = await page.textContent('#resultatenInhoud');
-  assert.ok(dash.includes('17,38') || dash.includes('17,37'), 'mediaan in dashboard');
+  assert.ok(dash.includes('13,38') || dash.includes('13,37'), 'mediaan in dashboard');
+  assert.ok(dash.includes('Mediane actieve tijd per dossier (primair)') && dash.includes('Mediane actieve tijd per dienstperiode (aanvullend)') && dash.includes('2,94'), 'eenheden in dashboard');
   assert.ok(dash.includes('verschillende meetwijzen gecombineerd'));
   assert.ok(dash.includes('Er zijn nog weinig metingen beschikbaar. Interpreteer de uitkomsten voorzichtig.'));
   await page.click('[data-actie="onderliggende-metingen"][data-casustype="Normaal"]');
@@ -311,21 +338,26 @@ const num = (t) => Number(String(t).replace(',', '.'));
   await page.click('#frequentieFormulier button[type="submit"]');
   assert.ok((await page.textContent('#fFouten')).includes('dubbelzinnig'));
   assert.strictEqual((await staat()).frequentiemetingen.length, 0);
-  await page.fill('#fVolume', '1450');
+  assert.ok((await page.textContent('#fAantalLabel')).includes('Aantal dossiers') && (await page.textContent('#fVolumeLabel')).includes('dienstperioden'));
+  // Totaal aantal dienstperioden in de meetperiode is onbekend: leeg laten.
+  await page.fill('#fVolume', '');
   await page.click('#frequentieFormulier button[type="submit"]');
   s = await staat();
-  assert.strictEqual(s.frequentiemetingen[0].totaalVolume, 1450);
-  ok('9', 'Frequentiemeting F-PR24-001 vastgelegd (120 uitvoeringen, Geteld); dubbelzinnige invoer "1.450" wordt geweigerd met uitleg');
+  assert.strictEqual(s.frequentiemetingen[0].totaalVolume, null);
+  assert.strictEqual(s.frequentiemetingen[0].aantalUitvoeringen, 120);
+  assert.ok(s.frequentiemetingen[0].uitvoeringseenheid === 'dossier' && s.frequentiemetingen[0].omvangseenheid === 'dienstperiode');
+  ok('9', 'Frequentiemeting F-PR24-001 vastgelegd: 120 dossiers, totaal aantal dienstperioden onbekend (null, niet 0); dubbelzinnige invoer "1.450" wordt geweigerd met uitleg');
   await tab('resultaten');
   const tb = await page.evaluate(() => {
     const t = window.__meettool;
     const sam = t.procesSamenvatting('PR24', { meetwijze: 'alle' });
     return t.berekenTijdsbelasting(t.kiesFrequentie('PR24'), sam.perCasustype.Normaal);
   });
-  assert.ok(bijna(tb.waarde, 120 * 17.375));
+  assert.ok(bijna(tb.waarde, 120 * 13.375));
   const dash2 = await page.textContent('#resultatenInhoud');
-  assert.ok(dash2.includes('2.085,00') && dash2.includes('F-PR24-001') && dash2.includes('M-PR24-001, M-PR24-002') && dash2.includes('Geteld'));
-  ok('10', 'Geschatte tijdsbelasting = 120 × 17,375 = 2.085 min (34,75 uur); gebruikte frequentiemeting, mediaan, MetingID\'s en meetwijze getoond');
+  assert.ok(dash2.includes('1.605,00') && dash2.includes('F-PR24-001') && dash2.includes('M-PR24-001, M-PR24-002') && dash2.includes('Geteld'));
+  assert.ok(dash2.includes('aantal dossiers in de meetperiode × mediaan actieve tijd per dossier') && dash2.includes('Totaal aantal dienstperioden in meetperiode'));
+  ok('10', 'Geschatte tijdsbelasting = 120 dossiers × 13,375 min per dossier = 1.605 min (26,75 uur), terwijl het aantal dienstperioden in de meetperiode onbekend is; gebruikte frequentiemeting, mediaan, MetingID\'s en meetwijze getoond');
 
   // ---------- Controle dubbele MetingID ----------
   const dubbel = await page.evaluate(() => {
@@ -353,19 +385,25 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   assert.strictEqual(xlsxInfo.procesmetingen, 4);
   assert.strictEqual(xlsxInfo.stapmetingen, 12);
   assert.strictEqual(xlsxInfo.frequentie, 1);
-  assert.ok(Math.abs(xlsxInfo.pr24_normaal_mediaan - 17.375) < 1e-9);
-  assert.ok(Math.abs(xlsxInfo.pr24_belasting - 2085) < 1e-9);
+  assert.ok(Math.abs(xlsxInfo.pr24_normaal_mediaan - 13.375) < 1e-9);
+  assert.ok(Math.abs(xlsxInfo.pr24_normaal_mediaan_omvang - 2.9375) < 1e-9);
+  assert.ok(Math.abs(xlsxInfo.pr24_belasting - 1605) < 1e-9);
+  assert.deepStrictEqual(xlsxInfo.pr24_eenheden, ['dossier', 'dienstperiode']);
+  assert.ok(xlsxInfo.ruw_eenheden, 'eenheden in ruwe tabbladen');
+  assert.ok(xlsxInfo.methode_eenheden, 'eenheden in Methode');
   assert.ok(xlsxInfo.methode_ontbrekend);
   assert.ok(xlsxInfo.ruw_zonder_berekening);
-  ok('11', `Excel-export geopend met openpyxl: tabbladen ${xlsxInfo.bladen.join(', ')}; 4 procesmetingen, 12 stapmetingen, 1 frequentie; mediaan 17,375 en tijdsbelasting 2085 in Resultaten; Methode vermeldt dat ontbrekende waarden niet als nul zijn verwerkt`);
+  ok('11', `Excel-export geopend met openpyxl: tabbladen ${xlsxInfo.bladen.join(', ')}; 4 procesmetingen, 12 stapmetingen, 1 frequentie; in Resultaten per dossier mediaan 13,375 (primair), per dienstperiode 2,9375 (aanvullend), tijdsbelasting 1605, met kolommen Uitvoeringseenheid/Omvangseenheid; ruwe tabbladen bevatten aantal dossiers en dienstperioden met eenheden; Methode bevat definities en een tabel met eenheden per proces en vermeldt dat ontbrekende waarden niet als nul zijn verwerkt`);
 
   // CSV-export
   const csv = await download(() => page.click('[data-actie="csv-stapmetingen"]'), 'stapmetingen.csv');
   const csvTekst = fs.readFileSync(csv.pad, 'utf8');
   assert.ok(csvTekst.startsWith('﻿MetingID;StapID;Volgorde') && csvTekst.includes(';10,5;') && csvTekst.includes(';3,25;'));
-  await download(() => page.click('[data-actie="csv-procesmetingen"]'), 'procesmetingen.csv');
-  await download(() => page.click('[data-actie="csv-frequentie"]'), 'frequentiemetingen.csv');
-  ok('CSV', 'CSV-export procesmetingen, stapmetingen en frequentie (puntkomma, decimale komma, UTF-8 met BOM)');
+  const csvPm = fs.readFileSync((await download(() => page.click('[data-actie="csv-procesmetingen"]'), 'procesmetingen.csv')).pad, 'utf8');
+  assert.ok(csvPm.includes('Aantal uitvoeringen;Uitvoeringseenheid;Omvang;Omvangseenheid') && csvPm.includes(';2;dossier;4;dienstperiode;'), 'procesmetingen-CSV');
+  const csvF = fs.readFileSync((await download(() => page.click('[data-actie="csv-frequentie"]'), 'frequentiemetingen.csv')).pad, 'utf8');
+  assert.ok(csvF.includes('Aantal uitvoeringen;Uitvoeringseenheid;Totale omvang;Omvangseenheid') && csvF.includes(';120;dossier;;dienstperiode;'), 'frequentie-CSV');
+  ok('CSV', 'CSV-export procesmetingen, stapmetingen en frequentie (puntkomma, decimale komma, UTF-8 met BOM); kolommen Aantal uitvoeringen/Uitvoeringseenheid en Omvang/Omvangseenheid aanwezig');
 
   // ---------- 13. JSON-back-up ----------
   const voor = await staat();
@@ -451,10 +489,49 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   await page.click('[data-actie="meting-openen"][data-id="M-PR24-001"]');
   const detail = await page.textContent('#dialoogInhoud');
   assert.ok(detail.includes('Inkomende post registreren') && detail.includes('Registreren in zaaksysteem') && detail.includes('18,75'));
+  assert.ok(detail.includes('1 dossier') && detail.includes('10 dienstperioden') && detail.includes('Actieve tijd per dossier'), 'eenheden blijven bij verwijderd proces');
   await dialoogKnop('Sluiten');
   await tab('resultaten');
   assert.ok((await page.textContent('#resultatenInhoud')).includes('Registreren in zaaksysteem'));
   ok('controle', 'Na verwijderen van proces PR24 blijven metingen en resultaten leesbaar');
+
+  // ---------- Overgang van versie 1.0 ----------
+  const oud = {
+    formaat: 'meettool-backup', toolversie: '1.0.1', schemaversie: 1, exportdatum: '2026-10-01T10:00:00.000Z', bevatDemogegevens: false,
+    processen: [{ procesId: 'PR10', naam: 'Oud proces', eenheid: 'dienstperioden', demo: false }],
+    processtappen: [{ stapId: 'PR10-S01', procesId: 'PR10', volgorde: 1, naam: 'Beoordelen', demo: false }],
+    procesmetingen: [{ metingId: 'M-PR10-001', datum: '2026-02-01', procesId: 'PR10', procesnaam: 'Oud proces', medewerkerId: '', casustype: 'Normaal', omvang: 5, eenheid: 'dienstperioden', meetwijze: 'Gemeten', toelichting: '', demo: false }],
+    stapmetingen: [{ metingId: 'M-PR10-001', stapId: 'PR10-S01', volgorde: 1, stapnaam: 'Beoordelen', actieveTijd: 12, wachttijd: 0, redenWachttijd: '', opmerking: '', tijdvastlegging: 'Handmatig', demo: false }],
+    frequentiemetingen: [{ frequentieId: 'F-PR10-001', procesId: 'PR10', meetperiode: 'feb 2026', aantalUitvoeringen: 10, totaalVolume: 50, eenheid: 'dienstperioden', meetwijze: 'Geteld', bron: '', demo: false }],
+    volgnummers: { meting: { PR10: 1 }, frequentie: { PR10: 1 } },
+  };
+  const oudPad = path.join(UIT, 'backup_v1.json');
+  fs.writeFileSync(oudPad, JSON.stringify(oud));
+  await tab('importexport');
+  await page.setInputFiles('#backupBestand', oudPad);
+  await page.waitForSelector('#dialoog[open]');
+  await dialoogKnop('Samenvoegen');
+  await page.waitForSelector('#dialoogKop:text("Samenvoegen voltooid")');
+  await dialoogKnop('Sluiten');
+  s = await staat();
+  const p10 = s.processen.find((p) => p.procesId === 'PR10');
+  const m10 = s.procesmetingen.find((m) => m.metingId === 'M-PR10-001');
+  assert.ok(p10.omvangseenheid === 'dienstperioden' && p10.uitvoeringseenheid === '' && !('eenheid' in p10), JSON.stringify(p10));
+  assert.ok(!('aantalUitvoeringen' in m10) && m10.omvang === 5 && m10.omvangseenheid === 'dienstperioden', JSON.stringify(m10));
+  let b10 = await page.evaluate(() => window.__meettool.berekenMeting(window.__meettool.staat().procesmetingen.find((m) => m.metingId === 'M-PR10-001')));
+  assert.ok(b10.actiefPerUitvoering === null && bijna(b10.actiefPerOmvang, 12 / 5));
+  await tab('overzicht');
+  assert.ok((await page.textContent('#overzichtLegacy')).includes('1 meting(en) zonder vastgelegd aantal uitvoeringen'));
+  await page.click('#overzichtLegacy [data-actie="aantal-aanvullen"]');
+  await dialoogKnop('Aantal = 1 vastleggen');
+  await page.waitForFunction(() => 'aantalUitvoeringen' in window.__meettool.staat().procesmetingen.find((m) => m.metingId === 'M-PR10-001'));
+  s = await staat();
+  const m10b = s.procesmetingen.find((m) => m.metingId === 'M-PR10-001');
+  assert.ok(m10b.aantalUitvoeringen === 1 && m10b.aantalUitvoeringenHerkomst.startsWith('Aangevuld met 1 na overgang naar versie'), m10b.aantalUitvoeringenHerkomst);
+  b10 = await page.evaluate(() => window.__meettool.berekenMeting(window.__meettool.staat().procesmetingen.find((m) => m.metingId === 'M-PR10-001')));
+  assert.ok(bijna(b10.actiefPerUitvoering, 12));
+  assert.strictEqual(await page.textContent('#overzichtLegacy'), '');
+  ok('versie 1.0', 'Back-up uit versie 1.0 geïmporteerd: oude eenheid wordt omvangseenheid (waarde ongewijzigd), aantal uitvoeringen blijft ontbreken (tijd per uitvoering Onbekend) tot de gebruiker expliciet bevestigt; daarna aantal = 1 met vastgelegde herkomst');
 
   await tab('meting');
   await page.screenshot({ path: path.join(UIT, 'scherm_meting.png'), fullPage: true });

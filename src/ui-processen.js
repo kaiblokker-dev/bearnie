@@ -1,6 +1,6 @@
 // ---------- 1. Processen beheren ----------
 
-let procesBewerking = null; // { origineelId, procesId, naam, eenheid, stappen: [{ stapId, volgorde, naam, bestaand, auto }] }
+let procesBewerking = null; // { origineelId, procesId, naam, ...EENHEID_VELDEN, stappen: [{ stapId, volgorde, naam, bestaand, auto }] }
 
 function voorgesteldeStapId(procesId, nummer) {
   return procesId ? `${procesId}-S${String(nummer).padStart(2, '0')}` : '';
@@ -19,7 +19,8 @@ function renderProcessenLijst() {
     return `<tr>
       <td><strong>${esc(p.procesId)}</strong>${demoLabel(p)}</td>
       <td>${esc(p.naam)}</td>
-      <td>${esc(p.eenheid)}</td>
+      <td>${esc(p.uitvoeringseenheid || '—')}</td>
+      <td>${esc(p.omvangseenheid || '—')}</td>
       <td class="klein">${stappen.map((s) => `${esc(s.volgorde)}. ${esc(s.naam)} <span class="zacht mono">(${esc(s.stapId)})</span>`).join('<br>')}</td>
       <td class="getal">${aantalMetingen}</td>
       <td class="getal">${aantalFreq}</td>
@@ -30,7 +31,7 @@ function renderProcessenLijst() {
     </tr>`;
   }).join('');
   houder.innerHTML = `<table>
-    <thead><tr><th>ProcesID</th><th>Procesnaam</th><th>Eenheid</th><th>Processtappen</th><th class="getal">Metingen</th><th class="getal">Frequenties</th><th></th></tr></thead>
+    <thead><tr><th>ProcesID</th><th>Procesnaam</th><th>Uitvoeringseenheid</th><th>Omvangseenheid</th><th>Processtappen</th><th class="getal">Metingen</th><th class="getal">Frequenties</th><th></th></tr></thead>
     <tbody>${rijen}</tbody></table>`;
 }
 
@@ -41,11 +42,11 @@ function startProcesBewerking(procesId) {
       origineelId: p.procesId,
       procesId: p.procesId,
       naam: p.naam,
-      eenheid: p.eenheid,
+      ...Object.fromEntries(EENHEID_VELDEN.map((k) => [k, p[k] || ''])),
       stappen: stappenVanProces(p.procesId).map((s) => ({ stapId: s.stapId, volgorde: String(s.volgorde), naam: s.naam, bestaand: true, auto: false })),
     };
   } else {
-    procesBewerking = { origineelId: null, procesId: '', naam: '', eenheid: '', stappen: [] };
+    procesBewerking = { origineelId: null, procesId: '', naam: '', uitvoeringseenheid: '', uitvoeringseenheidMeervoud: '', omvangseenheid: '', omvangseenheidMeervoud: '', stappen: [] };
     voegStapToe();
   }
   renderProcesEditor();
@@ -87,11 +88,31 @@ function renderProcesEditor(fouten = []) {
         <label for="peNaam" class="verplicht">Procesnaam</label>
         <input type="text" id="peNaam" value="${esc(b.naam)}" placeholder="bijv. Facturen verwerken">
       </div>
+    </div>
+    <h4>Eenheden</h4>
+    <p class="klein zacht" style="margin-top:0">De <strong>uitvoeringseenheid</strong> is wat één uitvoering van het proces is (bijvoorbeeld één dossier). De actieve tijd per uitvoeringseenheid is de primaire uitkomst.
+      De <strong>omvangseenheid</strong> is waarin de omvang van een uitvoering wordt uitgedrukt (bijvoorbeeld het aantal relevante dienstperioden); dit geeft een aanvullende uitkomst.</p>
+    ${b.origineelId && EENHEID_VELDEN.some((k) => !b[k]) ? '<div class="melding waarschuwing">Dit proces is vastgelegd met een eerdere versie van de tool, die maar één eenheid kende (nu de omvangseenheid). Vul de ontbrekende eenheden aan.</div>' : ''}
+    <div class="velden">
       <div class="veld">
-        <label for="peEenheid" class="verplicht">Eenheid</label>
-        <input type="text" id="peEenheid" value="${esc(b.eenheid)}" list="eenhedenLijst" placeholder="bijv. documenten">
+        <label for="peUitvoering" class="verplicht">Uitvoeringseenheid (enkelvoud)</label>
+        <input type="text" id="peUitvoering" data-eenheidveld="uitvoeringseenheid" value="${esc(b.uitvoeringseenheid)}" placeholder="bijv. dossier">
+        <span class="hint">Eén uitvoering = één …</span>
+      </div>
+      <div class="veld">
+        <label for="peUitvoeringMv" class="verplicht">Uitvoeringseenheid (meervoud)</label>
+        <input type="text" id="peUitvoeringMv" data-eenheidveld="uitvoeringseenheidMeervoud" value="${esc(b.uitvoeringseenheidMeervoud)}" placeholder="bijv. dossiers">
+      </div>
+      <div class="veld">
+        <label for="peOmvang" class="verplicht">Omvangseenheid (enkelvoud)</label>
+        <input type="text" id="peOmvang" data-eenheidveld="omvangseenheid" value="${esc(b.omvangseenheid)}" placeholder="bijv. dienstperiode">
+      </div>
+      <div class="veld">
+        <label for="peOmvangMv" class="verplicht">Omvangseenheid (meervoud)</label>
+        <input type="text" id="peOmvangMv" data-eenheidveld="omvangseenheidMeervoud" value="${esc(b.omvangseenheidMeervoud)}" placeholder="bijv. dienstperioden">
       </div>
     </div>
+    ${b.origineelId && staat.procesmetingen.some((m) => m.procesId === b.origineelId) ? '<p class="klein zacht">Bestaande metingen behouden de eenheden die bij het meten zijn vastgelegd. Alleen metingen zonder vastgelegde eenheid (uit een eerdere versie) tonen de eenheden van het proces.</p>' : ''}
     <h4>Processtappen</h4>
     <div class="tabelhouder">
       <table>
@@ -123,7 +144,7 @@ function verwerkProcesEditorInvoer(e) {
     });
     b.procesId = nieuw;
   } else if (t.id === 'peNaam') b.naam = t.value;
-  else if (t.id === 'peEenheid') b.eenheid = t.value;
+  else if (t.dataset.eenheidveld) b[t.dataset.eenheidveld] = t.value;
   else if (t.dataset.stapveld) {
     const i = Number(t.closest('tr').dataset.index);
     const s = b.stappen[i];
@@ -134,7 +155,7 @@ function verwerkProcesEditorInvoer(e) {
 
 async function slaProcesOp() {
   const b = procesBewerking;
-  const invoer = { procesId: b.procesId.trim(), naam: b.naam, eenheid: b.eenheid, stappen: b.stappen };
+  const invoer = { procesId: b.procesId.trim(), naam: b.naam, ...Object.fromEntries(EENHEID_VELDEN.map((k) => [k, b[k]])), stappen: b.stappen };
   const fouten = valideerProces(invoer, b.origineelId);
   if (!b.origineelId && /^demo-/i.test(invoer.procesId)) fouten.push('ProcesID\'s die beginnen met "DEMO-" zijn gereserveerd voor demogegevens.');
   if (fouten.length) { renderProcesEditor(fouten); return; }
@@ -172,12 +193,13 @@ async function verwijderProcesMetBevestiging(procesId) {
 
 // ---------- CSV voor processen ----------
 
-const PROCES_CSV_KOPPEN = ['ProcesID', 'Procesnaam', 'Eenheid', 'StapID', 'Volgorde', 'Processtap'];
+const PROCES_CSV_KOPPEN = ['ProcesID', 'Procesnaam', 'Uitvoeringseenheid', 'Uitvoeringseenheid meervoud', 'Omvangseenheid', 'Omvangseenheid meervoud', 'StapID', 'Volgorde', 'Processtap'];
+const PROCES_CSV_EENHEDEN = [['Uitvoeringseenheid', 'uitvoeringseenheid'], ['Uitvoeringseenheid meervoud', 'uitvoeringseenheidMeervoud'], ['Omvangseenheid', 'omvangseenheid'], ['Omvangseenheid meervoud', 'omvangseenheidMeervoud']];
 
 function exporteerProcessenCsv() {
   const rijen = [];
   for (const p of staat.processen) {
-    for (const s of stappenVanProces(p.procesId)) rijen.push([p.procesId, p.naam, p.eenheid, s.stapId, s.volgorde, s.naam]);
+    for (const s of stappenVanProces(p.procesId)) rijen.push([p.procesId, p.naam, p.uitvoeringseenheid, p.uitvoeringseenheidMeervoud, p.omvangseenheid, p.omvangseenheidMeervoud, s.stapId, s.volgorde, s.naam]);
   }
   const voor = bevatDemo() && staat.processen.some((p) => p.demo) ? ['LET OP: dit bestand bevat demogegevens (processen met ProcesID DEMO-...).'] : [];
   downloadTekst(maakCsv(PROCES_CSV_KOPPEN, rijen, voor), bestandsnaamMetDemo('Meettool_processen', 'csv'), 'text/csv;charset=utf-8');
@@ -201,7 +223,7 @@ async function importeerProcessenCsv(bestand) {
   const kolom = (naam) => kop.indexOf(naam.toLowerCase());
   const ontbrekend = PROCES_CSV_KOPPEN.filter((k) => kolom(k) < 0);
   if (ontbrekend.length) {
-    await informeer('Import niet mogelijk', `<div class="melding fout">De volgende kolommen ontbreken: ${esc(ontbrekend.join(', '))}.<br>Verwachte kolommen: <span class="mono">${PROCES_CSV_KOPPEN.join(';')}</span></div>`);
+    await informeer('Import niet mogelijk', `<div class="melding fout">De volgende kolommen ontbreken: ${esc(ontbrekend.join(', '))}.${kolom('Eenheid') >= 0 ? '<br>Dit lijkt een bestand uit versie 1.0 met één kolom Eenheid. Vanaf versie 1.1 heeft ieder proces een uitvoeringseenheid en een omvangseenheid.' : ''}<br>Verwachte kolommen: <span class="mono">${PROCES_CSV_KOPPEN.join(';')}</span></div>`);
     return;
   }
   const perProces = new Map();
@@ -210,9 +232,10 @@ async function importeerProcessenCsv(bestand) {
     const waarde = (k) => (r[kolom(k)] || '').trim();
     const pid = waarde('ProcesID');
     if (!pid) { fouten.push(`Regel ${kopIndex + i + 2}: ProcesID ontbreekt.`); return; }
-    if (!perProces.has(pid)) perProces.set(pid, { procesId: pid, naam: waarde('Procesnaam'), eenheid: waarde('Eenheid'), stappen: [] });
+    const eenheden = Object.fromEntries(PROCES_CSV_EENHEDEN.map(([kop, veld]) => [veld, waarde(kop)]));
+    if (!perProces.has(pid)) perProces.set(pid, { procesId: pid, naam: waarde('Procesnaam'), ...eenheden, stappen: [] });
     const p = perProces.get(pid);
-    if (p.naam !== waarde('Procesnaam') || p.eenheid !== waarde('Eenheid')) fouten.push(`Regel ${kopIndex + i + 2}: procesnaam of eenheid van ${pid} verschilt van een eerdere regel.`);
+    if (p.naam !== waarde('Procesnaam') || EENHEID_VELDEN.some((k) => p[k] !== eenheden[k])) fouten.push(`Regel ${kopIndex + i + 2}: procesnaam of eenheden van ${pid} verschillen van een eerdere regel.`);
     p.stappen.push({ stapId: waarde('StapID'), volgorde: waarde('Volgorde'), naam: waarde('Processtap') });
   });
   const nieuw = [];
