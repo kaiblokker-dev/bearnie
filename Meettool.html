@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Meettool administratieve processen
-  Versie: 1.5.0
+  Versie: 1.6.0
   Gebouwd op: 2026-10-05
 
   Zelfstandig bestand: alle JavaScript en CSS staan hieronder in dit bestand.
@@ -338,6 +338,13 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
 .conceptstatus { font-size: 13px; color: var(--tekst-zacht); }
 .afwijking { color: var(--waarschuwing); font-weight: 600; cursor: help; }
 
+/* Knelpunt per processtap */
+tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; padding: 8px 10px 10px 24px; }
+.knelpuntvelden { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px 14px; margin-bottom: 4px; }
+.knelpuntvelden .keuzes { gap: 4px 12px; }
+.knelpuntvelden .keuzes label { font-size: 13px; }
+.knelpuntlabel { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; vertical-align: middle; }
+
 </style>
 </head>
 <body>
@@ -439,6 +446,14 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
           <div class="veld breed">
             <label for="mToelichting">Algemene toelichting</label>
             <textarea id="mToelichting" placeholder="Optioneel"></textarea>
+          </div>
+          <div class="veld breed">
+            <label for="mBelangrijksteKnelpunt">Belangrijkste knelpunt tijdens deze uitvoering <span data-uitleg="knelpunt"></span></label>
+            <input type="text" id="mBelangrijksteKnelpunt" maxlength="300" placeholder="Optioneel">
+          </div>
+          <div class="veld breed">
+            <label for="mBijzonderheden">Bijzonderheden of uitzonderingen</label>
+            <textarea id="mBijzonderheden" placeholder="Optioneel"></textarea>
           </div>
           <div class="veld">
             <label for="mActiefTotaal">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
@@ -617,7 +632,7 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Knelpunten, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>
@@ -628,6 +643,7 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
           <button type="button" data-actie="csv-procesmetingen">Procesmetingen (CSV)</button>
           <button type="button" data-actie="csv-stapmetingen">Stapmetingen (CSV)</button>
           <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
+          <button type="button" data-actie="csv-knelpunten">Knelpunten (CSV)</button>
         </div>
       </div>
       <div class="kaart">
@@ -673,7 +689,7 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
 'use strict';
 // ===== versie.js =====
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.5.0';
+const VERSIE = '1.6.0';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
@@ -699,6 +715,11 @@ const MEETWIJZE_GROEPEN = [
   { code: 'geschat', label: 'Geschat door medewerker', meting: 'Geschat door medewerker', frequentie: 'Geschat door medewerker' },
   { code: 'systeem', label: 'Uit systeemgegevens', meting: 'Uit systeemgegevens', frequentie: 'Uit systeemgegevens' },
 ];
+
+// Knelpunten per processtap (versie 1.6). Alle velden zijn optioneel.
+const KNELPUNT_CATEGORIEEN = ['Wachten', 'Systeem', 'Ontbrekende of onduidelijke informatie', 'Handmatige invoer', 'Controle of herstelwerk', 'Overdracht tussen personen of afdelingen', 'Afwijkende werkwijze', 'Anders'];
+const KNELPUNT_GEVOLGEN = ['Extra actieve tijd', 'Extra wachttijd', 'Verhoogde foutkans', 'Herstelwerk', 'Vertraging in de doorlooptijd', 'Anders'];
+const KNELPUNT_BRONNEN = ['Geobserveerd', 'Door medewerker aangegeven', 'Uit systeemgegevens', 'Eigen inschatting'];
 
 // ===== hulpfuncties.js =====
 // ---------- Algemene hulpfuncties ----------
@@ -1018,6 +1039,7 @@ const UITLEG = {
   tijdsbelasting: 'Geschatte actieve tijdsbelasting: totale frequentie × gemiddelde actieve tijd per procesuitvoering. Wachttijd telt niet mee.',
   meetellen: 'Meetellen in totaal: alleen aanvinken als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Alleen aangevinkte frequenties worden opgeteld.',
   blokken: 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd. Bijv. 40 beoordeelde dienstperioden → 4 diensttijdblokken.',
+  knelpunt: 'Knelpunt: iets dat de uitvoering van een stap hindert (bijv. wachten, systeem, onduidelijke informatie). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd of wachttijd en wordt niet opnieuw opgeteld bij de procesduur of tijdsbelasting.',
   test: 'Test/fictieve meting: blijft zichtbaar in de ruwe gegevens, maar telt standaard niet mee in gemiddelden, grafieken, totalen en tijdsbelasting.',
 };
 
@@ -1195,6 +1217,11 @@ function toonConceptStatus(prefix, gelukt, tijdstip) {
 // Versie 1.5: procesmetingen kunnen aantalBlokken hebben (aantal resulterende diensttijdblokken,
 // geheel getal ≥ 0; null of ontbrekend = onbekend). Processen kunnen blokkenVastleggen hebben
 // (true/false); ontbreekt het, dan staat het veld alleen bij PR24 standaard aan.
+// Versie 1.6: stapmetingen kunnen een knelpunt hebben: knelpunt (true/false; ontbreekt = niet
+// geregistreerd) en bij true knelpuntCategorie, knelpuntOmschrijving, knelpuntGevolgen (lijst),
+// knelpuntExtraActief, knelpuntExtraWacht (minuten, null = onbekend) en knelpuntBron.
+// Procesmetingen kunnen belangrijksteKnelpunt en bijzonderheden (tekst) hebben.
+// Geschatte extra tijd is verklarend: die zit al in de gemeten tijd en wordt nergens opgeteld.
 // Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
 // van de week worden nooit opgeslagen maar altijd uit de datum berekend.
 // Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
@@ -1555,6 +1582,15 @@ function valideerMeting(meting, stapmetingen, origineelId) {
     if (isGetal(meting[veld]) && meting[veld] < 0) fouten.push(`${label} mag niet negatief zijn.`);
   }
   waarschuwingen.push(...controleTekst(controleProcesStap(meting, stapmetingen)));
+  for (const s of stapmetingen.filter((x) => x.knelpunt === true)) {
+    const label = `${s.stapId} (${s.stapnaam})`;
+    for (const [veld, naam, gemeten, gemetenNaam] of [['knelpuntExtraActief', 'geschatte extra actieve tijd', s.actieveTijd, 'actieve tijd'], ['knelpuntExtraWacht', 'geschatte extra wachttijd', s.wachttijd, 'wachttijd']]) {
+      if (isGetal(s[veld]) && s[veld] < 0) fouten.push(`${label}: ${naam} van het knelpunt mag niet negatief zijn.`);
+      else if (isGetal(s[veld]) && isGetal(gemeten) && s[veld] > gemeten) {
+        waarschuwingen.push(`${label}: de ${naam} van het knelpunt (${fmtGetal(s[veld])} min) is groter dan de gemeten ${gemetenNaam} van deze stap (${fmtGetal(gemeten)} min). De extra tijd hoort een deel van de gemeten tijd te zijn.`);
+      }
+    }
+  }
   const zonderActief = stapmetingen.filter((s) => s.actieveTijd === null).map((s) => s.stapId);
   const zonderWacht = stapmetingen.filter((s) => s.wachttijd === null).map((s) => s.stapId);
   if (zonderActief.length) waarschuwingen.push(`Actieve tijd is niet ingevuld bij: ${zonderActief.join(', ')}. Deze waarden blijven Onbekend en worden niet als nul geteld; de totale actieve tijd van deze meting wordt daardoor Onbekend.`);
@@ -2062,6 +2098,93 @@ function meetwijzeVerdelingTekst(verdeling) {
   return delen.length ? delen.join(', ') : 'geen';
 }
 
+// ===== knelpunten.js =====
+// ---------- Knelpuntenanalyse ----------
+//
+// Knelpunten worden per stapmeting geregistreerd (knelpunt = true/false; ontbreekt = niet geregistreerd).
+// De geschatte extra tijd van een knelpunt is VERKLAREND: die zit al in de gemeten actieve tijd of
+// wachttijd van de stap. Ze wordt daarom nooit opgeteld bij procesduur, gemiddelden of tijdsbelasting.
+
+function knelpuntenVanMeting(m) {
+  return stapmetingenVan(m.metingId).filter((s) => s.knelpunt === true);
+}
+
+/** Of bij een meting voor minstens één stap expliciet ja/nee is ingevuld. */
+function heeftKnelpuntRegistratie(m) {
+  return stapmetingenVan(m.metingId).some((s) => typeof s.knelpunt === 'boolean');
+}
+
+/** Analyse voor één proces en casustype, binnen de resultaatfilters (incl. medewerker en teststatus). */
+function knelpuntAnalyse(procesId, filters, casustype) {
+  const metingen = staat.procesmetingen
+    .filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId }) && m.casustype === casustype)
+    .sort((a, b) => vergelijkTekst(a.metingId, b.metingId));
+  const knelpunten = metingen.flatMap((m) => knelpuntenVanMeting(m).map((s) => ({ m, s })));
+  const metKnelpunt = metingen.filter((m) => knelpuntenVanMeting(m).length > 0);
+  const extra = (veld, lijst) => {
+    const b = beschrijf(lijst.map(({ m, s }) => ({ metingId: `${m.metingId}/${s.stapId}`, waarde: s[veld] })));
+    return { ...b, totaal: b.n ? som(b.items.map((i) => i.waarde)) : null };
+  };
+  // Per processtap: huidige stappen van het proces, daarna stappen die alleen in metingen voorkomen.
+  const stapIds = uniek([...stappenVanProces(procesId).map((s) => s.stapId), ...metingen.flatMap((m) => stapmetingenVan(m.metingId).map((s) => s.stapId))]);
+  const perStap = stapIds.map((stapId) => {
+    const waarnemingen = metingen.flatMap((m) => stapmetingenVan(m.metingId).filter((s) => s.stapId === stapId));
+    const kp = knelpunten.filter(({ s }) => s.stapId === stapId);
+    const huidig = stappenVanProces(procesId).find((s) => s.stapId === stapId);
+    return {
+      stapId,
+      naam: huidig ? huidig.naam : (waarnemingen[0] ? waarnemingen[0].stapnaam : ''),
+      waarnemingen: waarnemingen.length,
+      geregistreerd: waarnemingen.filter((s) => typeof s.knelpunt === 'boolean').length,
+      aantal: kp.length,
+      metingIds: kp.map(({ m }) => m.metingId),
+      extraActief: extra('knelpuntExtraActief', kp),
+      extraWacht: extra('knelpuntExtraWacht', kp),
+    };
+  }).filter((r) => r.waarnemingen > 0);
+  const perCategorie = [...KNELPUNT_CATEGORIEEN, ''].map((c) => {
+    const kp = knelpunten.filter(({ s }) => (s.knelpuntCategorie || '') === c);
+    return { categorie: c || '(categorie niet ingevuld)', aantal: kp.length, ids: kp.map(({ m, s }) => `${m.metingId}/${s.stapId}`) };
+  }).filter((r) => r.aantal > 0);
+  const medewerkers = uniek(metingen.map((m) => m.medewerkerId || '')).sort((a, b) => (a === '') - (b === '') || vergelijkTekst(a, b));
+  const perMedewerker = medewerkers.map((id) => {
+    const ms = metingen.filter((m) => (m.medewerkerId || '') === id);
+    const kp = knelpunten.filter(({ m }) => (m.medewerkerId || '') === id);
+    return {
+      medewerkerId: id,
+      metingen: ms.length,
+      metKnelpunt: ms.filter((m) => knelpuntenVanMeting(m).length > 0).length,
+      aantal: kp.length,
+      extraActief: extra('knelpuntExtraActief', kp),
+      extraWacht: extra('knelpuntExtraWacht', kp),
+    };
+  });
+  return {
+    casustype,
+    aantalMetingen: metingen.length,
+    metingIds: metingen.map((m) => m.metingId),
+    metingenMetKnelpunt: metKnelpunt.map((m) => m.metingId),
+    percentageMetKnelpunt: metingen.length ? (metKnelpunt.length / metingen.length) * 100 : null,
+    metingenZonderRegistratie: metingen.filter((m) => !heeftKnelpuntRegistratie(m)).map((m) => m.metingId),
+    aantalKnelpunten: knelpunten.length,
+    extraActief: extra('knelpuntExtraActief', knelpunten),
+    extraWacht: extra('knelpuntExtraWacht', knelpunten),
+    perStap,
+    perCategorie,
+    perMedewerker,
+    belangrijksteKnelpunten: metingen.filter((m) => m.belangrijksteKnelpunt).map((m) => ({ metingId: m.metingId, medewerkerId: m.medewerkerId || '', tekst: m.belangrijksteKnelpunt })),
+  };
+}
+
+/** Alle geregistreerde knelpunten met volledige herleidbaarheid (voor export). */
+function alleKnelpuntRijen() {
+  const rijen = [];
+  for (const m of [...staat.procesmetingen].sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
+    for (const s of knelpuntenVanMeting(m)) rijen.push({ m, s, k: kalenderweek(m.datum) });
+  }
+  return rijen;
+}
+
 // ===== xlsx.js =====
 // ---------- Excel-export (.xlsx) zonder externe bibliotheek ----------
 //
@@ -2497,13 +2620,15 @@ function maakDemogegevens() {
     ['DEMO-PR02', 3, 'Bevestiging versturen'],
   ].map(([procesId, volgorde, naam]) => ({ stapId: `${procesId}-S0${volgorde}`, procesId, volgorde, naam, demo: true }));
 
-  // [procesId, nr, datum, medewerker, casustype, aantal uitvoeringen, omvang, meetwijze, [[actief, wacht, reden, opmerking], ...]]
+  // Fictieve knelpunten (versie 1.6). false = expliciet geen knelpunt; ontbreekt = niet geregistreerd.
+  const KP_WACHTEN = { knelpunt: true, knelpuntCategorie: 'Wachten', knelpuntOmschrijving: 'Reactie werkgever nodig voor beoordeling', knelpuntGevolgen: ['Extra wachttijd', 'Vertraging in de doorlooptijd'], knelpuntExtraActief: null, knelpuntExtraWacht: 15, knelpuntBron: 'Door medewerker aangegeven' };
+  // [procesId, nr, datum, medewerker, casustype, aantal uitvoeringen, omvang, meetwijze, [[actief, wacht, reden, opmerking, knelpunt], ...]]
   const metingen = [
     ['DEMO-PR01', 1, '2026-03-02', 'PZ01', 'Normaal', 1, 4, 'Gemeten', [[6, 0], [12.5, 0], [4, 0]]],
-    ['DEMO-PR01', 2, '2026-03-03', 'PZ02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever'], [3.5, 0]]],
-    ['DEMO-PR01', 3, '2026-03-04', 'PZ01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag']]],
+    ['DEMO-PR01', 2, '2026-03-03', 'PZ02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever', '', KP_WACHTEN], [3.5, 0, '', '', null, false]]],
+    ['DEMO-PR01', 3, '2026-03-04', 'PZ01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag', { knelpunt: true, knelpuntCategorie: 'Systeem', knelpuntOmschrijving: 'Rekenmodule reageert traag', knelpuntGevolgen: ['Extra wachttijd'], knelpuntExtraActief: null, knelpuntExtraWacht: 2, knelpuntBron: 'Geobserveerd' }]]],
     ['DEMO-PR01', 4, '2026-03-05', 'PZ03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
-    ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0], [25, 120, 'Ontbrekende loongegevens opgevraagd'], [6, 0]]],
+    ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0, '', '', null, false], [25, 120, 'Ontbrekende loongegevens opgevraagd', '', { knelpunt: true, knelpuntCategorie: 'Ontbrekende of onduidelijke informatie', knelpuntOmschrijving: 'Loongegevens ontbraken in het dossier', knelpuntGevolgen: ['Extra actieve tijd', 'Extra wachttijd', 'Vertraging in de doorlooptijd'], knelpuntExtraActief: 8, knelpuntExtraWacht: 120, knelpuntBron: 'Geobserveerd' }], [6, 0, '', '', null, false]]],
     ['DEMO-PR01', 6, '2026-03-10', 'PZ03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
     ['DEMO-PR02', 1, '2026-03-02', 'PZ04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
     ['DEMO-PR02', 2, '2026-03-06', 'PZ04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
@@ -2519,11 +2644,12 @@ function maakDemogegevens() {
       ...eenhedenUit(proces), meetwijze, toelichting: 'Fictieve demometing', demo: true, aangemaakt: tijd, gewijzigd: null,
     });
     const procesStappen = stappen.filter((s) => s.procesId === procesId);
-    rijen.forEach(([actief, wacht, reden, opmerking], i) => {
+    rijen.forEach(([actief, wacht, reden, opmerking, knelpunt], i) => {
       const s = procesStappen[i];
       stapmetingen.push({
         metingId, stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.naam, actieveTijd: actief, wachttijd: wacht,
-        redenWachttijd: reden || '', opmerking: opmerking || '', tijdvastlegging: 'Handmatig', demo: true,
+        redenWachttijd: reden || '', opmerking: opmerking || '', tijdvastlegging: 'Handmatig',
+        ...(knelpunt === false ? { knelpunt: false } : knelpunt || {}), demo: true,
       });
     });
   }
@@ -3119,6 +3245,7 @@ function initMetingFormulier() {
       if (s && (s.tijdvastlegging === 'Timer' || s.tijdvastlegging === 'Gekopieerd')) { s.tijdvastlegging += ', handmatig aangepast'; werkBronLabelBij(rij, s); }
       if (e.target.dataset.veld === 'wachttijd') werkRedenZichtbaarheidBij(rij);
     }
+    if (rij && e.target.dataset.veld === 'knelpunt') werkKnelpuntRijBij(rij);
     werkKalenderweekBij();
     werkBerekeningBij();
     planMetingConcept();
@@ -3163,14 +3290,18 @@ function renderMetingStappen(waarden = {}) {
       <td><input type="text" class="tijd" data-veld="wachttijd" inputmode="decimal" value="${esc(typeof w.wachttijd === 'string' ? w.wachttijd : naarInvoer(w.wachttijd))}" aria-label="Wachttijd in minuten voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="redenWachttijd" value="${esc(w.redenWachttijd || '')}" placeholder="Verplicht bij wachttijd" aria-label="Reden wachttijd voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="opmerking" value="${esc(w.opmerking || '')}" placeholder="Optioneel" aria-label="Opmerking voor ${esc(s.stapId)}"></td>
+      <td><select data-veld="knelpunt" aria-label="Knelpunt aanwezig bij ${esc(s.stapId)}">
+        ${[['', '–'], ['nee', 'Nee'], ['ja', 'Ja']].map(([w2, l]) => `<option value="${w2}" ${knelpuntKeuze(w) === w2 ? 'selected' : ''}>${l}</option>`).join('')}
+      </select></td>
       <td class="timer">
         <span class="timerweergave" data-timerweergave>0:00</span>
         <span data-timerknoppen></span>
       </td>
-    </tr>`;
+    </tr>
+    ${knelpuntRijHtml(s, w)}`;
   }).join('');
   houder.innerHTML = `<div class="tabelhouder"><table class="stappen">
-    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min) ${infoHtml('actief')}</th><th>Wachttijd (min) ${infoHtml('wacht')}</th><th>Reden wachttijd</th><th>Opmerking</th><th class="timer">Timer</th></tr></thead>
+    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min) ${infoHtml('actief')}</th><th>Wachttijd (min) ${infoHtml('wacht')}</th><th>Reden wachttijd</th><th>Opmerking</th><th>Knelpunt ${infoHtml('knelpunt')}</th><th class="timer">Timer</th></tr></thead>
     <tbody>${rijen}</tbody></table></div>
     <p class="klein zacht">Tijden in minuten; decimalen met komma of punt. Vul 0 in als er geen wachttijd was. De timer vult de velden pas na <em>Afronden</em>; controleer en corrigeer de waarden altijd vóór het opslaan.</p>`;
   for (const rij of $$('tr[data-stap]', houder)) {
@@ -3178,8 +3309,80 @@ function renderMetingStappen(waarden = {}) {
     werkRedenZichtbaarheidBij(rij);
     werkBronLabelBij(rij, s);
     werkTimerWeergaveBij(rij.dataset.stap);
+    werkKnelpuntRijBij(rij);
   }
   werkBerekeningBij();
+}
+
+// ---------- Knelpunt per processtap ----------
+
+function knelpuntKeuze(w) {
+  if (w.knelpunt === true || w.knelpunt === 'ja') return 'ja';
+  if (w.knelpunt === false || w.knelpunt === 'nee') return 'nee';
+  return '';
+}
+
+/** Vervolgvelden van een knelpunt, direct onder de stap; alleen zichtbaar bij 'Ja'. */
+function knelpuntRijHtml(s, w) {
+  const invoer = (v) => (typeof v === 'string' ? v : naarInvoer(v));
+  const gevolgen = Array.isArray(w.knelpuntGevolgen) ? w.knelpuntGevolgen : [];
+  const opties = (lijst, gekozen) => `<option value="">— Kies —</option>${lijst.map((x) => `<option ${x === gekozen ? 'selected' : ''}>${esc(x)}</option>`).join('')}`;
+  return `<tr class="knelpuntrij" data-knelpunt-voor="${esc(s.stapId)}" hidden><td colspan="8">
+    <div class="knelpuntvelden">
+      <div class="veld"><label>Categorie</label><select data-kveld="knelpuntCategorie">${opties(KNELPUNT_CATEGORIEEN, w.knelpuntCategorie)}</select></div>
+      <div class="veld" style="grid-column: span 2"><label>Korte omschrijving van het knelpunt</label><input type="text" data-kveld="knelpuntOmschrijving" maxlength="200" value="${esc(w.knelpuntOmschrijving || '')}" placeholder="Optioneel"></div>
+      <div class="veld"><label>Bron</label><select data-kveld="knelpuntBron">${opties(KNELPUNT_BRONNEN, w.knelpuntBron)}</select></div>
+      <div class="veld"><label>Geschatte extra actieve tijd (min)</label><input type="text" class="tijd" inputmode="decimal" data-kveld="knelpuntExtraActief" value="${esc(invoer(w.knelpuntExtraActief))}" placeholder="Optioneel"></div>
+      <div class="veld"><label>Geschatte extra wachttijd (min)</label><input type="text" class="tijd" inputmode="decimal" data-kveld="knelpuntExtraWacht" value="${esc(invoer(w.knelpuntExtraWacht))}" placeholder="Optioneel"></div>
+      <div class="veld" style="grid-column: span 2"><span class="label">Gevolg (meerdere mogelijk)</span><div class="keuzes">
+        ${KNELPUNT_GEVOLGEN.map((g) => `<label><input type="checkbox" data-kgevolg value="${esc(g)}" ${gevolgen.includes(g) ? 'checked' : ''}> ${esc(g)}</label>`).join('')}
+      </div></div>
+    </div>
+    <div class="klein zacht">De geschatte extra tijd is verklarend: die zit al in de gemeten tijd van deze stap en wordt niet opnieuw opgeteld.</div>
+  </td></tr>`;
+}
+
+function knelpuntRij(stapId) {
+  return $(`tr[data-knelpunt-voor="${CSS.escape(stapId)}"]`, $('#mStappen'));
+}
+
+function werkKnelpuntRijBij(rij) {
+  const sub = knelpuntRij(rij.dataset.stap);
+  if (sub) sub.hidden = $('[data-veld="knelpunt"]', rij).value !== 'ja';
+}
+
+/** Leest de knelpuntvelden van een stap. Geeft de velden voor de stapmeting (leeg object = niet geregistreerd). */
+function leesKnelpunt(stapId, rij, invoerFouten) {
+  const keuze = $('[data-veld="knelpunt"]', rij).value;
+  if (keuze === 'nee') return { knelpunt: false };
+  if (keuze !== 'ja') return {};
+  const sub = knelpuntRij(stapId);
+  const getal = (veld, naam) => {
+    const el = $(`[data-kveld="${veld}"]`, sub);
+    const r = leesGetal(el.value);
+    if (r.fout) invoerFouten.push(`${stapId} – ${naam}: ${r.fout}`);
+    el.classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && r.waarde < 0));
+    return r.fout ? NaN : r.waarde;
+  };
+  return {
+    knelpunt: true,
+    knelpuntCategorie: $('[data-kveld="knelpuntCategorie"]', sub).value,
+    knelpuntOmschrijving: $('[data-kveld="knelpuntOmschrijving"]', sub).value.trim(),
+    knelpuntGevolgen: $$('[data-kgevolg]', sub).filter((c) => c.checked).map((c) => c.value),
+    knelpuntExtraActief: getal('knelpuntExtraActief', 'geschatte extra actieve tijd'),
+    knelpuntExtraWacht: getal('knelpuntExtraWacht', 'geschatte extra wachttijd'),
+    knelpuntBron: $('[data-kveld="knelpuntBron"]', sub).value,
+  };
+}
+
+/** Ruwe invoer van de knelpuntvelden, voor het concept. */
+function knelpuntConceptWaarden(rij) {
+  const sub = knelpuntRij(rij.dataset.stap);
+  const v = { knelpunt: $('[data-veld="knelpunt"]', rij).value };
+  if (!sub) return v;
+  for (const el of $$('[data-kveld]', sub)) v[el.dataset.kveld] = el.value;
+  v.knelpuntGevolgen = $$('[data-kgevolg]', sub).filter((c) => c.checked).map((c) => c.value);
+  return v;
 }
 
 function werkBronLabelBij(rij, s) {
@@ -3230,6 +3433,8 @@ function leesMetingFormulier() {
     ...formulierEenheden,
     meetwijze: $('#mMeetwijze').value,
     toelichting: $('#mToelichting').value.trim(),
+    belangrijksteKnelpunt: $('#mBelangrijksteKnelpunt').value.trim(),
+    bijzonderheden: $('#mBijzonderheden').value.trim(),
     actieveTijdTotaal,
     wachttijdTotaal,
   };
@@ -3259,6 +3464,7 @@ function leesMetingFormulier() {
       redenWachttijd,
       opmerking: $('[data-veld="opmerking"]', rij).value.trim(),
       tijdvastlegging: s.tijdvastlegging,
+      ...leesKnelpunt(s.stapId, rij, invoerFouten),
     };
   });
   return { meting, stapmetingen, invoerFouten };
@@ -3343,6 +3549,8 @@ function resetMetingFormulier(behoudAlgemeen) {
   $('#mAantal').value = '';
   $('#mOmvang').value = '';
   $('#mBlokken').value = '';
+  $('#mBelangrijksteKnelpunt').value = '';
+  $('#mBijzonderheden').value = '';
   $('#mActiefTotaal').value = '';
   $('#mWachtTotaal').value = '';
   $('#mTest').checked = false;
@@ -3375,6 +3583,8 @@ function bewerkMeting(metingId) {
   $('#mAantal').value = 'aantalUitvoeringen' in m ? naarInvoer(m.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(m.omvang);
   $('#mBlokken').value = naarInvoer(m.aantalBlokken);
+  $('#mBelangrijksteKnelpunt').value = m.belangrijksteKnelpunt || '';
+  $('#mBijzonderheden').value = m.bijzonderheden || '';
   $('#mActiefTotaal').value = naarInvoer(m.actieveTijdTotaal);
   $('#mWachtTotaal').value = naarInvoer(m.wachttijdTotaal);
   $('#mTest').checked = isTestmeting(m);
@@ -3539,7 +3749,7 @@ async function dupliceerMeting(metingId) {
   for (const s of stapmetingenVan(metingId)) {
     const stap = formulierStappen.find((x) => x.stapId === s.stapId);
     if (!stap) continue;
-    waarden[s.stapId] = { actieveTijd: s.actieveTijd, wachttijd: s.wachttijd, redenWachttijd: s.redenWachttijd, opmerking: s.opmerking };
+    waarden[s.stapId] = { ...s };
     stap.tijdvastlegging = 'Gekopieerd';
   }
   $('#mDatum').value = vandaagIso();
@@ -3548,6 +3758,8 @@ async function dupliceerMeting(metingId) {
   $('#mAantal').value = 'aantalUitvoeringen' in bron ? naarInvoer(bron.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(bron.omvang);
   $('#mBlokken').value = naarInvoer(bron.aantalBlokken);
+  $('#mBelangrijksteKnelpunt').value = bron.belangrijksteKnelpunt || '';
+  $('#mBijzonderheden').value = bron.bijzonderheden || '';
   $('#mMeetwijze').value = bron.meetwijze || '';
   $('#mToelichting').value = bron.toelichting || '';
   $('#mActiefTotaal').value = naarInvoer(bron.actieveTijdTotaal);
@@ -3582,7 +3794,7 @@ function annuleerMetingConceptTimer() {
 /** Alleen echte invoer is een concept waard (niet alleen een gekozen proces). */
 function metingConceptHeeftInhoud(g) {
   const v = g.velden;
-  return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.blokken || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
+  return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.blokken || v.belangrijksteKnelpunt || v.bijzonderheden || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
     || Object.values(g.waarden).some((w) => Object.values(w).some((x) => String(x).trim() !== ''))
     || /Kopie van meting/.test(g.melding || ''));
 }
@@ -3590,7 +3802,10 @@ function metingConceptHeeftInhoud(g) {
 function metingConceptGegevens() {
   const waarden = {};
   for (const rij of $$('tr[data-stap]', $('#mStappen'))) {
-    waarden[rij.dataset.stap] = Object.fromEntries(['actieveTijd', 'wachttijd', 'redenWachttijd', 'opmerking'].map((v) => [v, $(`[data-veld="${v}"]`, rij).value]));
+    waarden[rij.dataset.stap] = {
+      ...Object.fromEntries(['actieveTijd', 'wachttijd', 'redenWachttijd', 'opmerking'].map((v) => [v, $(`[data-veld="${v}"]`, rij).value])),
+      ...knelpuntConceptWaarden(rij),
+    };
   }
   const casus = $('input[name="casustype"]:checked');
   return {
@@ -3600,7 +3815,8 @@ function metingConceptGegevens() {
     procesId: metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value,
     velden: {
       datum: $('#mDatum').value, medewerker: $('#mMedewerker').value, casustype: casus ? casus.value : '',
-      aantal: $('#mAantal').value, omvang: $('#mOmvang').value, blokken: $('#mBlokken').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
+      aantal: $('#mAantal').value, omvang: $('#mOmvang').value, blokken: $('#mBlokken').value,
+      belangrijksteKnelpunt: $('#mBelangrijksteKnelpunt').value, bijzonderheden: $('#mBijzonderheden').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
       actiefTotaal: $('#mActiefTotaal').value, wachtTotaal: $('#mWachtTotaal').value, test: $('#mTest').checked,
     },
     stappen: formulierStappen,
@@ -3638,6 +3854,8 @@ function herstelMetingConcept() {
   $('#mAantal').value = v.aantal || '';
   $('#mOmvang').value = v.omvang || '';
   $('#mBlokken').value = v.blokken || '';
+  $('#mBelangrijksteKnelpunt').value = v.belangrijksteKnelpunt || '';
+  $('#mBijzonderheden').value = v.bijzonderheden || '';
   $('#mMeetwijze').value = v.meetwijze || '';
   $('#mToelichting').value = v.toelichting || '';
   $('#mActiefTotaal').value = v.actiefTotaal || '';
@@ -3990,8 +4208,8 @@ function renderOverzichtTabel() {
 function renderProcesmetingenTabel(f) {
   const lijst = staat.procesmetingen
     .filter((m) => metingVoldoetAanOverzicht(m, f))
-    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
-      ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking])], f.zoek))
+    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting, m.belangrijksteKnelpunt, m.bijzonderheden,
+      ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking, ...knelpuntZoekwaarden(s)])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
   const nTest = lijst.filter(isTestmeting).length;
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen (${lijst.length - nTest} echt, ${nTest} test/fictief)`;
@@ -4002,7 +4220,7 @@ function renderProcesmetingenTabel(f) {
     const stappen = stapmetingenVan(m.metingId);
     let html = `<tr>
       <td><button type="button" class="klein" data-actie="meting-uitklappen" data-id="${esc(m.metingId)}" aria-expanded="${open}" title="Stapmetingen tonen of verbergen">${open ? '▾' : '▸'} ${stappen.length}</button></td>
-      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}</td>
+      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}${knelpuntLabel(stappen)}</td>
       <td>${esc(fmtDatum(m.datum))}<br><span class="klein zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
@@ -4032,11 +4250,33 @@ function renderProcesmetingenTabel(f) {
     <tbody>${rijen}</tbody></table>`;
 }
 
+function knelpuntZoekwaarden(s) {
+  return s.knelpunt ? ['knelpunt', s.knelpuntCategorie, s.knelpuntOmschrijving, ...(s.knelpuntGevolgen || []), s.knelpuntBron] : [];
+}
+
+/** Compacte weergave van het knelpunt van een stapmeting (ruwe invoer; extra tijd is verklarend). */
+function knelpuntCelHtml(s) {
+  if (s.knelpunt === false) return 'Nee';
+  if (s.knelpunt !== true) return '<span class="zacht">—</span>';
+  const delen = [];
+  if (isGetal(s.knelpuntExtraActief)) delen.push(`+${fmtGetal(s.knelpuntExtraActief)} min actief`);
+  if (isGetal(s.knelpuntExtraWacht)) delen.push(`+${fmtGetal(s.knelpuntExtraWacht)} min wacht`);
+  return `<strong>Ja</strong>${s.knelpuntCategorie ? ` – ${esc(s.knelpuntCategorie)}` : ''}${s.knelpuntOmschrijving ? `<br>${esc(s.knelpuntOmschrijving)}` : ''}`
+    + `${(s.knelpuntGevolgen || []).length ? `<br><span class="zacht">Gevolg: ${esc(s.knelpuntGevolgen.join(', '))}</span>` : ''}`
+    + `${delen.length ? `<br><span class="zacht">Geschat: ${esc(delen.join(', '))}</span>` : ''}`
+    + `${s.knelpuntBron ? `<br><span class="zacht">Bron: ${esc(s.knelpuntBron)}</span>` : ''}`;
+}
+
+function knelpuntLabel(stappen) {
+  const n = stappen.filter((s) => s.knelpunt === true).length;
+  return n ? ` <span class="knelpuntlabel" title="${n} ${n === 1 ? 'processtap' : 'processtappen'} met knelpunt">${n} knelpunt${n === 1 ? '' : 'en'}</span>` : '';
+}
+
 function stapmetingenMiniTabel(stappen) {
   if (!stappen.length) return '<span class="zacht">Geen stapmetingen.</span>';
-  return `<table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th></tr></thead><tbody>
+  return `<table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th>Knelpunt</th></tr></thead><tbody>
     ${stappen.map((s) => `<tr><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td><td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td>
-      <td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td></tr>`).join('')}
+      <td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td><td class="klein">${knelpuntCelHtml(s)}</td></tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -4046,17 +4286,17 @@ function renderStapmetingenTabel(f) {
     .filter((s) => metingen.has(s.metingId))
     .filter((s) => {
       const m = metingen.get(s.metingId);
-      return bevatZoekterm([s.metingId, s.stapId, s.stapnaam, s.actieveTijd, s.wachttijd, s.redenWachttijd, s.opmerking, s.tijdvastlegging, m.procesId, m.medewerkerId, fmtDatum(m.datum)], f.zoek);
+      return bevatZoekterm([s.metingId, s.stapId, s.stapnaam, s.actieveTijd, s.wachttijd, s.redenWachttijd, s.opmerking, s.tijdvastlegging, ...knelpuntZoekwaarden(s), m.procesId, m.medewerkerId, fmtDatum(m.datum)], f.zoek);
     })
     .sort((a, b) => vergelijkTekst(b.metingId, a.metingId) || a.volgorde - b.volgorde);
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.stapmetingen.length} stapmetingen`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen stapmetingen gevonden.</p>'; return; }
   $('#overzichtTabel').innerHTML = `<table>
-    <thead><tr><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th></th></tr></thead>
+    <thead><tr><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th>Knelpunt</th><th></th></tr></thead>
     <tbody>${lijst.map((s) => {
       const m = metingen.get(s.metingId);
       return `<tr><td class="mono">${esc(s.metingId)}${demoLabel(s)}${testLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${esc(m.procesId)}</td><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td>
-        <td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td><td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td>
+        <td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td><td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td><td class="klein">${knelpuntCelHtml(s)}</td>
         <td class="acties"><button type="button" class="klein" data-actie="meting-openen" data-id="${esc(s.metingId)}">Meting openen</button></td></tr>`;
     }).join('')}</tbody></table>
     <p class="klein zacht">Stapmetingen aanpassen of verwijderen gaat via de bijbehorende procesmeting.</p>`;
@@ -4107,6 +4347,8 @@ function metingDetailHtml(m) {
         <dt>Eenheden</dt><dd class="klein">uitvoeringseenheid: ${esc(e.uitvoeringseenheid)} · omvangseenheid: ${esc(e.omvangseenheid)}</dd>
         <dt>Meetwijze</dt><dd>${meetwijzeHtml(m.meetwijze)}</dd>
         <dt>Algemene toelichting</dt><dd>${esc(m.toelichting || '—')}</dd>
+        <dt>Belangrijkste knelpunt tijdens deze uitvoering</dt><dd>${esc(m.belangrijksteKnelpunt || '—')}</dd>
+        <dt>Bijzonderheden of uitzonderingen</dt><dd>${esc(m.bijzonderheden || '—')}</dd>
         <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(m.aangemaakt))}</dd>
         <dt>Laatst gewijzigd</dt><dd>${m.gewijzigd ? esc(fmtTijdstip(m.gewijzigd)) : 'Niet gewijzigd'}</dd>
       </dl>
@@ -4338,6 +4580,10 @@ function renderResultaten() {
       <h3>Resultaten per medewerker</h3>
       ${medewerkerTabelHtml(procesId, filters, e)}
     </div>
+    <div class="kaart" id="rKnelpunten">
+      <h3>Knelpuntenanalyse ${infoHtml('knelpunt')}</h3>
+      ${knelpuntenHtml(procesId, filters)}
+    </div>
     <div class="kaart" id="rTotaal">
       <h3>Totale frequentie en geschatte tijdsbelasting</h3>
       ${totaalOverzichtHtml(procesId, filters)}
@@ -4463,6 +4709,70 @@ function totaalOverzichtHtml(procesId, filters) {
       <div class="tabelhouder"><table class="klein">
         <thead><tr><th>FrequentieID</th><th>Medewerker</th><th>Bereik</th><th>Afbakening</th><th>Periode</th><th>Meetmoment</th><th class="getal">Aantal</th><th>Bron</th><th>Meetellen</th><th>In dit totaal</th><th></th></tr></thead>
         <tbody>${statusRijen}</tbody></table></div>` : '<p class="zacht klein mt">Er zijn voor dit proces nog geen frequentiemetingen.</p>'}`;
+}
+
+/** Onderdeel 'Knelpuntenanalyse': normale gevallen en uitzonderingen naast elkaar. */
+function knelpuntenHtml(procesId, filters) {
+  const N = knelpuntAnalyse(procesId, filters, 'Normaal');
+  const U = knelpuntAnalyse(procesId, filters, 'Uitzondering');
+  if (!N.aantalMetingen && !U.aantalMetingen) return '<p class="zacht klein">Geen metingen binnen de filters.</p>';
+  const tijd = (x) => (x.n ? `${esc(fmtGetal(x.totaal))} min totaal · ${esc(fmtGetal(x.gemiddelde))} min gem. <span class="klein zacht">(n = ${x.n})</span>` : `<span class="onbekend">${ONBEKEND}</span> <span class="klein zacht">(n = 0)</span>`);
+  const rij = (label, fn) => `<tr><th>${label}</th><td class="getal berekend">${fn(N)}</td><td class="getal berekend">${fn(U)}</td></tr>`;
+  const stapIds = uniek([...N.perStap, ...U.perStap].map((r) => r.stapId));
+  const stapRij = (id) => {
+    const n = N.perStap.find((r) => r.stapId === id);
+    const u = U.perStap.find((r) => r.stapId === id);
+    const cel = (r) => (r ? `${r.aantal} <span class="klein zacht">van ${r.waarnemingen}</span>` : '–');
+    return `<tr><td class="mono">${esc(id)}</td><td>${esc((n || u).naam)}</td><td class="getal berekend">${cel(n)}</td><td class="getal berekend">${cel(u)}</td></tr>`;
+  };
+  const categorieen = uniek([...N.perCategorie, ...U.perCategorie].map((r) => r.categorie));
+  const catRij = (c) => {
+    const tel = (g) => (g.perCategorie.find((r) => r.categorie === c) || { aantal: 0 }).aantal;
+    return `<tr><td>${esc(c)}</td><td class="getal berekend">${tel(N)}</td><td class="getal berekend">${tel(U)}</td></tr>`;
+  };
+  const mwRijen = [N, U].flatMap((g) => g.perMedewerker.map((r) => `<tr><td>${esc(medewerkerLabel(r.medewerkerId))}</td><td>${esc(g.casustype)}</td>
+      <td class="getal">${r.metingen}</td><td class="getal berekend">${r.metKnelpunt} <span class="klein zacht">(${esc(fmtGetal(r.metingen ? (r.metKnelpunt / r.metingen) * 100 : null, 0))}%)</span></td>
+      <td class="getal berekend">${r.aantal}</td><td class="getal berekend">${r.extraActief.n ? esc(fmtGetal(r.extraActief.totaal)) : '–'}</td><td class="getal berekend">${r.extraWacht.n ? esc(fmtGetal(r.extraWacht.totaal)) : '–'}</td></tr>`)).join('');
+  return `<p class="klein zacht">Knelpunten worden per processtap geregistreerd. De geschatte extra tijd is <strong>verklarend</strong>: die zit al in de gemeten actieve tijd en wachttijd en wordt <strong>niet</strong> opgeteld bij de procesduur, de gemiddelden of de tijdsbelasting (geen dubbeltelling).
+      Binnen de filters bovenaan (incl. medewerker en testmetingen).</p>
+    <div class="tabelhouder"><table>
+      <thead><tr><th></th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+      <tbody>
+        ${rij('Metingen', (g) => String(g.aantalMetingen))}
+        ${rij('Metingen met minimaal één knelpunt', (g) => `${g.metingenMetKnelpunt.length} <span class="klein zacht">(${esc(fmtGetal(g.percentageMetKnelpunt, 1))}%)</span>`)}
+        ${rij('Metingen zonder knelpuntregistratie', (g) => `${g.metingenZonderRegistratie.length} <span class="klein zacht">(bij geen enkele stap ja/nee ingevuld)</span>`)}
+        ${rij('Aantal knelpunten (stappen met knelpunt)', (g) => String(g.aantalKnelpunten))}
+        ${rij('Geschatte extra actieve tijd', (g) => tijd(g.extraActief))}
+        ${rij('Geschatte extra wachttijd', (g) => tijd(g.extraWacht))}
+      </tbody></table></div>
+    <p class="klein zacht">Gemiddelde extra tijd = per knelpunt waarvoor een schatting is ingevuld. Het percentage is ten opzichte van alle metingen binnen de filters.</p>
+    <div class="twee-kolommen">
+      <div><h4>Voorkomens per processtap</h4>
+        <div class="tabelhouder"><table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+        <tbody>${stapIds.map(stapRij).join('')}</tbody></table></div>
+        <p class="klein zacht">"3 van 5" = 3 knelpunten bij 5 waarnemingen van die stap.</p></div>
+      <div><h4>Voorkomens per categorie</h4>
+        ${categorieen.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>Categorie</th><th class="getal">Normaal</th><th class="getal">Uitzondering</th></tr></thead>
+        <tbody>${categorieen.map(catRij).join('')}</tbody></table></div>` : '<p class="zacht klein">Nog geen knelpunten geregistreerd.</p>'}</div>
+    </div>
+    <h4>Uitsplitsing per medewerker</h4>
+    <div class="tabelhouder"><table class="klein">
+      <thead><tr><th>MedewerkerID</th><th>Casustype</th><th class="getal">Metingen</th><th class="getal">Met knelpunt</th><th class="getal">Knelpunten</th><th class="getal">Extra actief (min, totaal)</th><th class="getal">Extra wacht (min, totaal)</th></tr></thead>
+      <tbody>${mwRijen}</tbody></table></div>
+    <div class="knoppen"><button type="button" class="klein" data-actie="knelpunten-bekijken">Alle knelpunten bekijken</button></div>`;
+}
+
+/** Herleidbaarheid: iedere knelpunt met proces, meting, stap, medewerker, datum, kalenderweek, meetwijze en casustype. */
+function toonKnelpunten() {
+  const procesId = $('#rProces').value;
+  const filters = resultaatFilters();
+  const rijen = alleKnelpuntRijen().filter(({ m }) => m.procesId === procesId && metingVoldoetAanFilters(m, { ...filters, procesId }));
+  informeer(`Knelpunten – ${procesId}`, `<p class="klein">Filters: ${esc(filtersAlsTekst(filters))}</p>
+    ${rijen.length ? `<div class="tabelhouder"><table class="klein"><thead><tr><th>MetingID</th><th>StapID</th><th>Medewerker</th><th>Datum / week</th><th>Casustype</th><th>Meetwijze</th><th>Categorie</th><th>Omschrijving</th><th>Gevolg</th><th class="getal">Extra actief</th><th class="getal">Extra wacht</th><th>Bron</th></tr></thead><tbody>
+    ${rijen.map(({ m, s }) => `<tr><td class="mono">${esc(m.metingId)}${testLabel(m)}</td><td class="mono">${esc(s.stapId)}</td><td>${htmlTekst(m.medewerkerId)}</td><td>${esc(fmtDatum(m.datum))}<br><span class="zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
+      <td>${esc(m.casustype)}</td><td>${meetwijzeHtml(m.meetwijze)}</td><td>${htmlTekst(s.knelpuntCategorie)}</td><td>${esc(s.knelpuntOmschrijving || '')}</td><td>${esc((s.knelpuntGevolgen || []).join('; '))}</td>
+      <td class="getal">${htmlGetal(s.knelpuntExtraActief)}</td><td class="getal">${htmlGetal(s.knelpuntExtraWacht)}</td><td>${htmlTekst(s.knelpuntBron)}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="zacht">Geen knelpunten binnen de filters.</p>'}`);
 }
 
 /** Diensttijdblokken (informatief): telt niet mee in de tijdsbelasting, omdat die tijd al in de tijd per dossier zit. */
@@ -4712,6 +5022,46 @@ function KALENDER_KOLOMMEN(datum) {
   ];
 }
 
+function knelpuntTekst(s) {
+  return s.knelpunt === true ? 'Ja' : s.knelpunt === false ? 'Nee' : 'Niet ingevuld';
+}
+
+const KNELPUNT_KOLOMMEN = [
+  ['Knelpunt aanwezig', (s) => knelpuntTekst(s)],
+  ['Knelpunt: categorie', (s) => (s.knelpunt ? s.knelpuntCategorie || '' : '')],
+  ['Knelpunt: omschrijving', (s) => (s.knelpunt ? s.knelpuntOmschrijving || '' : '')],
+  ['Knelpunt: gevolg(en)', (s) => (s.knelpunt ? (s.knelpuntGevolgen || []).join('; ') : '')],
+  ['Knelpunt: geschatte extra actieve tijd (min)', (s) => (s.knelpunt && isGetal(s.knelpuntExtraActief) ? s.knelpuntExtraActief : null)],
+  ['Knelpunt: geschatte extra wachttijd (min)', (s) => (s.knelpunt && isGetal(s.knelpuntExtraWacht) ? s.knelpuntExtraWacht : null)],
+  ['Knelpunt: bron', (s) => (s.knelpunt ? s.knelpuntBron || '' : '')],
+];
+
+/** Eén rij per knelpunt, herleidbaar naar proces, meting, stap, medewerker, datum, kalenderweek, meetwijze en casustype. */
+const KOLOMMEN_KNELPUNTEN = [
+  ['ProcesID', ({ m }) => m.procesId],
+  ['Procesnaam (bij meting)', ({ m }) => m.procesnaam || ''],
+  ['MetingID', ({ m }) => m.metingId],
+  ['StapID', ({ s }) => s.stapId],
+  ['Processtap (bij meting)', ({ s }) => s.stapnaam],
+  ['MedewerkerID', ({ m }) => m.medewerkerId || ''],
+  ['Meetdatum', ({ m }) => m.datum],
+  ['Kalenderjaar (ISO-week)', ({ k }) => (k ? k.jaar : null)],
+  ['Kalenderweek', ({ k }) => (k ? k.week : null)],
+  ['Meetwijze', ({ m }) => m.meetwijze],
+  ['Casustype', ({ m }) => m.casustype],
+  ['Test/fictief', ({ m }) => (isTestmeting(m) ? 'Ja' : 'Nee')],
+  ['Categorie', ({ s }) => s.knelpuntCategorie || ''],
+  ['Omschrijving', ({ s }) => s.knelpuntOmschrijving || ''],
+  ['Gevolg(en)', ({ s }) => (s.knelpuntGevolgen || []).join('; ')],
+  ['Geschatte extra actieve tijd (min)', ({ s }) => (isGetal(s.knelpuntExtraActief) ? s.knelpuntExtraActief : null)],
+  ['Geschatte extra wachttijd (min)', ({ s }) => (isGetal(s.knelpuntExtraWacht) ? s.knelpuntExtraWacht : null)],
+  ['Bron', ({ s }) => s.knelpuntBron || ''],
+  ['Gemeten actieve tijd stap (min)', ({ s }) => s.actieveTijd],
+  ['Gemeten wachttijd stap (min)', ({ s }) => s.wachttijd],
+  ['Belangrijkste knelpunt (procesmeting)', ({ m }) => m.belangrijksteKnelpunt || ''],
+  ['Bijzonderheden of uitzonderingen (procesmeting)', ({ m }) => m.bijzonderheden || ''],
+];
+
 const KOLOMMEN_PROCESMETINGEN = [
   ['MetingID', (m) => m.metingId],
   ['Meetdatum', (m) => m.datum],
@@ -4736,6 +5086,9 @@ const KOLOMMEN_PROCESMETINGEN = [
   ...KALENDER_KOLOMMEN((m) => m.datum),
   // Sinds versie 1.5
   ['Aantal resulterende diensttijdblokken', (m) => (isGetal(m.aantalBlokken) ? m.aantalBlokken : null)],
+  // Sinds versie 1.6
+  ['Belangrijkste knelpunt', (m) => m.belangrijksteKnelpunt || ''],
+  ['Bijzonderheden of uitzonderingen', (m) => m.bijzonderheden || ''],
 ];
 
 const KOLOMMEN_STAPMETINGEN = [
@@ -4750,6 +5103,8 @@ const KOLOMMEN_STAPMETINGEN = [
   ['Tijdvastlegging', (s) => s.tijdvastlegging || ''],
   ['Demogegevens', (s) => (s.demo ? 'Ja' : 'Nee')],
   ['Test/fictief (via procesmeting)', (s) => (isTestStapmeting(s) ? 'Ja' : 'Nee')],
+  // Sinds versie 1.6
+  ...KNELPUNT_KOLOMMEN,
 ];
 
 const KOLOMMEN_FREQUENTIE = [
@@ -4795,6 +5150,7 @@ async function exporteerCsv(soort) {
     procesmetingen: [KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), 'Meettool_procesmetingen'],
     stapmetingen: [KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), 'Meettool_stapmetingen'],
     frequentie: [KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), 'Meettool_frequentiemetingen'],
+    knelpunten: [KOLOMMEN_KNELPUNTEN, alleKnelpuntRijen(), 'Meettool_knelpunten'],
   }[soort];
   const [kolommen, records, naam] = def;
   const csv = maakCsv(kolommen.map((k) => k[0]), records.map((r) => kolommen.map((k) => k[1](r))), bevatDemo() ? [DEMO_WAARSCHUWING] : []);
@@ -4893,6 +5249,45 @@ function resultatenBlad(filters) {
     }
   }
   return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 16, 16, 40, 28, 10, 12, 20, 24, 8, 18, 16, 16, 16, 10, 16, 16, 24, 8, 18, 16, 16, 16, 16, 16, 14, 14, 20, 18, 18, 50, 40, 30, 30, 50], kopRij };
+}
+
+/** Tabblad 'Knelpuntenanalyse': samenvatting per proces en casustype, per stap, per categorie en per medewerker. */
+function knelpuntBlad(filters) {
+  const rijen = [];
+  rijen.push([{ v: 'Knelpuntenanalyse – automatisch berekend uit de geregistreerde knelpunten per processtap', s: 'titel' }]);
+  if (bevatDemo()) rijen.push([{ v: DEMO_WAARSCHUWING, s: 'waarschuwing' }]);
+  rijen.push(['Gebruikte filters', filtersAlsTekst(filters)]);
+  rijen.push(['Let op', 'De geschatte extra tijd is verklarend en zit al in de gemeten actieve tijd en wachttijd. Ze is NIET opgeteld bij procesduur, gemiddelden of tijdsbelasting. Iedere knelpunt staat afzonderlijk in het tabblad Knelpunten.']);
+  rijen.push([]);
+  rijen.push([{ v: 'Samenvatting per proces en casustype', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'Metingen', 'Metingen met minimaal één knelpunt', 'Percentage metingen met knelpunt', 'Metingen zonder knelpuntregistratie', 'Aantal knelpunten',
+    'Totaal geschatte extra actieve tijd (min)', 'Gemiddelde geschatte extra actieve tijd per knelpunt (min)', 'n extra actief',
+    'Totaal geschatte extra wachttijd (min)', 'Gemiddelde geschatte extra wachttijd per knelpunt (min)', 'n extra wacht', 'MetingID\'s met knelpunt'].map(kop));
+  const kopRij = rijen.length;
+  const analyses = [];
+  for (const procesId of alleProcesIds()) {
+    for (const c of CASUSTYPEN) {
+      const a = knelpuntAnalyse(procesId, filters, c);
+      if (!a.aantalMetingen) continue;
+      analyses.push([procesId, a]);
+      rijen.push([procesId, c, a.aantalMetingen, a.metingenMetKnelpunt.length, getalOfLeeg(a.percentageMetKnelpunt), a.metingenZonderRegistratie.length, a.aantalKnelpunten,
+        getalOfLeeg(a.extraActief.totaal), getalOfLeeg(a.extraActief.gemiddelde), a.extraActief.n, getalOfLeeg(a.extraWacht.totaal), getalOfLeeg(a.extraWacht.gemiddelde), a.extraWacht.n,
+        a.metingenMetKnelpunt.join(', ')]);
+    }
+  }
+  rijen.push([]);
+  rijen.push([{ v: 'Voorkomens per processtap', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'StapID', 'Processtap', 'Waarnemingen', 'Waarvan ja/nee ingevuld', 'Aantal knelpunten', 'Totaal extra actief (min)', 'Totaal extra wacht (min)', 'MetingID\'s'].map(kop));
+  for (const [procesId, a] of analyses) for (const r of a.perStap) rijen.push([procesId, a.casustype, r.stapId, r.naam, r.waarnemingen, r.geregistreerd, r.aantal, getalOfLeeg(r.extraActief.totaal), getalOfLeeg(r.extraWacht.totaal), r.metingIds.join(', ')]);
+  rijen.push([]);
+  rijen.push([{ v: 'Voorkomens per categorie', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'Categorie', 'Aantal knelpunten', 'Knelpunten (MetingID/StapID)'].map(kop));
+  for (const [procesId, a] of analyses) for (const r of a.perCategorie) rijen.push([procesId, a.casustype, r.categorie, r.aantal, r.ids.join(', ')]);
+  rijen.push([]);
+  rijen.push([{ v: 'Uitsplitsing per medewerker', s: 'titel' }]);
+  rijen.push(['ProcesID', 'Casustype', 'MedewerkerID', 'Metingen', 'Metingen met knelpunt', 'Aantal knelpunten', 'Totaal extra actief (min)', 'Totaal extra wacht (min)'].map(kop));
+  for (const [procesId, a] of analyses) for (const r of a.perMedewerker) rijen.push([procesId, a.casustype, medewerkerLabel(r.medewerkerId), r.metingen, r.metKnelpunt, r.aantal, getalOfLeeg(r.extraActief.totaal), getalOfLeeg(r.extraWacht.totaal)]);
+  return { naam: 'Knelpuntenanalyse', rijen, kolombreedtes: [14, 14, 22, 30, 14, 16, 14, 18, 18, 10, 18, 18, 10, 40], kopRij };
 }
 
 /** Tabblad 'Totaaloverzicht': totale frequentie en geschatte actieve tijdsbelasting per proces en periode. */
@@ -5056,6 +5451,7 @@ function methodeBlad(filters) {
   r.push(['Controle proces- en stapmetingen', `Als bij een procesmeting een totale actieve tijd of wachttijd is genoteerd, wordt die vergeleken met de som van de stapmetingen. Een verschil groter dan ${fmtGetal(CONTROLE_TOLERANTIE)} minuut geeft een waarschuwing (opslaan blijft mogelijk) en staat in het tabblad Per medewerker. Voor alle berekeningen wordt de som van de stapmetingen gebruikt.`]);
   r.push(['Gekopieerde tijden', 'Tijdvastlegging "Gekopieerd" = waarde overgenomen bij het dupliceren van een eerdere meting; "Gekopieerd, handmatig aangepast" = daarna door de gebruiker gewijzigd.']);
   r.push(['Diensttijdblokken', 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd (optioneel, geheel getal ≥ 0). Berekeningen (totaal ÷ totaal, normale gevallen, binnen de filters): dienstperioden per dossier = Σ dienstperioden ÷ Σ dossiers; diensttijdblokken per dossier = Σ blokken ÷ Σ dossiers; actieve tijd per diensttijdblok = Σ actieve tijd ÷ Σ blokken; geschat aantal blokken per periode = blokken per dossier × totale frequentie; verhouding = Σ blokken ÷ Σ dienstperioden. Metingen zonder aantal blokken tellen alleen niet mee in de berekeningen per blok. De geschatte actieve tijdsbelasting wordt NIET met het aantal blokken vermenigvuldigd: de tijd voor de blokken zit al in de actieve tijd per dossier.']);
+  r.push(['Knelpunten', 'Per processtap kan worden vastgelegd of er een knelpunt was (ja/nee; leeg = niet geregistreerd), met categorie, korte omschrijving, gevolg(en), geschatte extra actieve tijd en wachttijd en bron. Per procesmeting kunnen het belangrijkste knelpunt en bijzonderheden worden vastgelegd. Analyse (binnen de filters, normale gevallen en uitzonderingen apart): aantal en percentage metingen met minimaal één knelpunt (van alle metingen), voorkomens per stap, per categorie en per medewerker, en totale en gemiddelde geschatte extra tijd (gemiddelde per knelpunt met een schatting). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd en wachttijd en wordt NIET opgeteld bij procesduur, gemiddelden of tijdsbelasting (geen dubbeltelling).']);
   r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
   r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
   r.push(['Meetellen in totaal', 'Ja / Nee door de gebruiker gekozen. Bij frequentiemetingen uit eerdere versies is dit "Nog niet bepaald"; die tellen niet mee in het totaal, zodat oude frequenties niet automatisch dubbel worden geteld.']);
@@ -5088,8 +5484,10 @@ async function exporteerExcel() {
     resultatenBlad(filters),
     totaalBlad(filters),
     medewerkerBlad(filters),
+    knelpuntBlad(filters),
     ruwBlad('Procesmetingen', KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), [16, 11, 12, 34, 13, 13, 9, 14, 24, 40, 22, 22, 13]),
     ruwBlad('Stapmetingen', KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), [16, 16, 9, 34, 16, 16, 34, 34, 24, 13]),
+    ruwBlad('Knelpunten', KOLOMMEN_KNELPUNTEN, alleKnelpuntRijen(), [12, 26, 16, 16, 28, 12, 12, 10, 10, 18, 12, 10, 28, 40, 34, 14, 14, 22, 14, 14, 34, 34]),
     ruwBlad('Frequentie', KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), [18, 12, 20, 18, 14, 14, 24, 40, 22, 22, 13]),
     methodeBlad(filters),
   ]);
@@ -5189,6 +5587,11 @@ function controleerBackup(json) {
     if (!getalOfNull(s.actieveTijd) || s.actieveTijd < 0) fouten.push(`${l}: actieve tijd is ongeldig.`);
     if (!getalOfNull(s.wachttijd) || s.wachttijd < 0) fouten.push(`${l}: wachttijd is ongeldig.`);
     if (s.wachttijd > 0 && !tekst(s.redenWachttijd)) fouten.push(`${l}: wachttijd zonder reden.`);
+    if (s.knelpunt !== undefined && typeof s.knelpunt !== 'boolean') fouten.push(`${l}: "knelpunt aanwezig" is ongeldig.`);
+    if (s.knelpuntCategorie && !KNELPUNT_CATEGORIEEN.includes(s.knelpuntCategorie)) fouten.push(`${l}: knelpuntcategorie is ongeldig.`);
+    if (s.knelpuntBron && !KNELPUNT_BRONNEN.includes(s.knelpuntBron)) fouten.push(`${l}: bron van het knelpunt is ongeldig.`);
+    if (s.knelpuntGevolgen !== undefined && (!Array.isArray(s.knelpuntGevolgen) || s.knelpuntGevolgen.some((g) => !KNELPUNT_GEVOLGEN.includes(g)))) fouten.push(`${l}: gevolg(en) van het knelpunt zijn ongeldig.`);
+    for (const v of ['knelpuntExtraActief', 'knelpuntExtraWacht']) if (s[v] !== undefined && s[v] !== null && !(isGetal(s[v]) && s[v] >= 0)) fouten.push(`${l}: geschatte extra tijd van het knelpunt is ongeldig.`);
   });
   json.frequentiemetingen.forEach((f, i) => {
     const l = `Frequentiemeting ${f.frequentieId || i + 1}`;
@@ -5464,12 +5867,14 @@ const ACTIES = {
   'csv-procesmetingen': () => exporteerCsv('procesmetingen'),
   'csv-stapmetingen': () => exporteerCsv('stapmetingen'),
   'csv-frequentie': () => exporteerCsv('frequentie'),
+  'csv-knelpunten': () => exporteerCsv('knelpunten'),
   'backup-download': () => downloadBackup(),
   'backup-import': () => $('#backupBestand').click(),
   'demo-laden': () => laadDemo(),
   'demo-verwijderen': () => verwijderDemo(),
   'alles-wissen': () => wisAlleGegevens(),
   'totaal-onderliggend': () => toonTotaalOnderliggend(),
+  'knelpunten-bekijken': () => toonKnelpunten(),
   'metingen-medewerker': (el) => toonMetingenVanMedewerker(el.dataset.medewerker, el.dataset.casustype),
   'aantal-aanvullen': (el) => vulAantalUitvoeringenAanMetBevestiging(el.dataset.proces || null),
 };
@@ -5553,6 +5958,7 @@ async function start() {
     medewerkerSamenvatting,
     berekenTotaalOverzicht,
     blokkenAnalyse,
+    knelpuntAnalyse,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,

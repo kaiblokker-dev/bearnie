@@ -318,3 +318,10 @@ tr.gekozen > td:first-child { box-shadow: inset 4px 0 0 var(--groen-donker); }
 }
 .conceptstatus { font-size: 13px; color: var(--tekst-zacht); }
 .afwijking { color: var(--waarschuwing); font-weight: 600; cursor: help; }
+
+/* Knelpunt per processtap */
+tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; padding: 8px 10px 10px 24px; }
+.knelpuntvelden { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px 14px; margin-bottom: 4px; }
+.knelpuntvelden .keuzes { gap: 4px 12px; }
+.knelpuntvelden .keuzes label { font-size: 13px; }
+.knelpuntlabel { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; vertical-align: middle; }

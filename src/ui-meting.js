@@ -56,6 +56,7 @@ function initMetingFormulier() {
       if (s && (s.tijdvastlegging === 'Timer' || s.tijdvastlegging === 'Gekopieerd')) { s.tijdvastlegging += ', handmatig aangepast'; werkBronLabelBij(rij, s); }
       if (e.target.dataset.veld === 'wachttijd') werkRedenZichtbaarheidBij(rij);
     }
+    if (rij && e.target.dataset.veld === 'knelpunt') werkKnelpuntRijBij(rij);
     werkKalenderweekBij();
     werkBerekeningBij();
     planMetingConcept();
@@ -100,14 +101,18 @@ function renderMetingStappen(waarden = {}) {
       <td><input type="text" class="tijd" data-veld="wachttijd" inputmode="decimal" value="${esc(typeof w.wachttijd === 'string' ? w.wachttijd : naarInvoer(w.wachttijd))}" aria-label="Wachttijd in minuten voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="redenWachttijd" value="${esc(w.redenWachttijd || '')}" placeholder="Verplicht bij wachttijd" aria-label="Reden wachttijd voor ${esc(s.stapId)}"></td>
       <td><input type="text" data-veld="opmerking" value="${esc(w.opmerking || '')}" placeholder="Optioneel" aria-label="Opmerking voor ${esc(s.stapId)}"></td>
+      <td><select data-veld="knelpunt" aria-label="Knelpunt aanwezig bij ${esc(s.stapId)}">
+        ${[['', '–'], ['nee', 'Nee'], ['ja', 'Ja']].map(([w2, l]) => `<option value="${w2}" ${knelpuntKeuze(w) === w2 ? 'selected' : ''}>${l}</option>`).join('')}
+      </select></td>
       <td class="timer">
         <span class="timerweergave" data-timerweergave>0:00</span>
         <span data-timerknoppen></span>
       </td>
-    </tr>`;
+    </tr>
+    ${knelpuntRijHtml(s, w)}`;
   }).join('');
   houder.innerHTML = `<div class="tabelhouder"><table class="stappen">
-    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min) ${infoHtml('actief')}</th><th>Wachttijd (min) ${infoHtml('wacht')}</th><th>Reden wachttijd</th><th>Opmerking</th><th class="timer">Timer</th></tr></thead>
+    <thead><tr><th>StapID</th><th>Processtap</th><th>Actieve tijd (min) ${infoHtml('actief')}</th><th>Wachttijd (min) ${infoHtml('wacht')}</th><th>Reden wachttijd</th><th>Opmerking</th><th>Knelpunt ${infoHtml('knelpunt')}</th><th class="timer">Timer</th></tr></thead>
     <tbody>${rijen}</tbody></table></div>
     <p class="klein zacht">Tijden in minuten; decimalen met komma of punt. Vul 0 in als er geen wachttijd was. De timer vult de velden pas na <em>Afronden</em>; controleer en corrigeer de waarden altijd vóór het opslaan.</p>`;
   for (const rij of $$('tr[data-stap]', houder)) {
@@ -115,8 +120,80 @@ function renderMetingStappen(waarden = {}) {
     werkRedenZichtbaarheidBij(rij);
     werkBronLabelBij(rij, s);
     werkTimerWeergaveBij(rij.dataset.stap);
+    werkKnelpuntRijBij(rij);
   }
   werkBerekeningBij();
+}
+
+// ---------- Knelpunt per processtap ----------
+
+function knelpuntKeuze(w) {
+  if (w.knelpunt === true || w.knelpunt === 'ja') return 'ja';
+  if (w.knelpunt === false || w.knelpunt === 'nee') return 'nee';
+  return '';
+}
+
+/** Vervolgvelden van een knelpunt, direct onder de stap; alleen zichtbaar bij 'Ja'. */
+function knelpuntRijHtml(s, w) {
+  const invoer = (v) => (typeof v === 'string' ? v : naarInvoer(v));
+  const gevolgen = Array.isArray(w.knelpuntGevolgen) ? w.knelpuntGevolgen : [];
+  const opties = (lijst, gekozen) => `<option value="">— Kies —</option>${lijst.map((x) => `<option ${x === gekozen ? 'selected' : ''}>${esc(x)}</option>`).join('')}`;
+  return `<tr class="knelpuntrij" data-knelpunt-voor="${esc(s.stapId)}" hidden><td colspan="8">
+    <div class="knelpuntvelden">
+      <div class="veld"><label>Categorie</label><select data-kveld="knelpuntCategorie">${opties(KNELPUNT_CATEGORIEEN, w.knelpuntCategorie)}</select></div>
+      <div class="veld" style="grid-column: span 2"><label>Korte omschrijving van het knelpunt</label><input type="text" data-kveld="knelpuntOmschrijving" maxlength="200" value="${esc(w.knelpuntOmschrijving || '')}" placeholder="Optioneel"></div>
+      <div class="veld"><label>Bron</label><select data-kveld="knelpuntBron">${opties(KNELPUNT_BRONNEN, w.knelpuntBron)}</select></div>
+      <div class="veld"><label>Geschatte extra actieve tijd (min)</label><input type="text" class="tijd" inputmode="decimal" data-kveld="knelpuntExtraActief" value="${esc(invoer(w.knelpuntExtraActief))}" placeholder="Optioneel"></div>
+      <div class="veld"><label>Geschatte extra wachttijd (min)</label><input type="text" class="tijd" inputmode="decimal" data-kveld="knelpuntExtraWacht" value="${esc(invoer(w.knelpuntExtraWacht))}" placeholder="Optioneel"></div>
+      <div class="veld" style="grid-column: span 2"><span class="label">Gevolg (meerdere mogelijk)</span><div class="keuzes">
+        ${KNELPUNT_GEVOLGEN.map((g) => `<label><input type="checkbox" data-kgevolg value="${esc(g)}" ${gevolgen.includes(g) ? 'checked' : ''}> ${esc(g)}</label>`).join('')}
+      </div></div>
+    </div>
+    <div class="klein zacht">De geschatte extra tijd is verklarend: die zit al in de gemeten tijd van deze stap en wordt niet opnieuw opgeteld.</div>
+  </td></tr>`;
+}
+
+function knelpuntRij(stapId) {
+  return $(`tr[data-knelpunt-voor="${CSS.escape(stapId)}"]`, $('#mStappen'));
+}
+
+function werkKnelpuntRijBij(rij) {
+  const sub = knelpuntRij(rij.dataset.stap);
+  if (sub) sub.hidden = $('[data-veld="knelpunt"]', rij).value !== 'ja';
+}
+
+/** Leest de knelpuntvelden van een stap. Geeft de velden voor de stapmeting (leeg object = niet geregistreerd). */
+function leesKnelpunt(stapId, rij, invoerFouten) {
+  const keuze = $('[data-veld="knelpunt"]', rij).value;
+  if (keuze === 'nee') return { knelpunt: false };
+  if (keuze !== 'ja') return {};
+  const sub = knelpuntRij(stapId);
+  const getal = (veld, naam) => {
+    const el = $(`[data-kveld="${veld}"]`, sub);
+    const r = leesGetal(el.value);
+    if (r.fout) invoerFouten.push(`${stapId} – ${naam}: ${r.fout}`);
+    el.classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && r.waarde < 0));
+    return r.fout ? NaN : r.waarde;
+  };
+  return {
+    knelpunt: true,
+    knelpuntCategorie: $('[data-kveld="knelpuntCategorie"]', sub).value,
+    knelpuntOmschrijving: $('[data-kveld="knelpuntOmschrijving"]', sub).value.trim(),
+    knelpuntGevolgen: $$('[data-kgevolg]', sub).filter((c) => c.checked).map((c) => c.value),
+    knelpuntExtraActief: getal('knelpuntExtraActief', 'geschatte extra actieve tijd'),
+    knelpuntExtraWacht: getal('knelpuntExtraWacht', 'geschatte extra wachttijd'),
+    knelpuntBron: $('[data-kveld="knelpuntBron"]', sub).value,
+  };
+}
+
+/** Ruwe invoer van de knelpuntvelden, voor het concept. */
+function knelpuntConceptWaarden(rij) {
+  const sub = knelpuntRij(rij.dataset.stap);
+  const v = { knelpunt: $('[data-veld="knelpunt"]', rij).value };
+  if (!sub) return v;
+  for (const el of $$('[data-kveld]', sub)) v[el.dataset.kveld] = el.value;
+  v.knelpuntGevolgen = $$('[data-kgevolg]', sub).filter((c) => c.checked).map((c) => c.value);
+  return v;
 }
 
 function werkBronLabelBij(rij, s) {
@@ -167,6 +244,8 @@ function leesMetingFormulier() {
     ...formulierEenheden,
     meetwijze: $('#mMeetwijze').value,
     toelichting: $('#mToelichting').value.trim(),
+    belangrijksteKnelpunt: $('#mBelangrijksteKnelpunt').value.trim(),
+    bijzonderheden: $('#mBijzonderheden').value.trim(),
     actieveTijdTotaal,
     wachttijdTotaal,
   };
@@ -196,6 +275,7 @@ function leesMetingFormulier() {
       redenWachttijd,
       opmerking: $('[data-veld="opmerking"]', rij).value.trim(),
       tijdvastlegging: s.tijdvastlegging,
+      ...leesKnelpunt(s.stapId, rij, invoerFouten),
     };
   });
   return { meting, stapmetingen, invoerFouten };
@@ -280,6 +360,8 @@ function resetMetingFormulier(behoudAlgemeen) {
   $('#mAantal').value = '';
   $('#mOmvang').value = '';
   $('#mBlokken').value = '';
+  $('#mBelangrijksteKnelpunt').value = '';
+  $('#mBijzonderheden').value = '';
   $('#mActiefTotaal').value = '';
   $('#mWachtTotaal').value = '';
   $('#mTest').checked = false;
@@ -312,6 +394,8 @@ function bewerkMeting(metingId) {
   $('#mAantal').value = 'aantalUitvoeringen' in m ? naarInvoer(m.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(m.omvang);
   $('#mBlokken').value = naarInvoer(m.aantalBlokken);
+  $('#mBelangrijksteKnelpunt').value = m.belangrijksteKnelpunt || '';
+  $('#mBijzonderheden').value = m.bijzonderheden || '';
   $('#mActiefTotaal').value = naarInvoer(m.actieveTijdTotaal);
   $('#mWachtTotaal').value = naarInvoer(m.wachttijdTotaal);
   $('#mTest').checked = isTestmeting(m);
@@ -476,7 +560,7 @@ async function dupliceerMeting(metingId) {
   for (const s of stapmetingenVan(metingId)) {
     const stap = formulierStappen.find((x) => x.stapId === s.stapId);
     if (!stap) continue;
-    waarden[s.stapId] = { actieveTijd: s.actieveTijd, wachttijd: s.wachttijd, redenWachttijd: s.redenWachttijd, opmerking: s.opmerking };
+    waarden[s.stapId] = { ...s };
     stap.tijdvastlegging = 'Gekopieerd';
   }
   $('#mDatum').value = vandaagIso();
@@ -485,6 +569,8 @@ async function dupliceerMeting(metingId) {
   $('#mAantal').value = 'aantalUitvoeringen' in bron ? naarInvoer(bron.aantalUitvoeringen) : '';
   $('#mOmvang').value = naarInvoer(bron.omvang);
   $('#mBlokken').value = naarInvoer(bron.aantalBlokken);
+  $('#mBelangrijksteKnelpunt').value = bron.belangrijksteKnelpunt || '';
+  $('#mBijzonderheden').value = bron.bijzonderheden || '';
   $('#mMeetwijze').value = bron.meetwijze || '';
   $('#mToelichting').value = bron.toelichting || '';
   $('#mActiefTotaal').value = naarInvoer(bron.actieveTijdTotaal);
@@ -519,7 +605,7 @@ function annuleerMetingConceptTimer() {
 /** Alleen echte invoer is een concept waard (niet alleen een gekozen proces). */
 function metingConceptHeeftInhoud(g) {
   const v = g.velden;
-  return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.blokken || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
+  return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.blokken || v.belangrijksteKnelpunt || v.bijzonderheden || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
     || Object.values(g.waarden).some((w) => Object.values(w).some((x) => String(x).trim() !== ''))
     || /Kopie van meting/.test(g.melding || ''));
 }
@@ -527,7 +613,10 @@ function metingConceptHeeftInhoud(g) {
 function metingConceptGegevens() {
   const waarden = {};
   for (const rij of $$('tr[data-stap]', $('#mStappen'))) {
-    waarden[rij.dataset.stap] = Object.fromEntries(['actieveTijd', 'wachttijd', 'redenWachttijd', 'opmerking'].map((v) => [v, $(`[data-veld="${v}"]`, rij).value]));
+    waarden[rij.dataset.stap] = {
+      ...Object.fromEntries(['actieveTijd', 'wachttijd', 'redenWachttijd', 'opmerking'].map((v) => [v, $(`[data-veld="${v}"]`, rij).value])),
+      ...knelpuntConceptWaarden(rij),
+    };
   }
   const casus = $('input[name="casustype"]:checked');
   return {
@@ -537,7 +626,8 @@ function metingConceptGegevens() {
     procesId: metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value,
     velden: {
       datum: $('#mDatum').value, medewerker: $('#mMedewerker').value, casustype: casus ? casus.value : '',
-      aantal: $('#mAantal').value, omvang: $('#mOmvang').value, blokken: $('#mBlokken').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
+      aantal: $('#mAantal').value, omvang: $('#mOmvang').value, blokken: $('#mBlokken').value,
+      belangrijksteKnelpunt: $('#mBelangrijksteKnelpunt').value, bijzonderheden: $('#mBijzonderheden').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
       actiefTotaal: $('#mActiefTotaal').value, wachtTotaal: $('#mWachtTotaal').value, test: $('#mTest').checked,
     },
     stappen: formulierStappen,
@@ -575,6 +665,8 @@ function herstelMetingConcept() {
   $('#mAantal').value = v.aantal || '';
   $('#mOmvang').value = v.omvang || '';
   $('#mBlokken').value = v.blokken || '';
+  $('#mBelangrijksteKnelpunt').value = v.belangrijksteKnelpunt || '';
+  $('#mBijzonderheden').value = v.bijzonderheden || '';
   $('#mMeetwijze').value = v.meetwijze || '';
   $('#mToelichting').value = v.toelichting || '';
   $('#mActiefTotaal').value = v.actiefTotaal || '';

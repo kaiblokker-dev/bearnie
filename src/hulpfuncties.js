@@ -315,6 +315,7 @@ const UITLEG = {
   tijdsbelasting: 'Geschatte actieve tijdsbelasting: totale frequentie × gemiddelde actieve tijd per procesuitvoering. Wachttijd telt niet mee.',
   meetellen: 'Meetellen in totaal: alleen aanvinken als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Alleen aangevinkte frequenties worden opgeteld.',
   blokken: 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd. Bijv. 40 beoordeelde dienstperioden → 4 diensttijdblokken.',
+  knelpunt: 'Knelpunt: iets dat de uitvoering van een stap hindert (bijv. wachten, systeem, onduidelijke informatie). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd of wachttijd en wordt niet opnieuw opgeteld bij de procesduur of tijdsbelasting.',
   test: 'Test/fictieve meting: blijft zichtbaar in de ruwe gegevens, maar telt standaard niet mee in gemiddelden, grafieken, totalen en tijdsbelasting.',
 };
 

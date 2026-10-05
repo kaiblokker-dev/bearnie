@@ -16,13 +16,15 @@ function maakDemogegevens() {
     ['DEMO-PR02', 3, 'Bevestiging versturen'],
   ].map(([procesId, volgorde, naam]) => ({ stapId: `${procesId}-S0${volgorde}`, procesId, volgorde, naam, demo: true }));
 
-  // [procesId, nr, datum, medewerker, casustype, aantal uitvoeringen, omvang, meetwijze, [[actief, wacht, reden, opmerking], ...]]
+  // Fictieve knelpunten (versie 1.6). false = expliciet geen knelpunt; ontbreekt = niet geregistreerd.
+  const KP_WACHTEN = { knelpunt: true, knelpuntCategorie: 'Wachten', knelpuntOmschrijving: 'Reactie werkgever nodig voor beoordeling', knelpuntGevolgen: ['Extra wachttijd', 'Vertraging in de doorlooptijd'], knelpuntExtraActief: null, knelpuntExtraWacht: 15, knelpuntBron: 'Door medewerker aangegeven' };
+  // [procesId, nr, datum, medewerker, casustype, aantal uitvoeringen, omvang, meetwijze, [[actief, wacht, reden, opmerking, knelpunt], ...]]
   const metingen = [
     ['DEMO-PR01', 1, '2026-03-02', 'PZ01', 'Normaal', 1, 4, 'Gemeten', [[6, 0], [12.5, 0], [4, 0]]],
-    ['DEMO-PR01', 2, '2026-03-03', 'PZ02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever'], [3.5, 0]]],
-    ['DEMO-PR01', 3, '2026-03-04', 'PZ01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag']]],
+    ['DEMO-PR01', 2, '2026-03-03', 'PZ02', 'Normaal', 1, 3, 'Gemeten', [[5.5, 0], [10, 15, 'Wachten op reactie werkgever', '', KP_WACHTEN], [3.5, 0, '', '', null, false]]],
+    ['DEMO-PR01', 3, '2026-03-04', 'PZ01', 'Normaal', 1, 6, 'Gemeten', [[7, 0], [14, 0], [4.5, 2, 'Systeemvertraging', 'Rekenmodule traag', { knelpunt: true, knelpuntCategorie: 'Systeem', knelpuntOmschrijving: 'Rekenmodule reageert traag', knelpuntGevolgen: ['Extra wachttijd'], knelpuntExtraActief: null, knelpuntExtraWacht: 2, knelpuntBron: 'Geobserveerd' }]]],
     ['DEMO-PR01', 4, '2026-03-05', 'PZ03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
-    ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0], [25, 120, 'Ontbrekende loongegevens opgevraagd'], [6, 0]]],
+    ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0, '', '', null, false], [25, 120, 'Ontbrekende loongegevens opgevraagd', '', { knelpunt: true, knelpuntCategorie: 'Ontbrekende of onduidelijke informatie', knelpuntOmschrijving: 'Loongegevens ontbraken in het dossier', knelpuntGevolgen: ['Extra actieve tijd', 'Extra wachttijd', 'Vertraging in de doorlooptijd'], knelpuntExtraActief: 8, knelpuntExtraWacht: 120, knelpuntBron: 'Geobserveerd' }], [6, 0, '', '', null, false]]],
     ['DEMO-PR01', 6, '2026-03-10', 'PZ03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
     ['DEMO-PR02', 1, '2026-03-02', 'PZ04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
     ['DEMO-PR02', 2, '2026-03-06', 'PZ04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
@@ -38,11 +40,12 @@ function maakDemogegevens() {
       ...eenhedenUit(proces), meetwijze, toelichting: 'Fictieve demometing', demo: true, aangemaakt: tijd, gewijzigd: null,
     });
     const procesStappen = stappen.filter((s) => s.procesId === procesId);
-    rijen.forEach(([actief, wacht, reden, opmerking], i) => {
+    rijen.forEach(([actief, wacht, reden, opmerking, knelpunt], i) => {
       const s = procesStappen[i];
       stapmetingen.push({
         metingId, stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.naam, actieveTijd: actief, wachttijd: wacht,
-        redenWachttijd: reden || '', opmerking: opmerking || '', tijdvastlegging: 'Handmatig', demo: true,
+        redenWachttijd: reden || '', opmerking: opmerking || '', tijdvastlegging: 'Handmatig',
+        ...(knelpunt === false ? { knelpunt: false } : knelpunt || {}), demo: true,
       });
     });
   }

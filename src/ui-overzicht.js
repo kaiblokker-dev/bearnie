@@ -74,8 +74,8 @@ function renderOverzichtTabel() {
 function renderProcesmetingenTabel(f) {
   const lijst = staat.procesmetingen
     .filter((m) => metingVoldoetAanOverzicht(m, f))
-    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting,
-      ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking])], f.zoek))
+    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting, m.belangrijksteKnelpunt, m.bijzonderheden,
+      ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking, ...knelpuntZoekwaarden(s)])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
   const nTest = lijst.filter(isTestmeting).length;
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.procesmetingen.length} procesmetingen (${lijst.length - nTest} echt, ${nTest} test/fictief)`;
@@ -86,7 +86,7 @@ function renderProcesmetingenTabel(f) {
     const stappen = stapmetingenVan(m.metingId);
     let html = `<tr>
       <td><button type="button" class="klein" data-actie="meting-uitklappen" data-id="${esc(m.metingId)}" aria-expanded="${open}" title="Stapmetingen tonen of verbergen">${open ? '▾' : '▸'} ${stappen.length}</button></td>
-      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}</td>
+      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}${knelpuntLabel(stappen)}</td>
       <td>${esc(fmtDatum(m.datum))}<br><span class="klein zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
@@ -116,11 +116,33 @@ function renderProcesmetingenTabel(f) {
     <tbody>${rijen}</tbody></table>`;
 }
 
+function knelpuntZoekwaarden(s) {
+  return s.knelpunt ? ['knelpunt', s.knelpuntCategorie, s.knelpuntOmschrijving, ...(s.knelpuntGevolgen || []), s.knelpuntBron] : [];
+}
+
+/** Compacte weergave van het knelpunt van een stapmeting (ruwe invoer; extra tijd is verklarend). */
+function knelpuntCelHtml(s) {
+  if (s.knelpunt === false) return 'Nee';
+  if (s.knelpunt !== true) return '<span class="zacht">—</span>';
+  const delen = [];
+  if (isGetal(s.knelpuntExtraActief)) delen.push(`+${fmtGetal(s.knelpuntExtraActief)} min actief`);
+  if (isGetal(s.knelpuntExtraWacht)) delen.push(`+${fmtGetal(s.knelpuntExtraWacht)} min wacht`);
+  return `<strong>Ja</strong>${s.knelpuntCategorie ? ` – ${esc(s.knelpuntCategorie)}` : ''}${s.knelpuntOmschrijving ? `<br>${esc(s.knelpuntOmschrijving)}` : ''}`
+    + `${(s.knelpuntGevolgen || []).length ? `<br><span class="zacht">Gevolg: ${esc(s.knelpuntGevolgen.join(', '))}</span>` : ''}`
+    + `${delen.length ? `<br><span class="zacht">Geschat: ${esc(delen.join(', '))}</span>` : ''}`
+    + `${s.knelpuntBron ? `<br><span class="zacht">Bron: ${esc(s.knelpuntBron)}</span>` : ''}`;
+}
+
+function knelpuntLabel(stappen) {
+  const n = stappen.filter((s) => s.knelpunt === true).length;
+  return n ? ` <span class="knelpuntlabel" title="${n} ${n === 1 ? 'processtap' : 'processtappen'} met knelpunt">${n} knelpunt${n === 1 ? '' : 'en'}</span>` : '';
+}
+
 function stapmetingenMiniTabel(stappen) {
   if (!stappen.length) return '<span class="zacht">Geen stapmetingen.</span>';
-  return `<table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th></tr></thead><tbody>
+  return `<table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th>Knelpunt</th></tr></thead><tbody>
     ${stappen.map((s) => `<tr><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td><td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td>
-      <td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td></tr>`).join('')}
+      <td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td><td class="klein">${knelpuntCelHtml(s)}</td></tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -130,17 +152,17 @@ function renderStapmetingenTabel(f) {
     .filter((s) => metingen.has(s.metingId))
     .filter((s) => {
       const m = metingen.get(s.metingId);
-      return bevatZoekterm([s.metingId, s.stapId, s.stapnaam, s.actieveTijd, s.wachttijd, s.redenWachttijd, s.opmerking, s.tijdvastlegging, m.procesId, m.medewerkerId, fmtDatum(m.datum)], f.zoek);
+      return bevatZoekterm([s.metingId, s.stapId, s.stapnaam, s.actieveTijd, s.wachttijd, s.redenWachttijd, s.opmerking, s.tijdvastlegging, ...knelpuntZoekwaarden(s), m.procesId, m.medewerkerId, fmtDatum(m.datum)], f.zoek);
     })
     .sort((a, b) => vergelijkTekst(b.metingId, a.metingId) || a.volgorde - b.volgorde);
   $('#overzichtTelling').textContent = `${lijst.length} van ${staat.stapmetingen.length} stapmetingen`;
   if (!lijst.length) { $('#overzichtTabel').innerHTML = '<p class="zacht">Geen stapmetingen gevonden.</p>'; return; }
   $('#overzichtTabel').innerHTML = `<table>
-    <thead><tr><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th></th></tr></thead>
+    <thead><tr><th>MetingID</th><th>Datum</th><th>ProcesID</th><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th>Knelpunt</th><th></th></tr></thead>
     <tbody>${lijst.map((s) => {
       const m = metingen.get(s.metingId);
       return `<tr><td class="mono">${esc(s.metingId)}${demoLabel(s)}${testLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${esc(m.procesId)}</td><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td>
-        <td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td><td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td>
+        <td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td><td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td><td class="klein">${knelpuntCelHtml(s)}</td>
         <td class="acties"><button type="button" class="klein" data-actie="meting-openen" data-id="${esc(s.metingId)}">Meting openen</button></td></tr>`;
     }).join('')}</tbody></table>
     <p class="klein zacht">Stapmetingen aanpassen of verwijderen gaat via de bijbehorende procesmeting.</p>`;
@@ -191,6 +213,8 @@ function metingDetailHtml(m) {
         <dt>Eenheden</dt><dd class="klein">uitvoeringseenheid: ${esc(e.uitvoeringseenheid)} · omvangseenheid: ${esc(e.omvangseenheid)}</dd>
         <dt>Meetwijze</dt><dd>${meetwijzeHtml(m.meetwijze)}</dd>
         <dt>Algemene toelichting</dt><dd>${esc(m.toelichting || '—')}</dd>
+        <dt>Belangrijkste knelpunt tijdens deze uitvoering</dt><dd>${esc(m.belangrijksteKnelpunt || '—')}</dd>
+        <dt>Bijzonderheden of uitzonderingen</dt><dd>${esc(m.bijzonderheden || '—')}</dd>
         <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(m.aangemaakt))}</dd>
         <dt>Laatst gewijzigd</dt><dd>${m.gewijzigd ? esc(fmtTijdstip(m.gewijzigd)) : 'Niet gewijzigd'}</dd>
       </dl>
