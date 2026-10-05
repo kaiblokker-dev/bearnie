@@ -5,9 +5,17 @@
 // Ontbrekende waarden worden nooit als nul behandeld: een berekening waarvoor een
 // waarde ontbreekt, levert null op ('Onbekend') en de reden wordt vastgelegd.
 
-/** Filtert procesmetingen. filters: { procesId, meetwijze ('alle' | groepcode), van, tot } */
+// Waarde van het medewerkerfilter voor metingen zonder MedewerkerID.
+const MEDEWERKER_LEEG = '__leeg__';
+
+/**
+ * Filtert procesmetingen.
+ * filters: { procesId, meetwijze ('alle' | groepcode), van, tot, medewerker ('' = alle | MEDEWERKER_LEEG | MedewerkerID) }
+ */
 function metingVoldoetAanFilters(m, filters) {
   if (filters.procesId && m.procesId !== filters.procesId) return false;
+  if (filters.medewerker === MEDEWERKER_LEEG && m.medewerkerId) return false;
+  if (filters.medewerker && filters.medewerker !== MEDEWERKER_LEEG && m.medewerkerId !== filters.medewerker) return false;
   if (filters.meetwijze && filters.meetwijze !== 'alle') {
     const groep = MEETWIJZE_GROEPEN.find((g) => g.code === filters.meetwijze);
     if (!groep || m.meetwijze !== groep.meting) return false;
@@ -37,6 +45,8 @@ function berekenMeting(m) {
     // Aanvullend: per omvangseenheid (bijv. per dienstperiode)
     actiefPerOmvang: deel(totaalActief, omvangBekend, m.omvang),
     wachtPerOmvang: deel(totaalWacht, omvangBekend, m.omvang),
+    // Omvang per uitvoering (bijv. dienstperioden per dossier)
+    omvangPerUitvoering: deel(omvangBekend ? m.omvang : null, aantalBekend, m.aantalUitvoeringen),
     ontbrekendActief,
     ontbrekendWacht,
     aantalBekend,
@@ -168,8 +178,46 @@ function berekenTijdsbelasting(frequentie, groepNormaal, procesId) {
   };
 }
 
+/**
+ * Resultaten per medewerker voor één proces en casustype. Iedere waarde wordt per
+ * individuele procesmeting berekend; gemiddelden, minimum en maximum (ook de
+ * gecombineerde rij voor alle medewerkers) volgen rechtstreeks uit die metingen,
+ * niet uit de gemiddelden per medewerker. Het medewerkerfilter wordt hier genegeerd.
+ */
+function medewerkerSamenvatting(procesId, filters, casustype) {
+  const metingen = staat.procesmetingen
+    .filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId, medewerker: '' }) && m.casustype === casustype)
+    .sort((a, b) => vergelijkTekst(a.metingId, b.metingId));
+  const vat = (lijst) => {
+    const rijen = lijst.map((m) => ({ m, b: berekenMeting(m) }));
+    const reeks = (k) => beschrijf(rijen.map(({ m, b }) => ({ metingId: m.metingId, waarde: b[k] })));
+    return {
+      aantal: lijst.length,
+      metingIds: lijst.map((m) => m.metingId),
+      actief: reeks('actiefPerUitvoering'),
+      wacht: reeks('wachtPerUitvoering'),
+      omvang: reeks('omvangPerUitvoering'),
+    };
+  };
+  const ids = uniek(metingen.map((m) => m.medewerkerId || '')).sort((a, b) => (a === '') - (b === '') || vergelijkTekst(a, b));
+  return {
+    perMedewerker: ids.map((id) => ({ medewerkerId: id, ...vat(metingen.filter((m) => (m.medewerkerId || '') === id)) })),
+    totaal: vat(metingen),
+  };
+}
+
+/** Alle MedewerkerID's die bij een proces voorkomen (zonder lege). */
+function medewerkersVanProces(procesId) {
+  return uniek(staat.procesmetingen.filter((m) => m.procesId === procesId && m.medewerkerId).map((m) => m.medewerkerId)).sort(vergelijkTekst);
+}
+
+function medewerkerLabel(id) {
+  return id ? id : '(niet ingevuld)';
+}
+
 function filtersAlsTekst(filters) {
   const delen = [];
+  delen.push('Medewerker: ' + (!filters.medewerker ? 'alle medewerkers' : filters.medewerker === MEDEWERKER_LEEG ? 'zonder MedewerkerID' : filters.medewerker));
   const groep = MEETWIJZE_GROEPEN.find((g) => g.code === filters.meetwijze);
   delen.push('Meetwijze: ' + (groep ? groep.label : 'alle meetwijzen (gemengd)'));
   delen.push('Datum vanaf: ' + (filters.van ? fmtDatum(filters.van) : 'geen'));

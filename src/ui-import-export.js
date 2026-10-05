@@ -187,6 +187,50 @@ function resultatenBlad(filters) {
   return { naam: 'Resultaten', rijen, kolombreedtes: [14, 30, 13, 16, 16, 40, 28, 10, 12, 20, 24, 8, 18, 16, 16, 16, 10, 16, 16, 24, 8, 18, 16, 16, 16, 16, 16, 14, 14, 20, 18, 18, 50, 40, 30, 30, 50], kopRij };
 }
 
+/** Tabblad 'Per medewerker': samenvatting per medewerker en de individuele metingen met berekende waarden. */
+function medewerkerBlad(filters) {
+  const rijen = [];
+  const f = { ...filters, medewerker: '' };
+  rijen.push([{ v: 'Resultaten per medewerker – automatisch berekend uit de individuele procesmetingen', s: 'titel' }]);
+  if (bevatDemo()) rijen.push([{ v: DEMO_WAARSCHUWING, s: 'waarschuwing' }]);
+  rijen.push(['Gebruikte filters', filtersAlsTekst(f) + ' (dit tabblad toont altijd alle medewerkers)']);
+  rijen.push(['Toelichting', 'Iedere waarde is eerst per procesmeting berekend (actieve tijd en wachttijd per uitvoering; omvang per uitvoering = omvang / aantal uitvoeringen). De rij "Alle medewerkers (gecombineerd)" is berekend uit alle individuele metingen samen, niet uit de gemiddelden per medewerker. n = aantal metingen met een bekende waarde. Tijden in minuten.']);
+  rijen.push([]);
+  rijen.push([{ v: 'Samenvatting per medewerker', s: 'titel' }]);
+  const koppen = ['ProcesID', 'Procesnaam', 'Casustype', 'MedewerkerID', 'Uitvoeringseenheid', 'Omvangseenheid', 'Aantal metingen',
+    'n actieve tijd', 'Gemiddelde actieve tijd per uitvoering (min)', 'Minimum actieve tijd per uitvoering (min)', 'Maximum actieve tijd per uitvoering (min)',
+    'n wachttijd', 'Gemiddelde wachttijd per uitvoering (min)', 'n omvang', 'Gemiddelde omvang per uitvoering', 'MetingID\'s'];
+  rijen.push(koppen.map(kop));
+  const kopRij = rijen.length;
+  const individueel = [];
+  for (const procesId of alleProcesIds()) {
+    const e = eenhedenVoorResultaat(procesId, staat.procesmetingen.filter((m) => m.procesId === procesId));
+    for (const c of CASUSTYPEN) {
+      const ms = medewerkerSamenvatting(procesId, f, c);
+      if (!ms.totaal.aantal) continue;
+      const regel = (label, g) => [procesId, procesNaam(procesId), c, label, e.uitvoeringseenheid, e.omvangseenheid, g.aantal,
+        g.actief.n, getalOfLeeg(g.actief.gemiddelde), getalOfLeeg(g.actief.minimum), getalOfLeeg(g.actief.maximum),
+        g.wacht.n, getalOfLeeg(g.wacht.gemiddelde), g.omvang.n, getalOfLeeg(g.omvang.gemiddelde), g.metingIds.join(', ')];
+      for (const g of ms.perMedewerker) rijen.push(regel(medewerkerLabel(g.medewerkerId), g));
+      rijen.push(regel('Alle medewerkers (gecombineerd)', ms.totaal));
+      for (const id of ms.totaal.metingIds) individueel.push(zoekMeting(id));
+    }
+  }
+  rijen.push([]);
+  rijen.push([{ v: 'Individuele procesmetingen (iedere meting afzonderlijk, met berekende waarden)', s: 'titel' }]);
+  rijen.push(['MetingID', 'Datum', 'ProcesID', 'Casustype', 'MedewerkerID', 'Meetwijze', 'Aantal uitvoeringen', 'Uitvoeringseenheid', 'Omvang', 'Omvangseenheid',
+    'Totale actieve tijd (min)', 'Actieve tijd per uitvoering (min)', 'Totale wachttijd (min)', 'Wachttijd per uitvoering (min)', 'Omvang per uitvoering', 'Actieve tijd per omvangseenheid (min)'].map(kop));
+  for (const m of individueel.sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
+    const b = berekenMeting(m);
+    const e = eenhedenVan(m);
+    rijen.push([m.metingId, m.datum, m.procesId, m.casustype, m.medewerkerId || '(niet ingevuld)', m.meetwijze,
+      'aantalUitvoeringen' in m ? getalOfLeeg(m.aantalUitvoeringen) : ONBEKEND, e.uitvoeringseenheid, getalOfLeeg(m.omvang), e.omvangseenheid,
+      getalOfLeeg(b.totaalActief), getalOfLeeg(b.actiefPerUitvoering), getalOfLeeg(b.totaalWacht), getalOfLeeg(b.wachtPerUitvoering),
+      getalOfLeeg(b.omvangPerUitvoering), getalOfLeeg(b.actiefPerOmvang)]);
+  }
+  return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 28, 13, 26, 16, 16, 10, 10, 18, 18, 18, 10, 18, 10, 16, 50], kopRij };
+}
+
 function methodeBlad(filters) {
   const r = [];
   const t = (tekst) => [{ v: tekst, s: 'titel' }];
@@ -226,6 +270,8 @@ function methodeBlad(filters) {
   r.push(['Geschat door medewerker', 'De tijd of frequentie is achteraf door een medewerker geschat. Schattingen blijven als schatting zichtbaar.']);
   r.push(['Uit systeemgegevens', 'De waarde is afgeleid uit gegevens van een informatiesysteem (bijvoorbeeld logbestanden of rapportages).']);
   r.push(['Geteld (frequentie)', 'Het aantal uitvoeringen is handmatig geteld.']);
+  r.push(['Resultaten per medewerker', 'Per MedewerkerID: aantal metingen, gemiddelde/minimum/maximum actieve tijd per uitvoering, gemiddelde wachttijd per uitvoering en gemiddelde omvang per uitvoering (omvang / aantal uitvoeringen), elk met het aantal gebruikte metingen (n). Het gecombineerde resultaat (alle medewerkers) wordt berekend uit alle individuele metingen samen, niet uit de gemiddelden per medewerker. MedewerkerID\'s zijn anonieme codes (bijv. PZ01); er worden geen namen vastgelegd.']);
+  r.push(['Filter op medewerker', 'Resultaten kunnen worden berekend voor alle medewerkers samen (standaard) of voor één MedewerkerID. Het gebruikte filter staat bij de resultaten vermeld.']);
   r.push(['Filter op meetwijze', 'Resultaten kunnen per meetwijze worden berekend. Bij "alle meetwijzen" wordt de verdeling van de meetwijzen bij iedere samenvatting vermeld.']);
   r.push(['Tijdvastlegging', 'Handmatig = tijd rechtstreeks ingevoerd; Timer = tijd met de timer vastgelegd (tot op 0,01 minuut); "Timer, handmatig aangepast" = timerwaarde daarna door de gebruiker gewijzigd.']);
   r.push([]);
@@ -251,6 +297,7 @@ async function exporteerExcel() {
   const filters = resultaatFilters();
   const blob = maakXlsx([
     resultatenBlad(filters),
+    medewerkerBlad(filters),
     ruwBlad('Procesmetingen', KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), [16, 11, 12, 34, 13, 13, 9, 14, 24, 40, 22, 22, 13]),
     ruwBlad('Stapmetingen', KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), [16, 16, 9, 34, 16, 16, 34, 34, 24, 13]),
     ruwBlad('Frequentie', KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), [18, 12, 20, 18, 14, 14, 24, 40, 22, 22, 13]),
