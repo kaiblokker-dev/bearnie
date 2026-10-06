@@ -4,7 +4,7 @@
 function maakDemogegevens() {
   const tijd = nuIso();
   const processen = [
-    { procesId: 'DEMO-PR01', naam: 'Dossier herberekenen (demo)', uitvoeringseenheid: 'dossier', uitvoeringseenheidMeervoud: 'dossiers', omvangseenheid: 'dienstperiode', omvangseenheidMeervoud: 'dienstperioden' },
+    { procesId: 'DEMO-PR01', naam: 'Dossier herberekenen (demo)', uitvoeringseenheid: 'dossier', uitvoeringseenheidMeervoud: 'dossiers', omvangseenheid: 'dienstperiode', omvangseenheidMeervoud: 'dienstperioden', dossierkenmerken: true },
     { procesId: 'DEMO-PR02', naam: 'Adreswijziging verwerken (demo)', uitvoeringseenheid: 'aanvraag', uitvoeringseenheidMeervoud: 'aanvragen', omvangseenheid: 'mutatie', omvangseenheidMeervoud: 'mutaties' },
   ];
   const stappen = [
@@ -26,10 +26,23 @@ function maakDemogegevens() {
     ['DEMO-PR01', 4, '2026-03-05', 'PZ03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
     ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0, '', '', null, false], [25, 120, 'Ontbrekende loongegevens opgevraagd', '', { knelpunt: true, knelpuntCategorie: 'Ontbrekende of onduidelijke informatie', knelpuntOmschrijving: 'Loongegevens ontbraken in het dossier', knelpuntGevolgen: ['Extra actieve tijd', 'Extra wachttijd', 'Vertraging in de doorlooptijd'], knelpuntExtraActief: 8, knelpuntExtraWacht: 120, knelpuntBron: 'Geobserveerd' }], [6, 0, '', '', null, false]]],
     ['DEMO-PR01', 6, '2026-03-10', 'PZ03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
+    // Zonder detailmeting per processtap (versie 1.7): alleen de totale tijd van de uitvoering.
+    ['DEMO-PR01', 7, '2026-03-11', 'PZ01', 'Normaal', 1, 8, 'Geobserveerd', null],
     ['DEMO-PR02', 1, '2026-03-02', 'PZ04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
     ['DEMO-PR02', 2, '2026-03-06', 'PZ04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
   ];
 
+  // Fictieve steekproef met dossierkenmerken (versie 1.7): [volgnummer, dossier-ID, periode-regels, blokken, onderbrekingen, complexiteit, tijdrovendste stap, redenen, knelpunt]
+  const steekproefId = 'SP-DEMO-PR01-001';
+  const dossiers = {
+    1: [1, 'D-001', 4, 1, 0, 'Eenvoudig', 'DEMO-PR01-S02', ['Veel periode-regels']],
+    2: [2, 'D-002', 3, 1, 1, 'Gemiddeld', 'DEMO-PR01-S02', ['Onderbrekingen'], { knelpunt: true, knelpuntCategorie: 'Wachten', knelpuntGevolgen: ['Vertraging in de doorlooptijd'] }],
+    3: [3, 'D-003', 6, 2, 0, 'Gemiddeld', 'DEMO-PR01-S02', ['Veel diensttijdblokken'], { knelpunt: true, knelpuntCategorie: 'Systeem', knelpuntGevolgen: ['Extra wachttijd'] }],
+    4: [4, 'D-004', 5, 2, 2, 'Gemiddeld', 'DEMO-PR01-S03', ['Handmatige invoer'], { knelpunt: false }],
+    5: [5, 'D-005', 12, 4, 3, 'Complex', 'DEMO-PR01-S02', ['Verschillende arbeidsverhoudingen', 'Onduidelijke informatie']],
+    6: [6, 'D-006', null, null, 1, 'Complex', 'DEMO-PR01-S02', ['Korte opeenvolgende perioden']],
+    7: [7, 'D-007', 8, 2, 0, 'Gemiddeld', 'DEMO-PR01-S01', ['Controle of herstel'], { knelpunt: true, knelpuntCategorie: 'Controle of herstelwerk', knelpuntGevolgen: ['Herstelwerk', 'Extra actieve tijd'] }],
+  };
   const procesmetingen = [];
   const stapmetingen = [];
   for (const [procesId, nr, datum, medewerkerId, casustype, aantalUitvoeringen, omvang, meetwijze, rijen] of metingen) {
@@ -38,9 +51,17 @@ function maakDemogegevens() {
     procesmetingen.push({
       metingId, datum, procesId, procesnaam: proces.naam, medewerkerId, casustype, aantalUitvoeringen, aantalUitvoeringenHerkomst: 'Ingevoerd', omvang,
       ...eenhedenUit(proces), meetwijze, toelichting: 'Fictieve demometing', demo: true, aangemaakt: tijd, gewijzigd: null,
+      ...(rijen ? {} : { detailmeting: false, actieveTijdTotaal: 31, wachttijdTotaal: 0, belangrijksteKnelpunt: 'Herberekening moest worden gecorrigeerd' }),
+      ...(procesId === 'DEMO-PR01' && dossiers[nr] ? (() => {
+        const [volgnummer, dossierId, regels, blokken, onderbrekingen, complexiteit, stapId, redenen, knelpunt] = dossiers[nr];
+        return {
+          steekproefId, volgnummerSteekproef: volgnummer, dossierId, aantalPerioderegels: regels, aantalBlokken: blokken, aantalOnderbrekingen: onderbrekingen, complexiteit,
+          tijdrovendsteStapId: stapId, tijdrovendsteStapnaam: stappen.find((s) => s.stapId === stapId).naam, redenenTijdsbelasting: redenen, ...(knelpunt || {}),
+        };
+      })() : {}),
     });
     const procesStappen = stappen.filter((s) => s.procesId === procesId);
-    rijen.forEach(([actief, wacht, reden, opmerking, knelpunt], i) => {
+    (rijen || []).forEach(([actief, wacht, reden, opmerking, knelpunt], i) => {
       const s = procesStappen[i];
       stapmetingen.push({
         metingId, stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.naam, actieveTijd: actief, wachttijd: wacht,
@@ -61,7 +82,15 @@ function maakDemogegevens() {
       medewerkerId: '', periodeEenheid: 'Week', bereik: 'Team', afbakening: 'Hele team', meetellenInTotaal: true },
   ].map((f) => ({ ...f, ...eenhedenUit(processen.find((p) => p.procesId === f.procesId)), demo: true, aangemaakt: tijd, gewijzigd: null }));
 
+  const steekproeven = [{
+    steekproefId, procesId: 'DEMO-PR01', naam: 'Herberekeningen maart 2026 (demo)', populatie: 'Fictief: alle herberekeningsdossiers die in maart 2026 zijn binnengekomen',
+    populatiegrootte: 140, steekproefgrootte: 10, selectiemethode: 'Willekeurig', inclusiecriteria: 'Fictief: herberekening na wijziging dienstverband',
+    exclusiecriteria: 'Fictief: bezwaarzaken', startdatum: '2026-03-01', einddatum: '2026-03-31', toelichting: 'Fictieve demosteekproef', status: 'Bezig',
+    demo: true, aangemaakt: tijd, gewijzigd: null,
+  }];
+
   return {
+    steekproeven,
     processen: processen.map((p) => ({ ...p, demo: true, aangemaakt: tijd, gewijzigd: tijd })),
     processtappen: stappen,
     procesmetingen,
@@ -83,9 +112,11 @@ function laadDemogegevens() {
     ...d.processtappen.filter((s) => staat.processtappen.some((x) => x.stapId === s.stapId)).map((s) => s.stapId),
     ...d.procesmetingen.filter((m) => zoekMeting(m.metingId)).map((m) => m.metingId),
     ...d.frequentiemetingen.filter((f) => zoekFrequentie(f.frequentieId)).map((f) => f.frequentieId),
+    ...d.steekproeven.filter((s) => zoekSteekproef(s.steekproefId)).map((s) => s.steekproefId),
   ];
   if (botsingen.length) throw new Error('De demogegevens gebruiken codes die al bestaan: ' + botsingen.join(', '));
   for (const k of Object.keys(d)) staat[k].push(...d[k]);
   for (const m of d.procesmetingen) registreerVolgnummer('meting', m.procesId, m.metingId);
   for (const f of d.frequentiemetingen) registreerVolgnummer('frequentie', f.procesId, f.frequentieId);
+  for (const s of d.steekproeven) registreerVolgnummer('steekproef', s.procesId, s.steekproefId);
 }

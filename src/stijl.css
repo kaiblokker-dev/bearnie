@@ -63,7 +63,7 @@ nav.tabs button {
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 12px 14px 9px;
+  padding: 12px 10px 9px;
   font: inherit;
   color: var(--tekst-zacht);
   cursor: pointer;
@@ -325,3 +325,9 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 .knelpuntvelden .keuzes { gap: 4px 12px; }
 .knelpuntvelden .keuzes label { font-size: 13px; }
 .knelpuntlabel { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; vertical-align: middle; }
+
+/* Steekproeven (versie 1.7) */
+.voortgang { height: 6px; background: var(--rand, #d8dde3); border-radius: 3px; margin-top: 4px; max-width: 160px; overflow: hidden; }
+.voortgang span { display: block; height: 100%; background: var(--groen-donker); }
+.kerncijfers > div { min-width: 0; }
+.steekproeflabel { display: block; font-size: 11px; color: var(--tekst-zacht); font-family: inherit; }

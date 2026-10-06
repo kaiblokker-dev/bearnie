@@ -11,11 +11,12 @@
 
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="processen"><span class="nr">1</span>Processen beheren</button>
-  <button type="button" data-tab="meting"><span class="nr">2</span>Nieuwe procesmeting</button>
-  <button type="button" data-tab="frequentie"><span class="nr">3</span>Frequentie registreren</button>
-  <button type="button" data-tab="overzicht"><span class="nr">4</span>Metingen bekijken</button>
-  <button type="button" data-tab="resultaten"><span class="nr">5</span>Resultaten</button>
-  <button type="button" data-tab="importexport"><span class="nr">6</span>Importeren en exporteren</button>
+  <button type="button" data-tab="steekproeven"><span class="nr">2</span>Steekproeven</button>
+  <button type="button" data-tab="meting"><span class="nr">3</span>Nieuwe procesmeting</button>
+  <button type="button" data-tab="frequentie"><span class="nr">4</span>Frequentie registreren</button>
+  <button type="button" data-tab="overzicht"><span class="nr">5</span>Metingen bekijken</button>
+  <button type="button" data-tab="resultaten"><span class="nr">6</span>Resultaten</button>
+  <button type="button" data-tab="importexport"><span class="nr">7</span>Importeren en exporteren</button>
 </nav>
 
 <main>
@@ -38,7 +39,97 @@
     </div>
   </section>
 
-  <!-- 2. Nieuwe procesmeting -->
+  <!-- 2. Steekproeven -->
+  <section class="tab" id="tab-steekproeven" hidden>
+    <h2>Steekproeven</h2>
+    <p class="uitleg">Een steekproef is een afgebakende set dossiers uit een populatie, die u met procesmetingen onderzoekt. Leg hier de steekproef vast en koppel er procesmetingen aan (ook bestaande). Per steekproef ziet u de voortgang en de resultaten.</p>
+    <div class="kaart">
+      <div class="knoppen" style="margin-top:0">
+        <button type="button" class="primair" data-actie="steekproef-nieuw">Nieuwe steekproef</button>
+      </div>
+    </div>
+    <form class="kaart ruw-kader" id="steekproefFormulier" novalidate autocomplete="off" hidden>
+      <span class="etiket ruw">Invoer</span>
+      <h3 id="steekproefTitel">Nieuwe steekproef</h3>
+      <div class="velden">
+        <div class="veld">
+          <label for="spId">SteekproefID</label>
+          <input type="text" id="spId" readonly>
+          <span class="hint">Wordt automatisch toegekend.</span>
+        </div>
+        <div class="veld">
+          <label for="spProces" class="verplicht">ProcesID</label>
+          <select id="spProces"></select>
+        </div>
+        <div class="veld">
+          <label for="spNaam" class="verplicht">Naam van de steekproef</label>
+          <input type="text" id="spNaam" maxlength="120" placeholder="bijv. Herberekeningen najaar 2026">
+        </div>
+        <div class="veld">
+          <label for="spStatus" class="verplicht">Status</label>
+          <select id="spStatus"></select>
+        </div>
+        <div class="veld breed">
+          <label for="spPopulatie">Omschrijving van de onderzochte populatie</label>
+          <textarea id="spPopulatie" placeholder="bijv. alle herberekeningsdossiers die in september 2026 zijn binnengekomen"></textarea>
+        </div>
+        <div class="veld">
+          <label for="spPopulatiegrootte">Totale populatiegrootte <span data-uitleg="populatie"></span></label>
+          <input type="text" id="spPopulatiegrootte" inputmode="numeric" placeholder="bijv. 400">
+          <span class="hint">Aantal dossiers in de populatie; leeg laten als onbekend.</span>
+        </div>
+        <div class="veld">
+          <label for="spSteekproefgrootte">Beoogde steekproefgrootte</label>
+          <input type="text" id="spSteekproefgrootte" inputmode="numeric" placeholder="bijv. 20">
+          <span class="hint">Aantal dossiers dat u wilt meten.</span>
+        </div>
+        <div class="veld">
+          <label for="spSelectiemethode">Selectiemethode <span data-uitleg="selectiemethode"></span></label>
+          <select id="spSelectiemethode"></select>
+        </div>
+        <div class="veld">
+          <label for="spStart">Startdatum van de meting</label>
+          <input type="date" id="spStart">
+        </div>
+        <div class="veld">
+          <label for="spEind">Einddatum van de meting</label>
+          <input type="date" id="spEind">
+        </div>
+        <div class="veld breed">
+          <label for="spInclusie">Inclusiecriteria</label>
+          <textarea id="spInclusie" placeholder="Welke dossiers horen erbij?"></textarea>
+        </div>
+        <div class="veld breed">
+          <label for="spExclusie">Exclusiecriteria</label>
+          <textarea id="spExclusie" placeholder="Welke dossiers worden uitgesloten?"></textarea>
+        </div>
+        <div class="veld breed">
+          <label for="spToelichting">Toelichting</label>
+          <textarea id="spToelichting" placeholder="Optioneel"></textarea>
+        </div>
+      </div>
+      <div id="spFouten"></div>
+      <div class="knoppen">
+        <button type="submit" class="primair" id="spOpslaan">Steekproef opslaan</button>
+        <button type="button" data-actie="steekproef-annuleren">Annuleren</button>
+      </div>
+    </form>
+    <div class="kaart">
+      <h3>Vastgelegde steekproeven</h3>
+      <div class="tabelhouder" id="steekproevenLijst"></div>
+    </div>
+    <div class="kaart" id="steekproefResultatenKaart">
+      <h3>Steekproefresultaten</h3>
+      <div class="filterbalk">
+        <div class="veld" style="width:320px"><label for="srSteekproef">Steekproef</label><select id="srSteekproef"></select></div>
+        <div class="veld" style="width:230px"><label for="srMeetwijze">Meetwijze</label><select id="srMeetwijze"></select></div>
+        <div class="veld" style="width:auto"><span class="label">Testmetingen</span><label class="keuzes" style="font-weight:400"><input type="checkbox" id="srMetTest"> Testmetingen meenemen <span data-uitleg="test"></span></label></div>
+      </div>
+      <div id="steekproefResultaten" class="mt"></div>
+    </div>
+  </section>
+
+  <!-- 3. Nieuwe procesmeting -->
   <section class="tab" id="tab-meting" hidden>
     <h2 id="metingTitel">Nieuwe procesmeting</h2>
     <p class="uitleg">Vul eerst de algemene gegevens in en daarna per processtap de tijden in minuten. Decimalen mogen met een komma of een punt (bijvoorbeeld 1,5). Laat een veld leeg als de waarde onbekend is: lege velden worden niet als nul geteld.</p>
@@ -98,21 +189,8 @@
             <textarea id="mToelichting" placeholder="Optioneel"></textarea>
           </div>
           <div class="veld breed">
-            <label for="mBelangrijksteKnelpunt">Belangrijkste knelpunt tijdens deze uitvoering <span data-uitleg="knelpunt"></span></label>
-            <input type="text" id="mBelangrijksteKnelpunt" maxlength="300" placeholder="Optioneel">
-          </div>
-          <div class="veld breed">
             <label for="mBijzonderheden">Bijzonderheden of uitzonderingen</label>
             <textarea id="mBijzonderheden" placeholder="Optioneel"></textarea>
-          </div>
-          <div class="veld">
-            <label for="mActiefTotaal">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
-            <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
-            <span class="hint">Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.</span>
-          </div>
-          <div class="veld">
-            <label for="mWachtTotaal">Totale wachttijd volgens procesmeting (min) <span data-uitleg="wacht"></span></label>
-            <input type="text" id="mWachtTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
           </div>
           <div class="veld">
             <span class="label">Test/fictief <span data-uitleg="test"></span></span>
@@ -121,11 +199,100 @@
         </div>
       </div>
 
+      <div class="kaart ruw-kader" id="mDossierKaart">
+        <span class="etiket ruw">Invoer</span>
+        <h3>Steekproef en dossier <span data-uitleg="steekproef"></span></h3>
+        <div class="velden">
+          <div class="veld">
+            <label for="mSteekproef">SteekproefID</label>
+            <select id="mSteekproef"></select>
+            <span class="hint" id="mSteekproefHint">Optioneel. Steekproeven legt u vast op het tabblad Steekproeven.</span>
+          </div>
+          <div class="veld">
+            <label for="mVolgnummer">Volgnummer binnen de steekproef</label>
+            <input type="text" id="mVolgnummer" inputmode="numeric" placeholder="bijv. 12">
+            <span class="hint">Geheel getal vanaf 1; uniek binnen de steekproef.</span>
+          </div>
+          <div class="veld">
+            <label for="mDossierId">Geanonimiseerd dossier-ID</label>
+            <input type="text" id="mDossierId" maxlength="40" placeholder="bijv. D-012">
+            <span class="hint">Nooit een echt dossier-, registratie- of burgerservicenummer.</span>
+          </div>
+        </div>
+        <div id="mKenmerken" hidden>
+          <h4>Dossierkenmerken <span data-uitleg="dossierkenmerken"></span></h4>
+          <div class="velden">
+            <div class="veld">
+              <label for="mPerioderegels">Aantal ABP-periode-regels</label>
+              <input type="text" id="mPerioderegels" inputmode="numeric" placeholder="bijv. 40">
+              <span class="hint">Geheel getal vanaf 0; leeg laten als onbekend.</span>
+            </div>
+            <div class="veld">
+              <label for="mOnderbrekingen">Aantal onderbrekingen</label>
+              <input type="text" id="mOnderbrekingen" inputmode="numeric" placeholder="bijv. 2">
+              <span class="hint">Geheel getal vanaf 0; leeg laten als onbekend.</span>
+            </div>
+            <div class="veld">
+              <span class="label">Complexiteit</span>
+              <div class="keuzes" id="mComplexiteit">
+                <label><input type="radio" name="complexiteit" value="Eenvoudig"> Eenvoudig</label>
+                <label><input type="radio" name="complexiteit" value="Gemiddeld"> Gemiddeld</label>
+                <label><input type="radio" name="complexiteit" value="Complex"> Complex</label>
+              </div>
+            </div>
+            <div class="veld">
+              <label for="mTijdrovendste">Meest tijdrovende processtap <span data-uitleg="tijdrovend"></span></label>
+              <select id="mTijdrovendste"></select>
+              <span class="hint">Inschatting voor dit dossier; geen gemeten tijd per stap.</span>
+            </div>
+            <div class="veld breed">
+              <span class="label">Reden tijdsbelasting (meerdere mogelijk)</span>
+              <div class="keuzes" id="mRedenen"></div>
+            </div>
+          </div>
+        </div>
+        <h4>Knelpunt op dossierniveau <span data-uitleg="knelpunt"></span></h4>
+        <div class="velden">
+          <div class="veld">
+            <label for="mKnelpunt">Knelpunt aanwezig</label>
+            <select id="mKnelpunt"><option value="">–</option><option value="nee">Nee</option><option value="ja">Ja</option></select>
+          </div>
+          <div class="veld" id="mKnelpuntCategorieVeld" hidden>
+            <label for="mKnelpuntCategorie">Knelpuntcategorie</label>
+            <select id="mKnelpuntCategorie"></select>
+          </div>
+          <div class="veld breed">
+            <label for="mBelangrijksteKnelpunt">Korte omschrijving van het knelpunt (belangrijkste knelpunt tijdens deze uitvoering)</label>
+            <input type="text" id="mBelangrijksteKnelpunt" maxlength="300" placeholder="Optioneel">
+          </div>
+          <div class="veld breed" id="mKnelpuntGevolgVeld" hidden>
+            <span class="label">Gevolg van het knelpunt (meerdere mogelijk)</span>
+            <div class="keuzes" id="mKnelpuntGevolgen"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="kaart ruw-kader">
         <span class="etiket ruw">Invoer</span>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <h3 style="margin:0">Processtappen</h3>
+          <h3 style="margin:0">Tijden en processtappen</h3>
           <label class="klein"><input type="checkbox" id="mTimerTonen"> Timer tonen (optioneel hulpmiddel)</label>
+        </div>
+        <div class="velden mt">
+          <div class="veld">
+            <label for="mDetail">Detailmeting per processtap uitgevoerd <span data-uitleg="detailmeting"></span></label>
+            <select id="mDetail"><option value="ja">Ja</option><option value="nee">Nee</option></select>
+            <span class="hint" id="mDetailHint">Bij Nee legt u alleen de totale tijd van de uitvoering vast.</span>
+          </div>
+          <div class="veld">
+            <label for="mActiefTotaal" id="mActiefTotaalLabel">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
+            <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+            <span class="hint" id="mActiefTotaalHint">Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.</span>
+          </div>
+          <div class="veld">
+            <label for="mWachtTotaal" id="mWachtTotaalLabel">Totale wachttijd volgens procesmeting (min) <span data-uitleg="wacht"></span></label>
+            <input type="text" id="mWachtTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+          </div>
         </div>
         <div id="mStappen" class="mt"></div>
       </div>
@@ -142,7 +309,7 @@
     </form>
   </section>
 
-  <!-- 3. Frequentie registreren -->
+  <!-- 4. Frequentie registreren -->
   <section class="tab" id="tab-frequentie" hidden>
     <h2 id="frequentieTitel">Frequentie registreren</h2>
     <p class="uitleg">Een frequentiemeting hoort bij een proces als geheel (niet bij een processtap). Leg vast hoe vaak het proces in een meetperiode is uitgevoerd en welk volume daarbij is verwerkt.</p>
@@ -231,7 +398,7 @@
     </div>
   </section>
 
-  <!-- 4. Metingen bekijken -->
+  <!-- 5. Metingen bekijken -->
   <section class="tab" id="tab-overzicht" hidden>
     <h2>Metingen bekijken</h2>
     <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
@@ -250,6 +417,7 @@
         <div class="veld" data-filter="medewerker"><label for="ozMedewerker">Medewerker</label><select id="ozMedewerker"></select></div>
         <div class="veld" data-filter="casustype"><label for="ozCasustype">Casustype</label><select id="ozCasustype"></select></div>
         <div class="veld"><label for="ozMeetwijze">Meetwijze</label><select id="ozMeetwijze"></select></div>
+        <div class="veld" data-filter="steekproef"><label for="ozSteekproef">Steekproef</label><select id="ozSteekproef"></select></div>
         <div class="veld"><button type="button" data-actie="filters-wissen">Filters wissen</button></div>
       </div>
       <div id="overzichtTelling" class="klein zacht"></div>
@@ -257,7 +425,7 @@
     </div>
   </section>
 
-  <!-- 5. Resultaten -->
+  <!-- 6. Resultaten -->
   <section class="tab" id="tab-resultaten" hidden>
     <h2>Resultaten</h2>
     <p class="uitleg">Alle waarden op deze pagina zijn <strong>automatisch berekend</strong> uit de opgeslagen metingen. De mediaan is de belangrijkste uitkomst. Normale gevallen en uitzonderingen worden altijd afzonderlijk berekend.</p>
@@ -274,7 +442,7 @@
     <div id="resultatenInhoud"></div>
   </section>
 
-  <!-- 6. Importeren en exporteren -->
+  <!-- 7. Importeren en exporteren -->
   <section class="tab" id="tab-importexport" hidden>
     <h2>Importeren en exporteren</h2>
     <p class="uitleg">Alle gegevens staan uitsluitend lokaal in deze browser op dit apparaat. Maak regelmatig een JSON-back-up: als de browsergegevens worden gewist, zijn de metingen anders verloren.</p>
@@ -282,7 +450,7 @@
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Knelpunten, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Steekproefresultaten, Steekproeven, Procesmetingen, Stapmetingen, Knelpunten, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers. Steekproefresultaten volgen de keuzes op het tabblad Steekproeven (meetwijze en testmetingen).</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>
@@ -294,11 +462,12 @@
           <button type="button" data-actie="csv-stapmetingen">Stapmetingen (CSV)</button>
           <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
           <button type="button" data-actie="csv-knelpunten">Knelpunten (CSV)</button>
+          <button type="button" data-actie="csv-steekproeven">Steekproeven (CSV)</button>
         </div>
       </div>
       <div class="kaart">
         <h3>Volledige back-up (JSON)</h3>
-        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
+        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, steekproeven, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
         <div class="knoppen">
           <button type="button" class="primair" data-actie="backup-download">Volledige back-up downloaden</button>
           <button type="button" data-actie="backup-import">Back-up herstellen</button>

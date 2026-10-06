@@ -381,7 +381,7 @@ print(w, h, im.getpixel((2,2)), im.getpixel((w-3,h-3)))`]).toString().trim();
   await tab('importexport');
   const xlsx = await download(() => page.click('[data-actie="excel-export"]'), 'export.xlsx');
   const xlsxInfo = JSON.parse(execFileSync('python3', [path.join(__dirname, 'controleer_xlsx.py'), xlsx.pad]).toString());
-  assert.deepStrictEqual(xlsxInfo.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(xlsxInfo.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
   assert.strictEqual(xlsxInfo.procesmetingen, 4);
   assert.strictEqual(xlsxInfo.stapmetingen, 12);
   assert.strictEqual(xlsxInfo.frequentie, 1);

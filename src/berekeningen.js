@@ -32,13 +32,19 @@ function berekenMeting(m) {
   const stappen = stapmetingenVan(m.metingId);
   const ontbrekendActief = stappen.filter((s) => !isGetal(s.actieveTijd)).map((s) => s.stapId);
   const ontbrekendWacht = stappen.filter((s) => !isGetal(s.wachttijd)).map((s) => s.stapId);
-  const totaalActief = stappen.length && !ontbrekendActief.length ? som(stappen.map((s) => s.actieveTijd)) : null;
-  const totaalWacht = stappen.length && !ontbrekendWacht.length ? som(stappen.map((s) => s.wachttijd)) : null;
+  // Zonder stapmetingen (geen detailmeting, versie 1.7) komt de tijd uit de totalen van de procesmeting.
+  // Er wordt dan nooit een tijd per processtap afgeleid.
+  const zonderDetail = !stappen.length;
+  const totaalActief = zonderDetail ? (isGetal(m.actieveTijdTotaal) ? m.actieveTijdTotaal : null)
+    : !ontbrekendActief.length ? som(stappen.map((s) => s.actieveTijd)) : null;
+  const totaalWacht = zonderDetail ? (isGetal(m.wachttijdTotaal) ? m.wachttijdTotaal : null)
+    : !ontbrekendWacht.length ? som(stappen.map((s) => s.wachttijd)) : null;
   const aantalBekend = isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0;
   const omvangBekend = isGetal(m.omvang) && m.omvang > 0;
   const deel = (teller, noemerBekend, noemer) => (isGetal(teller) && noemerBekend ? teller / noemer : null);
   return {
     aantalStappen: stappen.length,
+    bronTijd: zonderDetail ? 'Totaal procesmeting (geen detailmeting per stap)' : 'Som van de stapmetingen',
     totaalActief,
     totaalWacht,
     // Primair: per uitvoeringseenheid (bijv. per dossier)
@@ -59,8 +65,11 @@ function berekenMeting(m) {
 
 function redenOntbrekend(m, b, soort) {
   const e = eenhedenVan(m);
-  if (!b.aantalStappen) return 'geen stapmetingen';
   const tijd = soort.startsWith('actief') ? 'actief' : 'wacht';
+  if (!b.aantalStappen) {
+    if (tijd === 'actief' && !isGetal(b.totaalActief)) return 'geen detailmeting per stap en geen totale actieve tijd ingevuld';
+    if (tijd === 'wacht' && !isGetal(b.totaalWacht)) return 'geen detailmeting per stap en geen totale wachttijd ingevuld';
+  }
   if (tijd === 'actief' && b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
   if (tijd === 'wacht' && b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
   if (soort.endsWith('PerUitvoering') && !b.aantalBekend) {

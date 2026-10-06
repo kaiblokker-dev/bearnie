@@ -37,6 +37,20 @@
 // knelpuntExtraActief, knelpuntExtraWacht (minuten, null = onbekend) en knelpuntBron.
 // Procesmetingen kunnen belangrijksteKnelpunt en bijzonderheden (tekst) hebben.
 // Geschatte extra tijd is verklarend: die zit al in de gemeten tijd en wordt nergens opgeteld.
+// Versie 1.7 (schemaversie 4): steekproeven en dossierkenmerken.
+// steekproeven: { steekproefId, procesId, naam, populatie, populatiegrootte, steekproefgrootte,
+//                 selectiemethode, inclusiecriteria, exclusiecriteria, startdatum, einddatum,
+//                 toelichting, status, demo, aangemaakt, gewijzigd }
+// Procesmetingen kunnen (allemaal optioneel; ontbreken = niet vastgelegd) hebben:
+// - steekproefId, volgnummerSteekproef (geheel getal ≥ 1, uniek binnen de steekproef), dossierId
+//   (geanonimiseerd);
+// - aantalPerioderegels, aantalOnderbrekingen (geheel getal ≥ 0), complexiteit, tijdrovendsteStapId
+//   en tijdrovendsteStapnaam (kopie), redenenTijdsbelasting (lijst);
+// - knelpunt (true/false), knelpuntCategorie, knelpuntGevolgen: knelpunt op dossierniveau; de korte
+//   omschrijving is belangrijksteKnelpunt;
+// - detailmeting (true/false): of per processtap is gemeten. Bij false zijn er geen stapmetingen en
+//   komt de tijd van de meting uit actieveTijdTotaal en wachttijdTotaal. Ontbreekt het veld, dan is
+//   er per stap gemeten (oudere metingen hebben altijd stapmetingen).
 // Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
 // van de week worden nooit opgeslagen maar altijd uit de datum berekend.
 // Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
@@ -48,20 +62,21 @@ let staat = legeStaat();
 
 function legeStaat() {
   return {
-    schemaversie: 3,
+    schemaversie: 4,
     processen: [],
     processtappen: [],
     procesmetingen: [],
     stapmetingen: [],
     frequentiemetingen: [],
-    volgnummers: { meting: {}, frequentie: {} },
+    steekproeven: [],
+    volgnummers: { meting: {}, frequentie: {}, steekproef: {} },
   };
 }
 
 function normaliseerStaat(s) {
   const n = legeStaat();
   if (!s || typeof s !== 'object') return n;
-  for (const k of ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']) {
+  for (const k of GEGEVENSLIJSTEN) {
     n[k] = Array.isArray(s[k]) ? s[k] : [];
   }
   // Schemaversie 1 -> 2: het enkele veld 'eenheid' was de eenheid van de omvang.
@@ -72,9 +87,13 @@ function normaliseerStaat(s) {
   if (s.volgnummers && typeof s.volgnummers === 'object') {
     n.volgnummers.meting = { ...(s.volgnummers.meting || {}) };
     n.volgnummers.frequentie = { ...(s.volgnummers.frequentie || {}) };
+    n.volgnummers.steekproef = { ...(s.volgnummers.steekproef || {}) };
   }
   return n;
 }
+
+// Alle lijsten met records in de staat (steekproeven sinds versie 1.7).
+const GEGEVENSLIJSTEN = ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen', 'steekproeven'];
 
 const EENHEID_VELDEN = ['uitvoeringseenheid', 'uitvoeringseenheidMeervoud', 'omvangseenheid', 'omvangseenheidMeervoud'];
 
@@ -133,6 +152,27 @@ function blokkenVastleggen(procesId) {
   if (procesId === 'PR24') return true;
   // Ook tonen als er al metingen met een aantal blokken zijn (bijv. na verwijderen van het proces).
   return staat.procesmetingen.some((m) => m.procesId === procesId && isGetal(m.aantalBlokken));
+}
+
+/** Of bij metingen van dit proces de dossierkenmerken (steekproefvelden PR24) worden vastgelegd. */
+function dossierkenmerkenVastleggen(procesId) {
+  const p = zoekProces(procesId);
+  if (p && typeof p.dossierkenmerken === 'boolean') return p.dossierkenmerken;
+  if (procesId === 'PR24') return true;
+  return staat.procesmetingen.some((m) => m.procesId === procesId && heeftDossierkenmerken(m));
+}
+
+const DOSSIERKENMERK_VELDEN = ['aantalPerioderegels', 'aantalOnderbrekingen', 'complexiteit', 'tijdrovendsteStapId', 'redenenTijdsbelasting'];
+
+function heeftDossierkenmerken(m) {
+  return DOSSIERKENMERK_VELDEN.some((k) => m[k] !== undefined && m[k] !== null && m[k] !== '' && !(Array.isArray(m[k]) && !m[k].length));
+}
+
+/** Of bij een meting per processtap is gemeten. Oudere metingen (zonder het veld) hebben altijd stapmetingen. */
+function heeftDetailmeting(m) {
+  if (m.detailmeting === false) return false;
+  if (m.detailmeting === true) return true;
+  return stapmetingenVan(m.metingId).length > 0;
 }
 
 function isTestmeting(record) {
@@ -218,6 +258,27 @@ function zoekFrequentie(frequentieId) {
   return staat.frequentiemetingen.find((f) => f.frequentieId === frequentieId) || null;
 }
 
+function zoekSteekproef(steekproefId) {
+  return staat.steekproeven.find((s) => s.steekproefId === steekproefId) || null;
+}
+
+function steekproevenVanProces(procesId) {
+  return staat.steekproeven.filter((s) => s.procesId === procesId).sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId));
+}
+
+/** Alle procesmetingen die aan een steekproef zijn gekoppeld (ook testmetingen), op volgnummer. */
+function metingenVanSteekproef(steekproefId) {
+  return staat.procesmetingen
+    .filter((m) => m.steekproefId === steekproefId)
+    .sort((a, b) => (isGetal(a.volgnummerSteekproef) ? a.volgnummerSteekproef : Infinity) - (isGetal(b.volgnummerSteekproef) ? b.volgnummerSteekproef : Infinity) || vergelijkTekst(a.metingId, b.metingId));
+}
+
+/** Eerstvolgende vrije volgnummer binnen een steekproef. */
+function volgendVolgnummer(steekproefId, behalveMetingId) {
+  const nummers = staat.procesmetingen.filter((m) => m.steekproefId === steekproefId && m.metingId !== behalveMetingId && isGetal(m.volgnummerSteekproef)).map((m) => m.volgnummerSteekproef);
+  return Math.max(0, ...nummers) + 1;
+}
+
 function frequentiesVanProces(procesId) {
   return staat.frequentiemetingen
     .filter((f) => f.procesId === procesId)
@@ -248,8 +309,7 @@ function alleProcesIds() {
 }
 
 function bevatDemo() {
-  return ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']
-    .some((k) => staat[k].some((r) => r.demo));
+  return GEGEVENSLIJSTEN.some((k) => staat[k].some((r) => r.demo));
 }
 
 // ---------- Identificatiecodes ----------
@@ -260,9 +320,13 @@ function volgnummerUitId(id, prefix) {
   return /^\d+$/.test(rest) ? Number(rest) : 0;
 }
 
+const ID_PREFIX = { meting: 'M', frequentie: 'F', steekproef: 'SP' };
+
 function volgendeId(soort, procesId) {
-  const prefix = soort === 'meting' ? `M-${procesId}-` : `F-${procesId}-`;
-  const lijst = soort === 'meting' ? staat.procesmetingen.map((m) => m.metingId) : staat.frequentiemetingen.map((f) => f.frequentieId);
+  const prefix = `${ID_PREFIX[soort]}-${procesId}-`;
+  const lijst = soort === 'meting' ? staat.procesmetingen.map((m) => m.metingId)
+    : soort === 'frequentie' ? staat.frequentiemetingen.map((f) => f.frequentieId)
+      : staat.steekproeven.map((s) => s.steekproefId);
   const hoogsteBestaand = Math.max(0, ...lijst.map((id) => volgnummerUitId(id, prefix)));
   const teller = staat.volgnummers[soort][procesId] || 0;
   const volgende = Math.max(hoogsteBestaand, teller) + 1;
@@ -270,7 +334,7 @@ function volgendeId(soort, procesId) {
 }
 
 function registreerVolgnummer(soort, procesId, id) {
-  const prefix = soort === 'meting' ? `M-${procesId}-` : `F-${procesId}-`;
+  const prefix = `${ID_PREFIX[soort]}-${procesId}-`;
   const nr = volgnummerUitId(id, prefix);
   if (nr > (staat.volgnummers[soort][procesId] || 0)) staat.volgnummers[soort][procesId] = nr;
 }
@@ -330,6 +394,7 @@ function bewaarProces(invoer, origineelId) {
     omvangseenheid: invoer.omvangseenheid.trim(),
     omvangseenheidMeervoud: invoer.omvangseenheidMeervoud.trim(),
     ...(typeof invoer.blokkenVastleggen === 'boolean' ? { blokkenVastleggen: invoer.blokkenVastleggen } : {}),
+    ...(typeof invoer.dossierkenmerken === 'boolean' ? { dossierkenmerken: invoer.dossierkenmerken } : {}),
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: nuIso(),
@@ -386,7 +451,12 @@ function valideerMeting(meting, stapmetingen, origineelId) {
     else if (isGetal(meting.omvang) && meting.aantalBlokken > meting.omvang) waarschuwingen.push(`Het aantal diensttijdblokken (${meting.aantalBlokken}) is groter dan het aantal ${e.omvangseenheidMeervoud} (${fmtAantal(meting.omvang)}). Controleer of dit klopt.`);
   }
   if (meting.omvang === null) waarschuwingen.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) is niet ingevuld. Actieve tijd per ${e.omvangseenheid} wordt voor deze meting als Onbekend getoond.`);
-  if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
+  if (meting.detailmeting === false) {
+    if (stapmetingen.length) fouten.push('Er is aangegeven dat geen detailmeting per processtap is uitgevoerd, maar er zijn wel stapmetingen.');
+    if (!isGetal(meting.actieveTijdTotaal)) waarschuwingen.push('Er is geen detailmeting per processtap uitgevoerd en de totale actieve tijd is niet ingevuld. De actieve tijd van deze meting is daardoor Onbekend.');
+    if (!isGetal(meting.wachttijdTotaal)) waarschuwingen.push('De totale wachttijd is niet ingevuld. Vul 0 in als er geen wachttijd was; een leeg veld blijft Onbekend.');
+  } else if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
+  valideerDossiervelden(meting, origineelId, fouten, waarschuwingen);
   for (const s of stapmetingen) {
     const label = `${s.stapId} (${s.stapnaam})`;
     if (s.actieveTijd !== null && s.actieveTijd < 0) fouten.push(`${label}: actieve tijd mag niet negatief zijn.`);
@@ -413,6 +483,43 @@ function valideerMeting(meting, stapmetingen, origineelId) {
   return { fouten, waarschuwingen };
 }
 
+/** Controles op de steekproefkoppeling en de dossierkenmerken (versie 1.7). */
+function valideerDossiervelden(meting, origineelId, fouten, waarschuwingen) {
+  const geheel = (v) => v === undefined || v === null || (Number.isInteger(v) && v >= 0);
+  if (meting.steekproefId) {
+    const sp = zoekSteekproef(meting.steekproefId);
+    if (!sp) fouten.push(`Steekproef ${meting.steekproefId} bestaat niet.`);
+    else {
+      if (sp.procesId !== meting.procesId) fouten.push(`Steekproef ${sp.steekproefId} hoort bij proces ${sp.procesId}, niet bij ${meting.procesId}.`);
+      if (meting.datum && sp.startdatum && meting.datum < sp.startdatum) waarschuwingen.push(`De meetdatum (${fmtDatum(meting.datum)}) ligt vóór de startdatum van steekproef ${sp.steekproefId} (${fmtDatum(sp.startdatum)}).`);
+      if (meting.datum && sp.einddatum && meting.datum > sp.einddatum) waarschuwingen.push(`De meetdatum (${fmtDatum(meting.datum)}) ligt na de einddatum van steekproef ${sp.steekproefId} (${fmtDatum(sp.einddatum)}).`);
+      if (sp.status === 'Afgerond' && (!origineelId || (zoekMeting(origineelId) || {}).steekproefId !== sp.steekproefId)) waarschuwingen.push(`Steekproef ${sp.steekproefId} heeft de status Afgerond. Weet u zeker dat u er nog een meting aan wilt koppelen?`);
+    }
+    if (meting.volgnummerSteekproef !== undefined && meting.volgnummerSteekproef !== null) {
+      if (!Number.isInteger(meting.volgnummerSteekproef) || meting.volgnummerSteekproef < 1) fouten.push('Het volgnummer binnen de steekproef moet een geheel getal van 1 of hoger zijn.');
+      else {
+        const dubbel = staat.procesmetingen.find((m) => m.steekproefId === meting.steekproefId && m.volgnummerSteekproef === meting.volgnummerSteekproef && m.metingId !== origineelId);
+        if (dubbel) fouten.push(`Volgnummer ${meting.volgnummerSteekproef} is binnen steekproef ${meting.steekproefId} al gebruikt door meting ${dubbel.metingId}.`);
+      }
+    } else waarschuwingen.push('Er is geen volgnummer binnen de steekproef ingevuld.');
+    if (meting.dossierId) {
+      const zelfde = staat.procesmetingen.find((m) => m.steekproefId === meting.steekproefId && m.dossierId === meting.dossierId && m.metingId !== origineelId);
+      if (zelfde) waarschuwingen.push(`Dossier-ID ${meting.dossierId} komt in steekproef ${meting.steekproefId} al voor bij meting ${zelfde.metingId}. Wordt hetzelfde dossier twee keer gemeten?`);
+    }
+  } else if (isGetal(meting.volgnummerSteekproef)) fouten.push('Een volgnummer binnen de steekproef kan alleen worden vastgelegd als de meting aan een steekproef is gekoppeld.');
+  if (meting.dossierId && !ID_PATROON.test(meting.dossierId)) fouten.push('Het dossier-ID mag alleen letters, cijfers, - en _ bevatten (maximaal 40 tekens).');
+  else if (meting.dossierId && /\d{7,}/.test(meting.dossierId)) waarschuwingen.push(`Dossier-ID "${meting.dossierId}" bevat een lange reeks cijfers en lijkt op een echt dossier-, registratie- of burgerservicenummer. Gebruik een geanonimiseerde code (bijv. D-012).`);
+  if (!geheel(meting.aantalPerioderegels)) fouten.push('Het aantal ABP-periode-regels moet een geheel getal van 0 of hoger zijn (of leeg als het onbekend is).');
+  if (!geheel(meting.aantalOnderbrekingen)) fouten.push('Het aantal onderbrekingen moet een geheel getal van 0 of hoger zijn (of leeg als het onbekend is).');
+  if (isGetal(meting.aantalBlokken) && isGetal(meting.aantalPerioderegels) && meting.aantalBlokken > meting.aantalPerioderegels) waarschuwingen.push(`Het aantal diensttijdblokken (${meting.aantalBlokken}) is groter dan het aantal ABP-periode-regels (${meting.aantalPerioderegels}). Controleer of dit klopt.`);
+  if (meting.complexiteit && !COMPLEXITEITEN.includes(meting.complexiteit)) fouten.push('Kies een geldige complexiteit.');
+  if (meting.tijdrovendsteStapId && !stappenVanProces(meting.procesId).some((s) => s.stapId === meting.tijdrovendsteStapId)
+    && !(origineelId && (zoekMeting(origineelId) || {}).tijdrovendsteStapId === meting.tijdrovendsteStapId)) fouten.push('De meest tijdrovende processtap moet een processtap van dit proces zijn.');
+  if ((meting.redenenTijdsbelasting || []).some((r) => !REDENEN_TIJDSBELASTING.includes(r))) fouten.push('Een gekozen reden voor de tijdsbelasting is ongeldig.');
+  if (meting.knelpuntCategorie && !KNELPUNT_CATEGORIEEN.includes(meting.knelpuntCategorie)) fouten.push('Kies een geldige knelpuntcategorie.');
+  if ((meting.knelpuntGevolgen || []).some((g) => !KNELPUNT_GEVOLGEN.includes(g))) fouten.push('Een gekozen gevolg van het knelpunt is ongeldig.');
+}
+
 function bewaarMeting(meting, stapmetingen, origineelId) {
   const bestaand = origineelId ? zoekMeting(origineelId) : null;
   // Herkomst van het aantal uitvoeringen blijft alleen behouden als de waarde ongewijzigd is.
@@ -436,6 +543,103 @@ function bewaarMeting(meting, stapmetingen, origineelId) {
 function verwijderMeting(metingId) {
   staat.procesmetingen = staat.procesmetingen.filter((m) => m.metingId !== metingId);
   staat.stapmetingen = staat.stapmetingen.filter((s) => s.metingId !== metingId);
+}
+
+// ---------- Steekproeven ----------
+
+/** Controleert een steekproef. Geeft { fouten, waarschuwingen }. */
+function valideerSteekproef(sp, origineelId) {
+  const fouten = [];
+  const waarschuwingen = [];
+  if (!sp.steekproefId) fouten.push('SteekproefID ontbreekt.');
+  else if (sp.steekproefId !== origineelId && zoekSteekproef(sp.steekproefId)) fouten.push(`SteekproefID ${sp.steekproefId} bestaat al.`);
+  if (!sp.procesId) fouten.push('Kies een proces.');
+  if (!(sp.naam || '').trim()) fouten.push('Vul de naam van de steekproef in.');
+  for (const [veld, label] of [['populatiegrootte', 'De totale populatiegrootte'], ['steekproefgrootte', 'De beoogde steekproefgrootte']]) {
+    if (sp[veld] !== null && sp[veld] !== undefined && !(Number.isInteger(sp[veld]) && sp[veld] > 0)) fouten.push(`${label} moet een geheel getal groter dan nul zijn (of leeg als die nog onbekend is).`);
+  }
+  if (isGetal(sp.populatiegrootte) && isGetal(sp.steekproefgrootte) && sp.steekproefgrootte > sp.populatiegrootte) waarschuwingen.push(`De beoogde steekproefgrootte (${sp.steekproefgrootte}) is groter dan de populatie (${sp.populatiegrootte}).`);
+  if (sp.selectiemethode && !SELECTIEMETHODEN.includes(sp.selectiemethode)) fouten.push('Kies een geldige selectiemethode.');
+  if (!STEEKPROEF_STATUSSEN.includes(sp.status)) fouten.push('Kies een status: concept, bezig of afgerond.');
+  for (const [veld, label] of [['startdatum', 'De startdatum'], ['einddatum', 'De einddatum']]) {
+    if (sp[veld] && !isGeldigeDatum(sp[veld])) fouten.push(`${label} is ongeldig.`);
+  }
+  if (sp.startdatum && sp.einddatum && sp.einddatum < sp.startdatum) fouten.push('De einddatum ligt vóór de startdatum.');
+  if (origineelId) {
+    const anderProces = metingenVanSteekproef(origineelId).filter((m) => m.procesId !== sp.procesId);
+    if (anderProces.length) fouten.push(`Het proces kan niet worden gewijzigd: er zijn al metingen van proces ${anderProces[0].procesId} gekoppeld.`);
+  }
+  return { fouten, waarschuwingen };
+}
+
+function bewaarSteekproef(sp, origineelId) {
+  const bestaand = origineelId ? zoekSteekproef(origineelId) : null;
+  const record = {
+    ...sp,
+    demo: bestaand ? !!bestaand.demo : false,
+    aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
+    gewijzigd: bestaand ? nuIso() : null,
+  };
+  staat.steekproeven = staat.steekproeven.filter((s) => s.steekproefId !== origineelId);
+  staat.steekproeven.push(record);
+  staat.steekproeven.sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId));
+  registreerVolgnummer('steekproef', record.procesId, record.steekproefId);
+  return record;
+}
+
+/** Verwijdert een steekproef. Gekoppelde metingen blijven bestaan; alleen de koppeling (steekproef en volgnummer) vervalt. */
+function verwijderSteekproef(steekproefId) {
+  const tijd = nuIso();
+  for (const m of staat.procesmetingen.filter((x) => x.steekproefId === steekproefId)) {
+    delete m.steekproefId;
+    delete m.volgnummerSteekproef;
+    m.gewijzigd = tijd;
+  }
+  staat.steekproeven = staat.steekproeven.filter((s) => s.steekproefId !== steekproefId);
+}
+
+/**
+ * Koppelt metingen aan een steekproef of ontkoppelt ze. koppelingen: [{ metingId, volgnummer, dossierId }]
+ * (alleen de aangevinkte metingen); alle andere metingen die nu aan de steekproef hangen, worden ontkoppeld.
+ * Geeft een lijst met fouten; bij fouten wordt niets gewijzigd.
+ */
+function koppelMetingen(steekproefId, koppelingen) {
+  const sp = zoekSteekproef(steekproefId);
+  const fouten = [];
+  if (!sp) return ['De steekproef bestaat niet meer.'];
+  const nummers = new Map();
+  for (const k of koppelingen) {
+    const m = zoekMeting(k.metingId);
+    if (!m) { fouten.push(`Meting ${k.metingId} bestaat niet meer.`); continue; }
+    if (m.procesId !== sp.procesId) fouten.push(`Meting ${k.metingId} hoort bij een ander proces.`);
+    if (m.steekproefId && m.steekproefId !== steekproefId) fouten.push(`Meting ${k.metingId} is al gekoppeld aan steekproef ${m.steekproefId}.`);
+    if (k.volgnummer !== null && !(Number.isInteger(k.volgnummer) && k.volgnummer >= 1)) fouten.push(`Meting ${k.metingId}: het volgnummer moet een geheel getal van 1 of hoger zijn.`);
+    else if (k.volgnummer !== null) {
+      if (nummers.has(k.volgnummer)) fouten.push(`Volgnummer ${k.volgnummer} is meer dan één keer gebruikt (${nummers.get(k.volgnummer)} en ${k.metingId}).`);
+      nummers.set(k.volgnummer, k.metingId);
+    }
+    if (k.dossierId && !ID_PATROON.test(k.dossierId)) fouten.push(`Meting ${k.metingId}: het dossier-ID mag alleen letters, cijfers, - en _ bevatten.`);
+  }
+  if (fouten.length) return fouten;
+  const tijd = nuIso();
+  const gekozen = new Map(koppelingen.map((k) => [k.metingId, k]));
+  for (const m of staat.procesmetingen) {
+    const k = gekozen.get(m.metingId);
+    if (k) {
+      const nieuw = { steekproefId, volgnummerSteekproef: k.volgnummer, dossierId: k.dossierId || '' };
+      const gewijzigd = m.steekproefId !== nieuw.steekproefId || (m.volgnummerSteekproef ?? null) !== nieuw.volgnummerSteekproef || (m.dossierId || '') !== nieuw.dossierId;
+      if (!gewijzigd) continue;
+      m.steekproefId = steekproefId;
+      if (k.volgnummer === null) delete m.volgnummerSteekproef; else m.volgnummerSteekproef = k.volgnummer;
+      if (k.dossierId) m.dossierId = k.dossierId; else delete m.dossierId;
+      m.gewijzigd = tijd;
+    } else if (m.steekproefId === steekproefId) {
+      delete m.steekproefId;
+      delete m.volgnummerSteekproef;
+      m.gewijzigd = tijd;
+    }
+  }
+  return [];
 }
 
 // ---------- Frequentiemetingen ----------
@@ -481,10 +685,14 @@ function verwijderFrequentie(frequentieId) {
 }
 
 function verwijderDemogegevens() {
-  for (const k of ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']) {
+  for (const k of GEGEVENSLIJSTEN) {
     staat[k] = staat[k].filter((r) => !r.demo);
   }
-  for (const soort of ['meting', 'frequentie']) {
+  // Eigen metingen die aan een (verwijderde) demosteekproef hingen, verliezen alleen die koppeling.
+  for (const m of staat.procesmetingen) {
+    if (m.steekproefId && !zoekSteekproef(m.steekproefId)) { delete m.steekproefId; delete m.volgnummerSteekproef; }
+  }
+  for (const soort of ['meting', 'frequentie', 'steekproef']) {
     for (const pid of Object.keys(staat.volgnummers[soort])) {
       if (pid.startsWith('DEMO-')) delete staat.volgnummers[soort][pid];
     }

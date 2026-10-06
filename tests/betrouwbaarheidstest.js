@@ -251,7 +251,7 @@ function ok(stap, tekst) { resultaten.push(`✔ ${stap}: ${tekst}`); console.log
   await tab('importexport');
   const xl = await download(page, () => page.click('[data-actie="excel-export"]'), 'export_v14.xlsx');
   const x = JSON.parse(execFileSync('python3', [path.join(__dirname, 'controleer_xlsx_v14.py'), xl.pad]).toString());
-  assert.deepStrictEqual(x.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(x.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
   assert.deepStrictEqual(x.pm001, ['2026-10-05', 2026, 41, '2026-10-05', '2026-10-11', 'Nee', 'dossier', 'diensttijdregistratie']);
   assert.strictEqual(x.pm003_test, 'Ja');
   assert.strictEqual(x.stap003_test, 'Ja');
@@ -270,7 +270,7 @@ function ok(stap, tekst) { resultaten.push(`✔ ${stap}: ${tekst}`); console.log
   const voorTotaal = await page.evaluate(() => window.__meettool.berekenTotaalOverzicht('PR24', { meetwijze: 'alle' }, 'Week', ''));
   const bk = await download(page, () => page.click('[data-actie="backup-download"]'), 'volledige_backup.json');
   const json = JSON.parse(fs.readFileSync(bk.pad, 'utf8'));
-  assert.ok(json.schemaversie === 3 && json.aangemaaktOp && json.instellingen && json.instellingen.volgnummers, 'metadata');
+  assert.ok(json.schemaversie === 4 && json.aangemaaktOp && json.instellingen && json.instellingen.volgnummers, 'metadata');
   assert.deepStrictEqual(json.medewerkerIds, ['PZ01', 'PZ02', 'PZ03', 'PZ04']);
   assert.strictEqual(json.koppelingen.length, voor.procesmetingen.length);
   assert.deepStrictEqual(json.teststatussen, { procesmetingen: ['M-PR24-003'], frequentiemetingen: ['F-PR24-003'] });
@@ -312,7 +312,7 @@ function ok(stap, tekst) { resultaten.push(`✔ ${stap}: ${tekst}`); console.log
   await page.waitForSelector('#dialoog[open]');
   assert.ok((await page.textContent('#dialoogInhoud')).includes('teststatussen komen niet overeen'));
   await knop('Sluiten');
-  ok('back-up', 'Volledige back-up (schemaversie 3, tijdstip, medewerker-ID\'s, instellingen, koppelingen, teststatussen) hersteld in een lege tool: alle gegevens en resultaten identiek; vervangen maakt eerst een veiligheidsback-up; beschadigde of inconsistente bestanden worden geweigerd met een duidelijke melding');
+  ok('back-up', 'Volledige back-up (schemaversie 4, tijdstip, medewerker-ID\'s, instellingen, koppelingen, teststatussen) hersteld in een lege tool: alle gegevens en resultaten identiek; vervangen maakt eerst een veiligheidsback-up; beschadigde of inconsistente bestanden worden geweigerd met een duidelijke melding');
 
   // ---------- 11. Bestaande gegevens (versie 1.3 zonder nieuwe velden) ----------
   const oud = JSON.parse(JSON.stringify(json));

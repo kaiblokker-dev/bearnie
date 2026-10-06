@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   Meettool administratieve processen
-  Versie: 1.6.0
-  Gebouwd op: 2026-10-05
+  Versie: 1.7.0
+  Gebouwd op: 2026-10-06
 
   Zelfstandig bestand: alle JavaScript en CSS staan hieronder in dit bestand.
   Er worden geen externe bronnen geladen en er worden geen gegevens verzonden.
@@ -82,7 +82,7 @@ nav.tabs button {
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
-  padding: 12px 14px 9px;
+  padding: 12px 10px 9px;
   font: inherit;
   color: var(--tekst-zacht);
   cursor: pointer;
@@ -345,6 +345,12 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 .knelpuntvelden .keuzes label { font-size: 13px; }
 .knelpuntlabel { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; vertical-align: middle; }
 
+/* Steekproeven (versie 1.7) */
+.voortgang { height: 6px; background: var(--rand, #d8dde3); border-radius: 3px; margin-top: 4px; max-width: 160px; overflow: hidden; }
+.voortgang span { display: block; height: 100%; background: var(--groen-donker); }
+.kerncijfers > div { min-width: 0; }
+.steekproeflabel { display: block; font-size: 11px; color: var(--tekst-zacht); font-family: inherit; }
+
 </style>
 </head>
 <body>
@@ -361,11 +367,12 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 
 <nav class="tabs" id="tabs">
   <button type="button" data-tab="processen"><span class="nr">1</span>Processen beheren</button>
-  <button type="button" data-tab="meting"><span class="nr">2</span>Nieuwe procesmeting</button>
-  <button type="button" data-tab="frequentie"><span class="nr">3</span>Frequentie registreren</button>
-  <button type="button" data-tab="overzicht"><span class="nr">4</span>Metingen bekijken</button>
-  <button type="button" data-tab="resultaten"><span class="nr">5</span>Resultaten</button>
-  <button type="button" data-tab="importexport"><span class="nr">6</span>Importeren en exporteren</button>
+  <button type="button" data-tab="steekproeven"><span class="nr">2</span>Steekproeven</button>
+  <button type="button" data-tab="meting"><span class="nr">3</span>Nieuwe procesmeting</button>
+  <button type="button" data-tab="frequentie"><span class="nr">4</span>Frequentie registreren</button>
+  <button type="button" data-tab="overzicht"><span class="nr">5</span>Metingen bekijken</button>
+  <button type="button" data-tab="resultaten"><span class="nr">6</span>Resultaten</button>
+  <button type="button" data-tab="importexport"><span class="nr">7</span>Importeren en exporteren</button>
 </nav>
 
 <main>
@@ -388,7 +395,97 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 2. Nieuwe procesmeting -->
+  <!-- 2. Steekproeven -->
+  <section class="tab" id="tab-steekproeven" hidden>
+    <h2>Steekproeven</h2>
+    <p class="uitleg">Een steekproef is een afgebakende set dossiers uit een populatie, die u met procesmetingen onderzoekt. Leg hier de steekproef vast en koppel er procesmetingen aan (ook bestaande). Per steekproef ziet u de voortgang en de resultaten.</p>
+    <div class="kaart">
+      <div class="knoppen" style="margin-top:0">
+        <button type="button" class="primair" data-actie="steekproef-nieuw">Nieuwe steekproef</button>
+      </div>
+    </div>
+    <form class="kaart ruw-kader" id="steekproefFormulier" novalidate autocomplete="off" hidden>
+      <span class="etiket ruw">Invoer</span>
+      <h3 id="steekproefTitel">Nieuwe steekproef</h3>
+      <div class="velden">
+        <div class="veld">
+          <label for="spId">SteekproefID</label>
+          <input type="text" id="spId" readonly>
+          <span class="hint">Wordt automatisch toegekend.</span>
+        </div>
+        <div class="veld">
+          <label for="spProces" class="verplicht">ProcesID</label>
+          <select id="spProces"></select>
+        </div>
+        <div class="veld">
+          <label for="spNaam" class="verplicht">Naam van de steekproef</label>
+          <input type="text" id="spNaam" maxlength="120" placeholder="bijv. Herberekeningen najaar 2026">
+        </div>
+        <div class="veld">
+          <label for="spStatus" class="verplicht">Status</label>
+          <select id="spStatus"></select>
+        </div>
+        <div class="veld breed">
+          <label for="spPopulatie">Omschrijving van de onderzochte populatie</label>
+          <textarea id="spPopulatie" placeholder="bijv. alle herberekeningsdossiers die in september 2026 zijn binnengekomen"></textarea>
+        </div>
+        <div class="veld">
+          <label for="spPopulatiegrootte">Totale populatiegrootte <span data-uitleg="populatie"></span></label>
+          <input type="text" id="spPopulatiegrootte" inputmode="numeric" placeholder="bijv. 400">
+          <span class="hint">Aantal dossiers in de populatie; leeg laten als onbekend.</span>
+        </div>
+        <div class="veld">
+          <label for="spSteekproefgrootte">Beoogde steekproefgrootte</label>
+          <input type="text" id="spSteekproefgrootte" inputmode="numeric" placeholder="bijv. 20">
+          <span class="hint">Aantal dossiers dat u wilt meten.</span>
+        </div>
+        <div class="veld">
+          <label for="spSelectiemethode">Selectiemethode <span data-uitleg="selectiemethode"></span></label>
+          <select id="spSelectiemethode"></select>
+        </div>
+        <div class="veld">
+          <label for="spStart">Startdatum van de meting</label>
+          <input type="date" id="spStart">
+        </div>
+        <div class="veld">
+          <label for="spEind">Einddatum van de meting</label>
+          <input type="date" id="spEind">
+        </div>
+        <div class="veld breed">
+          <label for="spInclusie">Inclusiecriteria</label>
+          <textarea id="spInclusie" placeholder="Welke dossiers horen erbij?"></textarea>
+        </div>
+        <div class="veld breed">
+          <label for="spExclusie">Exclusiecriteria</label>
+          <textarea id="spExclusie" placeholder="Welke dossiers worden uitgesloten?"></textarea>
+        </div>
+        <div class="veld breed">
+          <label for="spToelichting">Toelichting</label>
+          <textarea id="spToelichting" placeholder="Optioneel"></textarea>
+        </div>
+      </div>
+      <div id="spFouten"></div>
+      <div class="knoppen">
+        <button type="submit" class="primair" id="spOpslaan">Steekproef opslaan</button>
+        <button type="button" data-actie="steekproef-annuleren">Annuleren</button>
+      </div>
+    </form>
+    <div class="kaart">
+      <h3>Vastgelegde steekproeven</h3>
+      <div class="tabelhouder" id="steekproevenLijst"></div>
+    </div>
+    <div class="kaart" id="steekproefResultatenKaart">
+      <h3>Steekproefresultaten</h3>
+      <div class="filterbalk">
+        <div class="veld" style="width:320px"><label for="srSteekproef">Steekproef</label><select id="srSteekproef"></select></div>
+        <div class="veld" style="width:230px"><label for="srMeetwijze">Meetwijze</label><select id="srMeetwijze"></select></div>
+        <div class="veld" style="width:auto"><span class="label">Testmetingen</span><label class="keuzes" style="font-weight:400"><input type="checkbox" id="srMetTest"> Testmetingen meenemen <span data-uitleg="test"></span></label></div>
+      </div>
+      <div id="steekproefResultaten" class="mt"></div>
+    </div>
+  </section>
+
+  <!-- 3. Nieuwe procesmeting -->
   <section class="tab" id="tab-meting" hidden>
     <h2 id="metingTitel">Nieuwe procesmeting</h2>
     <p class="uitleg">Vul eerst de algemene gegevens in en daarna per processtap de tijden in minuten. Decimalen mogen met een komma of een punt (bijvoorbeeld 1,5). Laat een veld leeg als de waarde onbekend is: lege velden worden niet als nul geteld.</p>
@@ -448,21 +545,8 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
             <textarea id="mToelichting" placeholder="Optioneel"></textarea>
           </div>
           <div class="veld breed">
-            <label for="mBelangrijksteKnelpunt">Belangrijkste knelpunt tijdens deze uitvoering <span data-uitleg="knelpunt"></span></label>
-            <input type="text" id="mBelangrijksteKnelpunt" maxlength="300" placeholder="Optioneel">
-          </div>
-          <div class="veld breed">
             <label for="mBijzonderheden">Bijzonderheden of uitzonderingen</label>
             <textarea id="mBijzonderheden" placeholder="Optioneel"></textarea>
-          </div>
-          <div class="veld">
-            <label for="mActiefTotaal">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
-            <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
-            <span class="hint">Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.</span>
-          </div>
-          <div class="veld">
-            <label for="mWachtTotaal">Totale wachttijd volgens procesmeting (min) <span data-uitleg="wacht"></span></label>
-            <input type="text" id="mWachtTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
           </div>
           <div class="veld">
             <span class="label">Test/fictief <span data-uitleg="test"></span></span>
@@ -471,11 +555,100 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
         </div>
       </div>
 
+      <div class="kaart ruw-kader" id="mDossierKaart">
+        <span class="etiket ruw">Invoer</span>
+        <h3>Steekproef en dossier <span data-uitleg="steekproef"></span></h3>
+        <div class="velden">
+          <div class="veld">
+            <label for="mSteekproef">SteekproefID</label>
+            <select id="mSteekproef"></select>
+            <span class="hint" id="mSteekproefHint">Optioneel. Steekproeven legt u vast op het tabblad Steekproeven.</span>
+          </div>
+          <div class="veld">
+            <label for="mVolgnummer">Volgnummer binnen de steekproef</label>
+            <input type="text" id="mVolgnummer" inputmode="numeric" placeholder="bijv. 12">
+            <span class="hint">Geheel getal vanaf 1; uniek binnen de steekproef.</span>
+          </div>
+          <div class="veld">
+            <label for="mDossierId">Geanonimiseerd dossier-ID</label>
+            <input type="text" id="mDossierId" maxlength="40" placeholder="bijv. D-012">
+            <span class="hint">Nooit een echt dossier-, registratie- of burgerservicenummer.</span>
+          </div>
+        </div>
+        <div id="mKenmerken" hidden>
+          <h4>Dossierkenmerken <span data-uitleg="dossierkenmerken"></span></h4>
+          <div class="velden">
+            <div class="veld">
+              <label for="mPerioderegels">Aantal ABP-periode-regels</label>
+              <input type="text" id="mPerioderegels" inputmode="numeric" placeholder="bijv. 40">
+              <span class="hint">Geheel getal vanaf 0; leeg laten als onbekend.</span>
+            </div>
+            <div class="veld">
+              <label for="mOnderbrekingen">Aantal onderbrekingen</label>
+              <input type="text" id="mOnderbrekingen" inputmode="numeric" placeholder="bijv. 2">
+              <span class="hint">Geheel getal vanaf 0; leeg laten als onbekend.</span>
+            </div>
+            <div class="veld">
+              <span class="label">Complexiteit</span>
+              <div class="keuzes" id="mComplexiteit">
+                <label><input type="radio" name="complexiteit" value="Eenvoudig"> Eenvoudig</label>
+                <label><input type="radio" name="complexiteit" value="Gemiddeld"> Gemiddeld</label>
+                <label><input type="radio" name="complexiteit" value="Complex"> Complex</label>
+              </div>
+            </div>
+            <div class="veld">
+              <label for="mTijdrovendste">Meest tijdrovende processtap <span data-uitleg="tijdrovend"></span></label>
+              <select id="mTijdrovendste"></select>
+              <span class="hint">Inschatting voor dit dossier; geen gemeten tijd per stap.</span>
+            </div>
+            <div class="veld breed">
+              <span class="label">Reden tijdsbelasting (meerdere mogelijk)</span>
+              <div class="keuzes" id="mRedenen"></div>
+            </div>
+          </div>
+        </div>
+        <h4>Knelpunt op dossierniveau <span data-uitleg="knelpunt"></span></h4>
+        <div class="velden">
+          <div class="veld">
+            <label for="mKnelpunt">Knelpunt aanwezig</label>
+            <select id="mKnelpunt"><option value="">–</option><option value="nee">Nee</option><option value="ja">Ja</option></select>
+          </div>
+          <div class="veld" id="mKnelpuntCategorieVeld" hidden>
+            <label for="mKnelpuntCategorie">Knelpuntcategorie</label>
+            <select id="mKnelpuntCategorie"></select>
+          </div>
+          <div class="veld breed">
+            <label for="mBelangrijksteKnelpunt">Korte omschrijving van het knelpunt (belangrijkste knelpunt tijdens deze uitvoering)</label>
+            <input type="text" id="mBelangrijksteKnelpunt" maxlength="300" placeholder="Optioneel">
+          </div>
+          <div class="veld breed" id="mKnelpuntGevolgVeld" hidden>
+            <span class="label">Gevolg van het knelpunt (meerdere mogelijk)</span>
+            <div class="keuzes" id="mKnelpuntGevolgen"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="kaart ruw-kader">
         <span class="etiket ruw">Invoer</span>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <h3 style="margin:0">Processtappen</h3>
+          <h3 style="margin:0">Tijden en processtappen</h3>
           <label class="klein"><input type="checkbox" id="mTimerTonen"> Timer tonen (optioneel hulpmiddel)</label>
+        </div>
+        <div class="velden mt">
+          <div class="veld">
+            <label for="mDetail">Detailmeting per processtap uitgevoerd <span data-uitleg="detailmeting"></span></label>
+            <select id="mDetail"><option value="ja">Ja</option><option value="nee">Nee</option></select>
+            <span class="hint" id="mDetailHint">Bij Nee legt u alleen de totale tijd van de uitvoering vast.</span>
+          </div>
+          <div class="veld">
+            <label for="mActiefTotaal" id="mActiefTotaalLabel">Totale actieve tijd volgens procesmeting (min) <span data-uitleg="actief"></span></label>
+            <input type="text" id="mActiefTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+            <span class="hint" id="mActiefTotaalHint">Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.</span>
+          </div>
+          <div class="veld">
+            <label for="mWachtTotaal" id="mWachtTotaalLabel">Totale wachttijd volgens procesmeting (min) <span data-uitleg="wacht"></span></label>
+            <input type="text" id="mWachtTotaal" inputmode="decimal" placeholder="Optioneel, ter controle">
+          </div>
         </div>
         <div id="mStappen" class="mt"></div>
       </div>
@@ -492,7 +665,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </form>
   </section>
 
-  <!-- 3. Frequentie registreren -->
+  <!-- 4. Frequentie registreren -->
   <section class="tab" id="tab-frequentie" hidden>
     <h2 id="frequentieTitel">Frequentie registreren</h2>
     <p class="uitleg">Een frequentiemeting hoort bij een proces als geheel (niet bij een processtap). Leg vast hoe vaak het proces in een meetperiode is uitgevoerd en welk volume daarbij is verwerkt.</p>
@@ -581,7 +754,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 4. Metingen bekijken -->
+  <!-- 5. Metingen bekijken -->
   <section class="tab" id="tab-overzicht" hidden>
     <h2>Metingen bekijken</h2>
     <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
@@ -600,6 +773,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
         <div class="veld" data-filter="medewerker"><label for="ozMedewerker">Medewerker</label><select id="ozMedewerker"></select></div>
         <div class="veld" data-filter="casustype"><label for="ozCasustype">Casustype</label><select id="ozCasustype"></select></div>
         <div class="veld"><label for="ozMeetwijze">Meetwijze</label><select id="ozMeetwijze"></select></div>
+        <div class="veld" data-filter="steekproef"><label for="ozSteekproef">Steekproef</label><select id="ozSteekproef"></select></div>
         <div class="veld"><button type="button" data-actie="filters-wissen">Filters wissen</button></div>
       </div>
       <div id="overzichtTelling" class="klein zacht"></div>
@@ -607,7 +781,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 5. Resultaten -->
+  <!-- 6. Resultaten -->
   <section class="tab" id="tab-resultaten" hidden>
     <h2>Resultaten</h2>
     <p class="uitleg">Alle waarden op deze pagina zijn <strong>automatisch berekend</strong> uit de opgeslagen metingen. De mediaan is de belangrijkste uitkomst. Normale gevallen en uitzonderingen worden altijd afzonderlijk berekend.</p>
@@ -624,7 +798,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     <div id="resultatenInhoud"></div>
   </section>
 
-  <!-- 6. Importeren en exporteren -->
+  <!-- 7. Importeren en exporteren -->
   <section class="tab" id="tab-importexport" hidden>
     <h2>Importeren en exporteren</h2>
     <p class="uitleg">Alle gegevens staan uitsluitend lokaal in deze browser op dit apparaat. Maak regelmatig een JSON-back-up: als de browsergegevens worden gewist, zijn de metingen anders verloren.</p>
@@ -632,7 +806,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Knelpunten, Procesmetingen, Stapmetingen, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers.</p>
+        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Steekproefresultaten, Steekproeven, Procesmetingen, Stapmetingen, Knelpunten, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers. Steekproefresultaten volgen de keuzes op het tabblad Steekproeven (meetwijze en testmetingen).</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>
@@ -644,11 +818,12 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
           <button type="button" data-actie="csv-stapmetingen">Stapmetingen (CSV)</button>
           <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
           <button type="button" data-actie="csv-knelpunten">Knelpunten (CSV)</button>
+          <button type="button" data-actie="csv-steekproeven">Steekproeven (CSV)</button>
         </div>
       </div>
       <div class="kaart">
         <h3>Volledige back-up (JSON)</h3>
-        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
+        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, steekproeven, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
         <div class="knoppen">
           <button type="button" class="primair" data-actie="backup-download">Volledige back-up downloaden</button>
           <button type="button" data-actie="backup-import">Back-up herstellen</button>
@@ -689,11 +864,12 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 'use strict';
 // ===== versie.js =====
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.6.0';
+const VERSIE = '1.7.0';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
-const MEETWIJZEN_METING = ['Gemeten', 'Geschat door medewerker', 'Uit systeemgegevens'];
+// 'Geobserveerd' bestaat sinds versie 1.7 (waarneming door de onderzoeker).
+const MEETWIJZEN_METING = ['Gemeten', 'Geschat door medewerker', 'Uit systeemgegevens', 'Geobserveerd'];
 // Meetwijze = bron van de frequentie. De eerste drie waarden bestaan sinds versie 1.0 en blijven ongewijzigd.
 const MEETWIJZEN_FREQUENTIE = ['Geteld', 'Uit systeemgegevens', 'Geschat door medewerker', 'Berekend', 'Anders'];
 const MEETWIJZE_FREQUENTIE_LABELS = {
@@ -714,12 +890,19 @@ const MEETWIJZE_GROEPEN = [
   { code: 'gemeten', label: 'Gemeten', meting: 'Gemeten', frequentie: 'Geteld' },
   { code: 'geschat', label: 'Geschat door medewerker', meting: 'Geschat door medewerker', frequentie: 'Geschat door medewerker' },
   { code: 'systeem', label: 'Uit systeemgegevens', meting: 'Uit systeemgegevens', frequentie: 'Uit systeemgegevens' },
+  { code: 'geobserveerd', label: 'Geobserveerd', meting: 'Geobserveerd', frequentie: null },
 ];
 
 // Knelpunten per processtap (versie 1.6). Alle velden zijn optioneel.
 const KNELPUNT_CATEGORIEEN = ['Wachten', 'Systeem', 'Ontbrekende of onduidelijke informatie', 'Handmatige invoer', 'Controle of herstelwerk', 'Overdracht tussen personen of afdelingen', 'Afwijkende werkwijze', 'Anders'];
 const KNELPUNT_GEVOLGEN = ['Extra actieve tijd', 'Extra wachttijd', 'Verhoogde foutkans', 'Herstelwerk', 'Vertraging in de doorlooptijd', 'Anders'];
 const KNELPUNT_BRONNEN = ['Geobserveerd', 'Door medewerker aangegeven', 'Uit systeemgegevens', 'Eigen inschatting'];
+
+// Steekproeven en dossierkenmerken (versie 1.7). Alle dossierkenmerken zijn optioneel.
+const SELECTIEMETHODEN = ['Willekeurig', 'Opeenvolgend', 'Doelgericht'];
+const STEEKPROEF_STATUSSEN = ['Concept', 'Bezig', 'Afgerond'];
+const COMPLEXITEITEN = ['Eenvoudig', 'Gemiddeld', 'Complex'];
+const REDENEN_TIJDSBELASTING = ['Veel periode-regels', 'Veel diensttijdblokken', 'Onderbrekingen', 'Korte opeenvolgende perioden', 'Verschillende arbeidsverhoudingen', 'Onduidelijke informatie', 'Handmatige invoer', 'Controle of herstel', 'Anders'];
 
 // ===== hulpfuncties.js =====
 // ---------- Algemene hulpfuncties ----------
@@ -1040,6 +1223,13 @@ const UITLEG = {
   meetellen: 'Meetellen in totaal: alleen aanvinken als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Alleen aangevinkte frequenties worden opgeteld.',
   blokken: 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd. Bijv. 40 beoordeelde dienstperioden → 4 diensttijdblokken.',
   knelpunt: 'Knelpunt: iets dat de uitvoering van een stap hindert (bijv. wachten, systeem, onduidelijke informatie). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd of wachttijd en wordt niet opnieuw opgeteld bij de procesduur of tijdsbelasting.',
+  steekproef: 'Steekproef: een afgebakende set dossiers uit een populatie. Koppel een procesmeting aan een steekproef met het SteekproefID, een volgnummer en een geanonimiseerd dossier-ID, zodat iedere uitkomst herleidbaar blijft.',
+  dossierkenmerken: 'Dossierkenmerken: kenmerken van het gemeten dossier (periode-regels, onderbrekingen, complexiteit, meest tijdrovende stap, reden tijdsbelasting). Alle velden zijn optioneel; leeg = onbekend, nooit 0.',
+  tijdrovend: 'Meest tijdrovende processtap: de stap die bij dit dossier de meeste tijd kostte, volgens de medewerker of onderzoeker. Dit is een inschatting per dossier en geen gemeten tijd per stap; de uitkomst is een ranglijst van hoe vaak een stap is genoemd.',
+  detailmeting: 'Detailmeting per processtap: Ja = per stap actieve tijd en wachttijd vastgelegd. Nee = alleen de totale tijd van de uitvoering; er wordt dan nooit een tijd per stap berekend.',
+  populatie: 'Populatiegrootte: het totale aantal dossiers waaruit de steekproef is getrokken. Wordt gebruikt voor de geschatte tijdsbelasting van de populatie (gemiddelde actieve tijd per dossier × populatiegrootte).',
+  selectiemethode: 'Selectiemethode: willekeurig (aselect), opeenvolgend (alle dossiers in volgorde van binnenkomst) of doelgericht (bewust gekozen). Bij een doelgerichte steekproef is extrapolatie naar de populatie niet representatief.',
+  extrapolatie: 'Geschatte tijdsbelasting populatie: gemiddelde actieve tijd per dossier in de steekproef × totale populatiegrootte. Een schatting; de nauwkeurigheid hangt af van de steekproefgrootte en de selectiemethode.',
   test: 'Test/fictieve meting: blijft zichtbaar in de ruwe gegevens, maar telt standaard niet mee in gemiddelden, grafieken, totalen en tijdsbelasting.',
 };
 
@@ -1222,6 +1412,20 @@ function toonConceptStatus(prefix, gelukt, tijdstip) {
 // knelpuntExtraActief, knelpuntExtraWacht (minuten, null = onbekend) en knelpuntBron.
 // Procesmetingen kunnen belangrijksteKnelpunt en bijzonderheden (tekst) hebben.
 // Geschatte extra tijd is verklarend: die zit al in de gemeten tijd en wordt nergens opgeteld.
+// Versie 1.7 (schemaversie 4): steekproeven en dossierkenmerken.
+// steekproeven: { steekproefId, procesId, naam, populatie, populatiegrootte, steekproefgrootte,
+//                 selectiemethode, inclusiecriteria, exclusiecriteria, startdatum, einddatum,
+//                 toelichting, status, demo, aangemaakt, gewijzigd }
+// Procesmetingen kunnen (allemaal optioneel; ontbreken = niet vastgelegd) hebben:
+// - steekproefId, volgnummerSteekproef (geheel getal ≥ 1, uniek binnen de steekproef), dossierId
+//   (geanonimiseerd);
+// - aantalPerioderegels, aantalOnderbrekingen (geheel getal ≥ 0), complexiteit, tijdrovendsteStapId
+//   en tijdrovendsteStapnaam (kopie), redenenTijdsbelasting (lijst);
+// - knelpunt (true/false), knelpuntCategorie, knelpuntGevolgen: knelpunt op dossierniveau; de korte
+//   omschrijving is belangrijksteKnelpunt;
+// - detailmeting (true/false): of per processtap is gemeten. Bij false zijn er geen stapmetingen en
+//   komt de tijd van de meting uit actieveTijdTotaal en wachttijdTotaal. Ontbreekt het veld, dan is
+//   er per stap gemeten (oudere metingen hebben altijd stapmetingen).
 // Een ontbrekend veld testmeting betekent 'geen testmeting'. Kalenderweek, -jaar en begin/einde
 // van de week worden nooit opgeslagen maar altijd uit de datum berekend.
 // Stapmetingen bij een test-procesmeting gelden automatisch ook als testgegevens.
@@ -1233,20 +1437,21 @@ let staat = legeStaat();
 
 function legeStaat() {
   return {
-    schemaversie: 3,
+    schemaversie: 4,
     processen: [],
     processtappen: [],
     procesmetingen: [],
     stapmetingen: [],
     frequentiemetingen: [],
-    volgnummers: { meting: {}, frequentie: {} },
+    steekproeven: [],
+    volgnummers: { meting: {}, frequentie: {}, steekproef: {} },
   };
 }
 
 function normaliseerStaat(s) {
   const n = legeStaat();
   if (!s || typeof s !== 'object') return n;
-  for (const k of ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']) {
+  for (const k of GEGEVENSLIJSTEN) {
     n[k] = Array.isArray(s[k]) ? s[k] : [];
   }
   // Schemaversie 1 -> 2: het enkele veld 'eenheid' was de eenheid van de omvang.
@@ -1257,9 +1462,13 @@ function normaliseerStaat(s) {
   if (s.volgnummers && typeof s.volgnummers === 'object') {
     n.volgnummers.meting = { ...(s.volgnummers.meting || {}) };
     n.volgnummers.frequentie = { ...(s.volgnummers.frequentie || {}) };
+    n.volgnummers.steekproef = { ...(s.volgnummers.steekproef || {}) };
   }
   return n;
 }
+
+// Alle lijsten met records in de staat (steekproeven sinds versie 1.7).
+const GEGEVENSLIJSTEN = ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen', 'steekproeven'];
 
 const EENHEID_VELDEN = ['uitvoeringseenheid', 'uitvoeringseenheidMeervoud', 'omvangseenheid', 'omvangseenheidMeervoud'];
 
@@ -1318,6 +1527,27 @@ function blokkenVastleggen(procesId) {
   if (procesId === 'PR24') return true;
   // Ook tonen als er al metingen met een aantal blokken zijn (bijv. na verwijderen van het proces).
   return staat.procesmetingen.some((m) => m.procesId === procesId && isGetal(m.aantalBlokken));
+}
+
+/** Of bij metingen van dit proces de dossierkenmerken (steekproefvelden PR24) worden vastgelegd. */
+function dossierkenmerkenVastleggen(procesId) {
+  const p = zoekProces(procesId);
+  if (p && typeof p.dossierkenmerken === 'boolean') return p.dossierkenmerken;
+  if (procesId === 'PR24') return true;
+  return staat.procesmetingen.some((m) => m.procesId === procesId && heeftDossierkenmerken(m));
+}
+
+const DOSSIERKENMERK_VELDEN = ['aantalPerioderegels', 'aantalOnderbrekingen', 'complexiteit', 'tijdrovendsteStapId', 'redenenTijdsbelasting'];
+
+function heeftDossierkenmerken(m) {
+  return DOSSIERKENMERK_VELDEN.some((k) => m[k] !== undefined && m[k] !== null && m[k] !== '' && !(Array.isArray(m[k]) && !m[k].length));
+}
+
+/** Of bij een meting per processtap is gemeten. Oudere metingen (zonder het veld) hebben altijd stapmetingen. */
+function heeftDetailmeting(m) {
+  if (m.detailmeting === false) return false;
+  if (m.detailmeting === true) return true;
+  return stapmetingenVan(m.metingId).length > 0;
 }
 
 function isTestmeting(record) {
@@ -1403,6 +1633,27 @@ function zoekFrequentie(frequentieId) {
   return staat.frequentiemetingen.find((f) => f.frequentieId === frequentieId) || null;
 }
 
+function zoekSteekproef(steekproefId) {
+  return staat.steekproeven.find((s) => s.steekproefId === steekproefId) || null;
+}
+
+function steekproevenVanProces(procesId) {
+  return staat.steekproeven.filter((s) => s.procesId === procesId).sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId));
+}
+
+/** Alle procesmetingen die aan een steekproef zijn gekoppeld (ook testmetingen), op volgnummer. */
+function metingenVanSteekproef(steekproefId) {
+  return staat.procesmetingen
+    .filter((m) => m.steekproefId === steekproefId)
+    .sort((a, b) => (isGetal(a.volgnummerSteekproef) ? a.volgnummerSteekproef : Infinity) - (isGetal(b.volgnummerSteekproef) ? b.volgnummerSteekproef : Infinity) || vergelijkTekst(a.metingId, b.metingId));
+}
+
+/** Eerstvolgende vrije volgnummer binnen een steekproef. */
+function volgendVolgnummer(steekproefId, behalveMetingId) {
+  const nummers = staat.procesmetingen.filter((m) => m.steekproefId === steekproefId && m.metingId !== behalveMetingId && isGetal(m.volgnummerSteekproef)).map((m) => m.volgnummerSteekproef);
+  return Math.max(0, ...nummers) + 1;
+}
+
 function frequentiesVanProces(procesId) {
   return staat.frequentiemetingen
     .filter((f) => f.procesId === procesId)
@@ -1433,8 +1684,7 @@ function alleProcesIds() {
 }
 
 function bevatDemo() {
-  return ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']
-    .some((k) => staat[k].some((r) => r.demo));
+  return GEGEVENSLIJSTEN.some((k) => staat[k].some((r) => r.demo));
 }
 
 // ---------- Identificatiecodes ----------
@@ -1445,9 +1695,13 @@ function volgnummerUitId(id, prefix) {
   return /^\d+$/.test(rest) ? Number(rest) : 0;
 }
 
+const ID_PREFIX = { meting: 'M', frequentie: 'F', steekproef: 'SP' };
+
 function volgendeId(soort, procesId) {
-  const prefix = soort === 'meting' ? `M-${procesId}-` : `F-${procesId}-`;
-  const lijst = soort === 'meting' ? staat.procesmetingen.map((m) => m.metingId) : staat.frequentiemetingen.map((f) => f.frequentieId);
+  const prefix = `${ID_PREFIX[soort]}-${procesId}-`;
+  const lijst = soort === 'meting' ? staat.procesmetingen.map((m) => m.metingId)
+    : soort === 'frequentie' ? staat.frequentiemetingen.map((f) => f.frequentieId)
+      : staat.steekproeven.map((s) => s.steekproefId);
   const hoogsteBestaand = Math.max(0, ...lijst.map((id) => volgnummerUitId(id, prefix)));
   const teller = staat.volgnummers[soort][procesId] || 0;
   const volgende = Math.max(hoogsteBestaand, teller) + 1;
@@ -1455,7 +1709,7 @@ function volgendeId(soort, procesId) {
 }
 
 function registreerVolgnummer(soort, procesId, id) {
-  const prefix = soort === 'meting' ? `M-${procesId}-` : `F-${procesId}-`;
+  const prefix = `${ID_PREFIX[soort]}-${procesId}-`;
   const nr = volgnummerUitId(id, prefix);
   if (nr > (staat.volgnummers[soort][procesId] || 0)) staat.volgnummers[soort][procesId] = nr;
 }
@@ -1515,6 +1769,7 @@ function bewaarProces(invoer, origineelId) {
     omvangseenheid: invoer.omvangseenheid.trim(),
     omvangseenheidMeervoud: invoer.omvangseenheidMeervoud.trim(),
     ...(typeof invoer.blokkenVastleggen === 'boolean' ? { blokkenVastleggen: invoer.blokkenVastleggen } : {}),
+    ...(typeof invoer.dossierkenmerken === 'boolean' ? { dossierkenmerken: invoer.dossierkenmerken } : {}),
     demo: bestaand ? !!bestaand.demo : false,
     aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
     gewijzigd: nuIso(),
@@ -1571,7 +1826,12 @@ function valideerMeting(meting, stapmetingen, origineelId) {
     else if (isGetal(meting.omvang) && meting.aantalBlokken > meting.omvang) waarschuwingen.push(`Het aantal diensttijdblokken (${meting.aantalBlokken}) is groter dan het aantal ${e.omvangseenheidMeervoud} (${fmtAantal(meting.omvang)}). Controleer of dit klopt.`);
   }
   if (meting.omvang === null) waarschuwingen.push(`De omvang (aantal ${e.omvangseenheidMeervoud}) is niet ingevuld. Actieve tijd per ${e.omvangseenheid} wordt voor deze meting als Onbekend getoond.`);
-  if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
+  if (meting.detailmeting === false) {
+    if (stapmetingen.length) fouten.push('Er is aangegeven dat geen detailmeting per processtap is uitgevoerd, maar er zijn wel stapmetingen.');
+    if (!isGetal(meting.actieveTijdTotaal)) waarschuwingen.push('Er is geen detailmeting per processtap uitgevoerd en de totale actieve tijd is niet ingevuld. De actieve tijd van deze meting is daardoor Onbekend.');
+    if (!isGetal(meting.wachttijdTotaal)) waarschuwingen.push('De totale wachttijd is niet ingevuld. Vul 0 in als er geen wachttijd was; een leeg veld blijft Onbekend.');
+  } else if (!stapmetingen.length) fouten.push('Deze meting bevat geen processtappen.');
+  valideerDossiervelden(meting, origineelId, fouten, waarschuwingen);
   for (const s of stapmetingen) {
     const label = `${s.stapId} (${s.stapnaam})`;
     if (s.actieveTijd !== null && s.actieveTijd < 0) fouten.push(`${label}: actieve tijd mag niet negatief zijn.`);
@@ -1598,6 +1858,43 @@ function valideerMeting(meting, stapmetingen, origineelId) {
   return { fouten, waarschuwingen };
 }
 
+/** Controles op de steekproefkoppeling en de dossierkenmerken (versie 1.7). */
+function valideerDossiervelden(meting, origineelId, fouten, waarschuwingen) {
+  const geheel = (v) => v === undefined || v === null || (Number.isInteger(v) && v >= 0);
+  if (meting.steekproefId) {
+    const sp = zoekSteekproef(meting.steekproefId);
+    if (!sp) fouten.push(`Steekproef ${meting.steekproefId} bestaat niet.`);
+    else {
+      if (sp.procesId !== meting.procesId) fouten.push(`Steekproef ${sp.steekproefId} hoort bij proces ${sp.procesId}, niet bij ${meting.procesId}.`);
+      if (meting.datum && sp.startdatum && meting.datum < sp.startdatum) waarschuwingen.push(`De meetdatum (${fmtDatum(meting.datum)}) ligt vóór de startdatum van steekproef ${sp.steekproefId} (${fmtDatum(sp.startdatum)}).`);
+      if (meting.datum && sp.einddatum && meting.datum > sp.einddatum) waarschuwingen.push(`De meetdatum (${fmtDatum(meting.datum)}) ligt na de einddatum van steekproef ${sp.steekproefId} (${fmtDatum(sp.einddatum)}).`);
+      if (sp.status === 'Afgerond' && (!origineelId || (zoekMeting(origineelId) || {}).steekproefId !== sp.steekproefId)) waarschuwingen.push(`Steekproef ${sp.steekproefId} heeft de status Afgerond. Weet u zeker dat u er nog een meting aan wilt koppelen?`);
+    }
+    if (meting.volgnummerSteekproef !== undefined && meting.volgnummerSteekproef !== null) {
+      if (!Number.isInteger(meting.volgnummerSteekproef) || meting.volgnummerSteekproef < 1) fouten.push('Het volgnummer binnen de steekproef moet een geheel getal van 1 of hoger zijn.');
+      else {
+        const dubbel = staat.procesmetingen.find((m) => m.steekproefId === meting.steekproefId && m.volgnummerSteekproef === meting.volgnummerSteekproef && m.metingId !== origineelId);
+        if (dubbel) fouten.push(`Volgnummer ${meting.volgnummerSteekproef} is binnen steekproef ${meting.steekproefId} al gebruikt door meting ${dubbel.metingId}.`);
+      }
+    } else waarschuwingen.push('Er is geen volgnummer binnen de steekproef ingevuld.');
+    if (meting.dossierId) {
+      const zelfde = staat.procesmetingen.find((m) => m.steekproefId === meting.steekproefId && m.dossierId === meting.dossierId && m.metingId !== origineelId);
+      if (zelfde) waarschuwingen.push(`Dossier-ID ${meting.dossierId} komt in steekproef ${meting.steekproefId} al voor bij meting ${zelfde.metingId}. Wordt hetzelfde dossier twee keer gemeten?`);
+    }
+  } else if (isGetal(meting.volgnummerSteekproef)) fouten.push('Een volgnummer binnen de steekproef kan alleen worden vastgelegd als de meting aan een steekproef is gekoppeld.');
+  if (meting.dossierId && !ID_PATROON.test(meting.dossierId)) fouten.push('Het dossier-ID mag alleen letters, cijfers, - en _ bevatten (maximaal 40 tekens).');
+  else if (meting.dossierId && /\d{7,}/.test(meting.dossierId)) waarschuwingen.push(`Dossier-ID "${meting.dossierId}" bevat een lange reeks cijfers en lijkt op een echt dossier-, registratie- of burgerservicenummer. Gebruik een geanonimiseerde code (bijv. D-012).`);
+  if (!geheel(meting.aantalPerioderegels)) fouten.push('Het aantal ABP-periode-regels moet een geheel getal van 0 of hoger zijn (of leeg als het onbekend is).');
+  if (!geheel(meting.aantalOnderbrekingen)) fouten.push('Het aantal onderbrekingen moet een geheel getal van 0 of hoger zijn (of leeg als het onbekend is).');
+  if (isGetal(meting.aantalBlokken) && isGetal(meting.aantalPerioderegels) && meting.aantalBlokken > meting.aantalPerioderegels) waarschuwingen.push(`Het aantal diensttijdblokken (${meting.aantalBlokken}) is groter dan het aantal ABP-periode-regels (${meting.aantalPerioderegels}). Controleer of dit klopt.`);
+  if (meting.complexiteit && !COMPLEXITEITEN.includes(meting.complexiteit)) fouten.push('Kies een geldige complexiteit.');
+  if (meting.tijdrovendsteStapId && !stappenVanProces(meting.procesId).some((s) => s.stapId === meting.tijdrovendsteStapId)
+    && !(origineelId && (zoekMeting(origineelId) || {}).tijdrovendsteStapId === meting.tijdrovendsteStapId)) fouten.push('De meest tijdrovende processtap moet een processtap van dit proces zijn.');
+  if ((meting.redenenTijdsbelasting || []).some((r) => !REDENEN_TIJDSBELASTING.includes(r))) fouten.push('Een gekozen reden voor de tijdsbelasting is ongeldig.');
+  if (meting.knelpuntCategorie && !KNELPUNT_CATEGORIEEN.includes(meting.knelpuntCategorie)) fouten.push('Kies een geldige knelpuntcategorie.');
+  if ((meting.knelpuntGevolgen || []).some((g) => !KNELPUNT_GEVOLGEN.includes(g))) fouten.push('Een gekozen gevolg van het knelpunt is ongeldig.');
+}
+
 function bewaarMeting(meting, stapmetingen, origineelId) {
   const bestaand = origineelId ? zoekMeting(origineelId) : null;
   // Herkomst van het aantal uitvoeringen blijft alleen behouden als de waarde ongewijzigd is.
@@ -1621,6 +1918,103 @@ function bewaarMeting(meting, stapmetingen, origineelId) {
 function verwijderMeting(metingId) {
   staat.procesmetingen = staat.procesmetingen.filter((m) => m.metingId !== metingId);
   staat.stapmetingen = staat.stapmetingen.filter((s) => s.metingId !== metingId);
+}
+
+// ---------- Steekproeven ----------
+
+/** Controleert een steekproef. Geeft { fouten, waarschuwingen }. */
+function valideerSteekproef(sp, origineelId) {
+  const fouten = [];
+  const waarschuwingen = [];
+  if (!sp.steekproefId) fouten.push('SteekproefID ontbreekt.');
+  else if (sp.steekproefId !== origineelId && zoekSteekproef(sp.steekproefId)) fouten.push(`SteekproefID ${sp.steekproefId} bestaat al.`);
+  if (!sp.procesId) fouten.push('Kies een proces.');
+  if (!(sp.naam || '').trim()) fouten.push('Vul de naam van de steekproef in.');
+  for (const [veld, label] of [['populatiegrootte', 'De totale populatiegrootte'], ['steekproefgrootte', 'De beoogde steekproefgrootte']]) {
+    if (sp[veld] !== null && sp[veld] !== undefined && !(Number.isInteger(sp[veld]) && sp[veld] > 0)) fouten.push(`${label} moet een geheel getal groter dan nul zijn (of leeg als die nog onbekend is).`);
+  }
+  if (isGetal(sp.populatiegrootte) && isGetal(sp.steekproefgrootte) && sp.steekproefgrootte > sp.populatiegrootte) waarschuwingen.push(`De beoogde steekproefgrootte (${sp.steekproefgrootte}) is groter dan de populatie (${sp.populatiegrootte}).`);
+  if (sp.selectiemethode && !SELECTIEMETHODEN.includes(sp.selectiemethode)) fouten.push('Kies een geldige selectiemethode.');
+  if (!STEEKPROEF_STATUSSEN.includes(sp.status)) fouten.push('Kies een status: concept, bezig of afgerond.');
+  for (const [veld, label] of [['startdatum', 'De startdatum'], ['einddatum', 'De einddatum']]) {
+    if (sp[veld] && !isGeldigeDatum(sp[veld])) fouten.push(`${label} is ongeldig.`);
+  }
+  if (sp.startdatum && sp.einddatum && sp.einddatum < sp.startdatum) fouten.push('De einddatum ligt vóór de startdatum.');
+  if (origineelId) {
+    const anderProces = metingenVanSteekproef(origineelId).filter((m) => m.procesId !== sp.procesId);
+    if (anderProces.length) fouten.push(`Het proces kan niet worden gewijzigd: er zijn al metingen van proces ${anderProces[0].procesId} gekoppeld.`);
+  }
+  return { fouten, waarschuwingen };
+}
+
+function bewaarSteekproef(sp, origineelId) {
+  const bestaand = origineelId ? zoekSteekproef(origineelId) : null;
+  const record = {
+    ...sp,
+    demo: bestaand ? !!bestaand.demo : false,
+    aangemaakt: bestaand ? bestaand.aangemaakt : nuIso(),
+    gewijzigd: bestaand ? nuIso() : null,
+  };
+  staat.steekproeven = staat.steekproeven.filter((s) => s.steekproefId !== origineelId);
+  staat.steekproeven.push(record);
+  staat.steekproeven.sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId));
+  registreerVolgnummer('steekproef', record.procesId, record.steekproefId);
+  return record;
+}
+
+/** Verwijdert een steekproef. Gekoppelde metingen blijven bestaan; alleen de koppeling (steekproef en volgnummer) vervalt. */
+function verwijderSteekproef(steekproefId) {
+  const tijd = nuIso();
+  for (const m of staat.procesmetingen.filter((x) => x.steekproefId === steekproefId)) {
+    delete m.steekproefId;
+    delete m.volgnummerSteekproef;
+    m.gewijzigd = tijd;
+  }
+  staat.steekproeven = staat.steekproeven.filter((s) => s.steekproefId !== steekproefId);
+}
+
+/**
+ * Koppelt metingen aan een steekproef of ontkoppelt ze. koppelingen: [{ metingId, volgnummer, dossierId }]
+ * (alleen de aangevinkte metingen); alle andere metingen die nu aan de steekproef hangen, worden ontkoppeld.
+ * Geeft een lijst met fouten; bij fouten wordt niets gewijzigd.
+ */
+function koppelMetingen(steekproefId, koppelingen) {
+  const sp = zoekSteekproef(steekproefId);
+  const fouten = [];
+  if (!sp) return ['De steekproef bestaat niet meer.'];
+  const nummers = new Map();
+  for (const k of koppelingen) {
+    const m = zoekMeting(k.metingId);
+    if (!m) { fouten.push(`Meting ${k.metingId} bestaat niet meer.`); continue; }
+    if (m.procesId !== sp.procesId) fouten.push(`Meting ${k.metingId} hoort bij een ander proces.`);
+    if (m.steekproefId && m.steekproefId !== steekproefId) fouten.push(`Meting ${k.metingId} is al gekoppeld aan steekproef ${m.steekproefId}.`);
+    if (k.volgnummer !== null && !(Number.isInteger(k.volgnummer) && k.volgnummer >= 1)) fouten.push(`Meting ${k.metingId}: het volgnummer moet een geheel getal van 1 of hoger zijn.`);
+    else if (k.volgnummer !== null) {
+      if (nummers.has(k.volgnummer)) fouten.push(`Volgnummer ${k.volgnummer} is meer dan één keer gebruikt (${nummers.get(k.volgnummer)} en ${k.metingId}).`);
+      nummers.set(k.volgnummer, k.metingId);
+    }
+    if (k.dossierId && !ID_PATROON.test(k.dossierId)) fouten.push(`Meting ${k.metingId}: het dossier-ID mag alleen letters, cijfers, - en _ bevatten.`);
+  }
+  if (fouten.length) return fouten;
+  const tijd = nuIso();
+  const gekozen = new Map(koppelingen.map((k) => [k.metingId, k]));
+  for (const m of staat.procesmetingen) {
+    const k = gekozen.get(m.metingId);
+    if (k) {
+      const nieuw = { steekproefId, volgnummerSteekproef: k.volgnummer, dossierId: k.dossierId || '' };
+      const gewijzigd = m.steekproefId !== nieuw.steekproefId || (m.volgnummerSteekproef ?? null) !== nieuw.volgnummerSteekproef || (m.dossierId || '') !== nieuw.dossierId;
+      if (!gewijzigd) continue;
+      m.steekproefId = steekproefId;
+      if (k.volgnummer === null) delete m.volgnummerSteekproef; else m.volgnummerSteekproef = k.volgnummer;
+      if (k.dossierId) m.dossierId = k.dossierId; else delete m.dossierId;
+      m.gewijzigd = tijd;
+    } else if (m.steekproefId === steekproefId) {
+      delete m.steekproefId;
+      delete m.volgnummerSteekproef;
+      m.gewijzigd = tijd;
+    }
+  }
+  return [];
 }
 
 // ---------- Frequentiemetingen ----------
@@ -1666,10 +2060,14 @@ function verwijderFrequentie(frequentieId) {
 }
 
 function verwijderDemogegevens() {
-  for (const k of ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen']) {
+  for (const k of GEGEVENSLIJSTEN) {
     staat[k] = staat[k].filter((r) => !r.demo);
   }
-  for (const soort of ['meting', 'frequentie']) {
+  // Eigen metingen die aan een (verwijderde) demosteekproef hingen, verliezen alleen die koppeling.
+  for (const m of staat.procesmetingen) {
+    if (m.steekproefId && !zoekSteekproef(m.steekproefId)) { delete m.steekproefId; delete m.volgnummerSteekproef; }
+  }
+  for (const soort of ['meting', 'frequentie', 'steekproef']) {
     for (const pid of Object.keys(staat.volgnummers[soort])) {
       if (pid.startsWith('DEMO-')) delete staat.volgnummers[soort][pid];
     }
@@ -1711,13 +2109,19 @@ function berekenMeting(m) {
   const stappen = stapmetingenVan(m.metingId);
   const ontbrekendActief = stappen.filter((s) => !isGetal(s.actieveTijd)).map((s) => s.stapId);
   const ontbrekendWacht = stappen.filter((s) => !isGetal(s.wachttijd)).map((s) => s.stapId);
-  const totaalActief = stappen.length && !ontbrekendActief.length ? som(stappen.map((s) => s.actieveTijd)) : null;
-  const totaalWacht = stappen.length && !ontbrekendWacht.length ? som(stappen.map((s) => s.wachttijd)) : null;
+  // Zonder stapmetingen (geen detailmeting, versie 1.7) komt de tijd uit de totalen van de procesmeting.
+  // Er wordt dan nooit een tijd per processtap afgeleid.
+  const zonderDetail = !stappen.length;
+  const totaalActief = zonderDetail ? (isGetal(m.actieveTijdTotaal) ? m.actieveTijdTotaal : null)
+    : !ontbrekendActief.length ? som(stappen.map((s) => s.actieveTijd)) : null;
+  const totaalWacht = zonderDetail ? (isGetal(m.wachttijdTotaal) ? m.wachttijdTotaal : null)
+    : !ontbrekendWacht.length ? som(stappen.map((s) => s.wachttijd)) : null;
   const aantalBekend = isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0;
   const omvangBekend = isGetal(m.omvang) && m.omvang > 0;
   const deel = (teller, noemerBekend, noemer) => (isGetal(teller) && noemerBekend ? teller / noemer : null);
   return {
     aantalStappen: stappen.length,
+    bronTijd: zonderDetail ? 'Totaal procesmeting (geen detailmeting per stap)' : 'Som van de stapmetingen',
     totaalActief,
     totaalWacht,
     // Primair: per uitvoeringseenheid (bijv. per dossier)
@@ -1738,8 +2142,11 @@ function berekenMeting(m) {
 
 function redenOntbrekend(m, b, soort) {
   const e = eenhedenVan(m);
-  if (!b.aantalStappen) return 'geen stapmetingen';
   const tijd = soort.startsWith('actief') ? 'actief' : 'wacht';
+  if (!b.aantalStappen) {
+    if (tijd === 'actief' && !isGetal(b.totaalActief)) return 'geen detailmeting per stap en geen totale actieve tijd ingevuld';
+    if (tijd === 'wacht' && !isGetal(b.totaalWacht)) return 'geen detailmeting per stap en geen totale wachttijd ingevuld';
+  }
   if (tijd === 'actief' && b.ontbrekendActief.length) return `actieve tijd ontbreekt bij ${b.ontbrekendActief.join(', ')}`;
   if (tijd === 'wacht' && b.ontbrekendWacht.length) return `wachttijd ontbreekt bij ${b.ontbrekendWacht.join(', ')}`;
   if (soort.endsWith('PerUitvoering') && !b.aantalBekend) {
@@ -2185,6 +2592,183 @@ function alleKnelpuntRijen() {
   return rijen;
 }
 
+// ===== steekproeven.js =====
+// ---------- Steekproefresultaten (versie 1.7) ----------
+//
+// Alle uitkomsten worden per steekproef afgeleid uit de gekoppelde procesmetingen (dossiermetingen)
+// en nooit opgeslagen. Normale gevallen en uitzonderingen worden samen ("alle dossiers") én apart
+// getoond: een steekproef beschrijft de hele populatie, inclusief uitzonderingen.
+//
+// Twee uitkomsten blijven strikt gescheiden:
+// 1. "Meest genoemde tijdrovende processtap": telling van de keuze per dossier, over alle metingen.
+// 2. "Gemiddelde tijd per processtap": uitsluitend uit aanwezige stapmetingen. Zonder stapmeting wordt
+//    nooit een tijd per stap afgeleid (ook niet uit de totale tijd of de meest tijdrovende stap).
+
+const NIET_INGEVULD = '(niet ingevuld)';
+
+/** Opties: { meetwijze: 'alle' | groepcode, metTest: boolean } */
+function steekproefAnalyse(steekproefId, opties = {}) {
+  const sp = zoekSteekproef(steekproefId);
+  if (!sp) return null;
+  const gekoppeld = metingenVanSteekproef(steekproefId);
+  const testmetingen = gekoppeld.filter(isTestmeting);
+  const binnenTest = gekoppeld.filter((m) => opties.metTest || !isTestmeting(m));
+  const groep = MEETWIJZE_GROEPEN.find((g) => g.code === opties.meetwijze);
+  const metingen = groep ? binnenTest.filter((m) => m.meetwijze === groep.meting) : binnenTest;
+  const rijen = metingen.map((m) => ({ m, b: berekenMeting(m) }));
+  const bruikbaar = rijen.filter(({ b }) => isGetal(b.actiefPerUitvoering));
+  const reeks = (lijst, veld) => beschrijf(lijst.map(({ m, b }) => ({ metingId: m.metingId, waarde: b[veld] })));
+  const totaal = (lijst, veld) => (lijst.length ? som(lijst.map(({ b }) => b[veld])) : null);
+  const metWacht = rijen.filter(({ b }) => isGetal(b.wachtPerUitvoering));
+  const aantalOk = (m) => isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen > 0;
+
+  // Gemiddelde per dossier van een kenmerk: Σ kenmerk ÷ Σ dossiers (alleen metingen met een bekende waarde).
+  const kenmerk = (veld) => {
+    const lijst = metingen.filter((m) => isGetal(m[veld]) && aantalOk(m));
+    const t = som(lijst.map((m) => m[veld]));
+    const n = som(lijst.map((m) => m.aantalUitvoeringen));
+    return { waarde: lijst.length && n > 0 ? t / n : null, totaal: lijst.length ? t : null, n: lijst.length, metingIds: lijst.map((m) => m.metingId), ontbrekend: metingen.filter((m) => !lijst.includes(m)).map((m) => m.metingId) };
+  };
+
+  const verdeling = (waarden, sleutel) => waarden.map((w) => {
+    const lijst = metingen.filter((m) => (sleutel(m) || '') === w);
+    return { waarde: w || NIET_INGEVULD, aantal: lijst.length, percentage: metingen.length ? (lijst.length / metingen.length) * 100 : null, metingIds: lijst.map((m) => m.metingId) };
+  }).filter((r) => r.aantal > 0 || r.waarde !== NIET_INGEVULD);
+
+  const perComplexiteit = [...COMPLEXITEITEN, ''].map((c) => {
+    const lijst = bruikbaar.filter(({ m }) => (m.complexiteit || '') === c);
+    return { complexiteit: c || NIET_INGEVULD, aantalMetingen: metingen.filter((m) => (m.complexiteit || '') === c).length, actief: reeks(lijst, 'actiefPerUitvoering') };
+  }).filter((r) => r.aantalMetingen > 0 || r.complexiteit !== NIET_INGEVULD);
+
+  const perCasustype = CASUSTYPEN.map((c) => {
+    const lijst = rijen.filter(({ m }) => m.casustype === c);
+    return { casustype: c, aantal: lijst.length, actief: reeks(lijst, 'actiefPerUitvoering'), wacht: reeks(lijst, 'wachtPerUitvoering') };
+  });
+
+  // 1. Meest genoemde tijdrovende processtap (alle metingen, ook zonder detailmeting).
+  const huidigeStappen = stappenVanProces(sp.procesId);
+  const metStapKeuze = metingen.filter((m) => m.tijdrovendsteStapId);
+  const genoemd = uniek(metStapKeuze.map((m) => m.tijdrovendsteStapId)).map((stapId) => {
+    const lijst = metStapKeuze.filter((m) => m.tijdrovendsteStapId === stapId);
+    const huidig = huidigeStappen.find((s) => s.stapId === stapId);
+    return {
+      stapId,
+      naam: huidig ? huidig.naam : lijst[0].tijdrovendsteStapnaam || '',
+      volgorde: huidig ? huidig.volgorde : Infinity,
+      aantal: lijst.length,
+      percentage: (lijst.length / metStapKeuze.length) * 100,
+      metingIds: lijst.map((m) => m.metingId),
+    };
+  }).sort((a, b) => b.aantal - a.aantal || a.volgorde - b.volgorde || vergelijkTekst(a.stapId, b.stapId));
+
+  // 2. Gemiddelde tijd per processtap: alleen aanwezige stapmetingen (per uitvoering, zoals op Resultaten).
+  const metDetail = metingen.filter((m) => stapmetingenVan(m.metingId).length > 0);
+  const stapmetingen = metDetail.flatMap((m) => stapmetingenVan(m.metingId).map((s) => ({ m, s })));
+  const stapIds = uniek([...huidigeStappen.map((s) => s.stapId), ...stapmetingen.map(({ s }) => s.stapId)]);
+  const perUitvoering = ({ m, s }, veld) => (isGetal(s[veld]) && aantalOk(m) ? s[veld] / m.aantalUitvoeringen : null);
+  const stapTijden = stapIds.map((stapId) => {
+    const lijst = stapmetingen.filter(({ s }) => s.stapId === stapId);
+    const huidig = huidigeStappen.find((s) => s.stapId === stapId);
+    return {
+      stapId,
+      naam: huidig ? huidig.naam : (lijst[0] ? lijst[0].s.stapnaam : ''),
+      actief: beschrijf(lijst.map((x) => ({ metingId: x.m.metingId, waarde: perUitvoering(x, 'actieveTijd') }))),
+      wacht: beschrijf(lijst.map((x) => ({ metingId: x.m.metingId, waarde: perUitvoering(x, 'wachttijd') }))),
+    };
+  });
+
+  // Knelpunten: per categorie het aantal dossiers waarin die voorkomt (dossierniveau of bij een stap; één dossier telt één keer).
+  const categorieenVan = (m) => {
+    const c = [];
+    if (m.knelpunt === true) c.push(m.knelpuntCategorie || '');
+    for (const s of stapmetingenVan(m.metingId)) if (s.knelpunt === true) c.push(s.knelpuntCategorie || '');
+    return uniek(c);
+  };
+  const metKnelpunt = metingen.filter((m) => m.knelpunt === true || stapmetingenVan(m.metingId).some((s) => s.knelpunt === true));
+  const knelpunten = [...KNELPUNT_CATEGORIEEN, ''].map((c) => {
+    const lijst = metingen.filter((m) => categorieenVan(m).includes(c));
+    return {
+      categorie: c || '(categorie niet ingevuld)',
+      aantal: lijst.length,
+      percentage: metingen.length ? (lijst.length / metingen.length) * 100 : null,
+      metingIds: lijst.map((m) => m.metingId),
+      omschrijvingen: uniek(lijst.flatMap((m) => [
+        ...(m.knelpunt === true && (m.knelpuntCategorie || '') === c && m.belangrijksteKnelpunt ? [m.belangrijksteKnelpunt] : []),
+        ...stapmetingenVan(m.metingId).filter((s) => s.knelpunt === true && (s.knelpuntCategorie || '') === c && s.knelpuntOmschrijving).map((s) => s.knelpuntOmschrijving),
+      ])),
+    };
+  }).filter((r) => r.aantal > 0).sort((a, b) => b.aantal - a.aantal);
+
+  const meetwijzen = MEETWIJZEN_METING.map((w) => {
+    const lijst = rijen.filter(({ m }) => m.meetwijze === w);
+    return { meetwijze: w, aantal: lijst.length, metBekendeTijd: lijst.filter(({ b }) => isGetal(b.totaalActief)).length };
+  });
+  const telMeetwijze = (lijst) => som(meetwijzen.filter((x) => lijst.includes(x.meetwijze)).map((x) => x.metBekendeTijd));
+
+  const actief = reeks(bruikbaar, 'actiefPerUitvoering');
+  const voortgangAantal = binnenTest.length;
+  const extrapolatie = { waarde: null, ontbreekt: [] };
+  if (!isGetal(sp.populatiegrootte)) extrapolatie.ontbreekt.push('De totale populatiegrootte is niet ingevuld bij de steekproef.');
+  if (!actief.n) extrapolatie.ontbreekt.push('Er is nog geen bruikbare meting met een bekende actieve tijd per dossier.');
+  if (!extrapolatie.ontbreekt.length) {
+    extrapolatie.waarde = actief.gemiddelde * sp.populatiegrootte;
+    extrapolatie.uren = extrapolatie.waarde / 60;
+  }
+  extrapolatie.populatiegrootte = isGetal(sp.populatiegrootte) ? sp.populatiegrootte : null;
+  extrapolatie.n = actief.n;
+  extrapolatie.gemiddelde = actief.n ? actief.gemiddelde : null;
+
+  const waarschuwingen = [];
+  if (!groep && uniek(metingen.map((m) => m.meetwijze)).length > 1) waarschuwingen.push(`De resultaten combineren meetwijzen (${meetwijzeVerdelingTekst(metingen.reduce((v, m) => { v[m.meetwijze] = (v[m.meetwijze] || 0) + 1; return v; }, {}))}). Kies zo nodig één meetwijze.`);
+  if (sp.selectiemethode === 'Doelgericht') waarschuwingen.push('De dossiers zijn doelgericht geselecteerd. De steekproef is daardoor niet representatief; gebruik de geschatte tijdsbelasting van de populatie alleen als indicatie.');
+  if (!sp.selectiemethode) waarschuwingen.push('De selectiemethode is niet ingevuld; de representativiteit van de steekproef is daardoor onbekend.');
+  if (sp.status !== 'Afgerond') waarschuwingen.push(`De steekproef heeft de status ${sp.status.toLowerCase()}: de resultaten zijn voorlopig.`);
+  if (actief.n && actief.n < 5) waarschuwingen.push('Er zijn nog weinig bruikbare metingen. Interpreteer de uitkomsten voorzichtig.');
+  const meerdere = metingen.filter((m) => isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen !== 1);
+  if (meerdere.length) waarschuwingen.push(`${meerdere.length} gekoppelde meting(en) omvatten meer dan één dossier (${meerdere.map((m) => m.metingId).join(', ')}). Tijden en kenmerken zijn per dossier omgerekend; de voortgang telt procesmetingen.`);
+  if (testmetingen.length && opties.metTest) waarschuwingen.push(`Testmetingen zijn meegenomen: ${testmetingen.map((m) => m.metingId).join(', ')}.`);
+  const zonderVolgnummer = metingen.filter((m) => !isGetal(m.volgnummerSteekproef)).map((m) => m.metingId);
+  if (zonderVolgnummer.length) waarschuwingen.push(`Zonder volgnummer: ${zonderVolgnummer.join(', ')}.`);
+
+  return {
+    steekproef: sp,
+    opties: { meetwijze: groep ? groep.code : 'alle', metTest: !!opties.metTest },
+    meetwijzeLabel: groep ? groep.label : 'alle meetwijzen',
+    voortgang: { aantal: voortgangAantal, doel: isGetal(sp.steekproefgrootte) ? sp.steekproefgrootte : null, percentage: isGetal(sp.steekproefgrootte) ? (voortgangAantal / sp.steekproefgrootte) * 100 : null, dossiers: som(binnenTest.filter(aantalOk).map((m) => m.aantalUitvoeringen)) },
+    testmetingen: testmetingen.map((m) => m.metingId),
+    metingen,
+    metingIds: metingen.map((m) => m.metingId),
+    bruikbaar: bruikbaar.map(({ m }) => m.metingId),
+    nietBruikbaar: rijen.filter(({ b }) => !isGetal(b.actiefPerUitvoering)).map(({ m, b }) => ({ metingId: m.metingId, dossierId: m.dossierId || '', reden: redenOntbrekend(m, b, 'actiefPerUitvoering') })),
+    totaalActief: totaal(bruikbaar, 'totaalActief'),
+    actief,
+    totaalWacht: totaal(metWacht, 'totaalWacht'),
+    wacht: reeks(metWacht, 'wachtPerUitvoering'),
+    perCasustype,
+    perComplexiteit,
+    kenmerken: { perioderegels: kenmerk('aantalPerioderegels'), blokken: kenmerk('aantalBlokken'), onderbrekingen: kenmerk('aantalOnderbrekingen') },
+    complexiteit: verdeling([...COMPLEXITEITEN, ''], (m) => m.complexiteit),
+    casustypen: verdeling(CASUSTYPEN, (m) => m.casustype),
+    tijdrovend: { ranglijst: genoemd, n: metStapKeuze.length, zonder: metingen.length - metStapKeuze.length },
+    stapTijden: { stappen: stapTijden, metingenMetDetail: metDetail.map((m) => m.metingId), metingenZonderDetail: metingen.filter((m) => !metDetail.includes(m)).map((m) => m.metingId) },
+    knelpunten: { perCategorie: knelpunten, metingenMetKnelpunt: metKnelpunt.map((m) => m.metingId) },
+    meetwijzen,
+    tijdswaarden: {
+      gemeten: telMeetwijze(['Gemeten', 'Geobserveerd']),
+      geschat: telMeetwijze(['Geschat door medewerker']),
+      systeem: telMeetwijze(['Uit systeemgegevens']),
+      stapwaarden: stapmetingen.filter(({ s }) => isGetal(s.actieveTijd)).length,
+    },
+    extrapolatie,
+    waarschuwingen,
+  };
+}
+
+/** Korte voortgangstekst, bijv. "12 van 20 dossiers". */
+function voortgangTekst(v) {
+  return `${v.aantal}${isGetal(v.doel) ? ` van ${v.doel}` : ''} ${v.aantal === 1 && !isGetal(v.doel) ? 'dossier' : 'dossiers'}`;
+}
+
 // ===== xlsx.js =====
 // ---------- Excel-export (.xlsx) zonder externe bibliotheek ----------
 //
@@ -2608,7 +3192,7 @@ function grafiekNaarPng(gegevens, bestandsnaam) {
 function maakDemogegevens() {
   const tijd = nuIso();
   const processen = [
-    { procesId: 'DEMO-PR01', naam: 'Dossier herberekenen (demo)', uitvoeringseenheid: 'dossier', uitvoeringseenheidMeervoud: 'dossiers', omvangseenheid: 'dienstperiode', omvangseenheidMeervoud: 'dienstperioden' },
+    { procesId: 'DEMO-PR01', naam: 'Dossier herberekenen (demo)', uitvoeringseenheid: 'dossier', uitvoeringseenheidMeervoud: 'dossiers', omvangseenheid: 'dienstperiode', omvangseenheidMeervoud: 'dienstperioden', dossierkenmerken: true },
     { procesId: 'DEMO-PR02', naam: 'Adreswijziging verwerken (demo)', uitvoeringseenheid: 'aanvraag', uitvoeringseenheidMeervoud: 'aanvragen', omvangseenheid: 'mutatie', omvangseenheidMeervoud: 'mutaties' },
   ];
   const stappen = [
@@ -2630,10 +3214,23 @@ function maakDemogegevens() {
     ['DEMO-PR01', 4, '2026-03-05', 'PZ03', 'Normaal', 2, 5, 'Geschat door medewerker', [[11, 0], [21, 0], [8, 0, '', 'Twee samenhangende dossiers']]],
     ['DEMO-PR01', 5, '2026-03-09', 'PZ02', 'Uitzondering', 1, 12, 'Gemeten', [[4, 0, '', '', null, false], [25, 120, 'Ontbrekende loongegevens opgevraagd', '', { knelpunt: true, knelpuntCategorie: 'Ontbrekende of onduidelijke informatie', knelpuntOmschrijving: 'Loongegevens ontbraken in het dossier', knelpuntGevolgen: ['Extra actieve tijd', 'Extra wachttijd', 'Vertraging in de doorlooptijd'], knelpuntExtraActief: 8, knelpuntExtraWacht: 120, knelpuntBron: 'Geobserveerd' }], [6, 0, '', '', null, false]]],
     ['DEMO-PR01', 6, '2026-03-10', 'PZ03', 'Uitzondering', 1, null, 'Gemeten', [[5, 0], [18, 45, 'Navraag bij vorige werkgever'], [5, 0, '', 'Aantal dienstperioden niet te bepalen']]],
+    // Zonder detailmeting per processtap (versie 1.7): alleen de totale tijd van de uitvoering.
+    ['DEMO-PR01', 7, '2026-03-11', 'PZ01', 'Normaal', 1, 8, 'Geobserveerd', null],
     ['DEMO-PR02', 1, '2026-03-02', 'PZ04', 'Normaal', 1, 2, 'Gemeten', [[3, 0], [8, 0], [2, 0]]],
     ['DEMO-PR02', 2, '2026-03-06', 'PZ04', 'Normaal', 1, 1, 'Uit systeemgegevens', [[2.5, 0], [7.5, 5, 'Wachten op koppeling basisregistratie'], [2, 0]]],
   ];
 
+  // Fictieve steekproef met dossierkenmerken (versie 1.7): [volgnummer, dossier-ID, periode-regels, blokken, onderbrekingen, complexiteit, tijdrovendste stap, redenen, knelpunt]
+  const steekproefId = 'SP-DEMO-PR01-001';
+  const dossiers = {
+    1: [1, 'D-001', 4, 1, 0, 'Eenvoudig', 'DEMO-PR01-S02', ['Veel periode-regels']],
+    2: [2, 'D-002', 3, 1, 1, 'Gemiddeld', 'DEMO-PR01-S02', ['Onderbrekingen'], { knelpunt: true, knelpuntCategorie: 'Wachten', knelpuntGevolgen: ['Vertraging in de doorlooptijd'] }],
+    3: [3, 'D-003', 6, 2, 0, 'Gemiddeld', 'DEMO-PR01-S02', ['Veel diensttijdblokken'], { knelpunt: true, knelpuntCategorie: 'Systeem', knelpuntGevolgen: ['Extra wachttijd'] }],
+    4: [4, 'D-004', 5, 2, 2, 'Gemiddeld', 'DEMO-PR01-S03', ['Handmatige invoer'], { knelpunt: false }],
+    5: [5, 'D-005', 12, 4, 3, 'Complex', 'DEMO-PR01-S02', ['Verschillende arbeidsverhoudingen', 'Onduidelijke informatie']],
+    6: [6, 'D-006', null, null, 1, 'Complex', 'DEMO-PR01-S02', ['Korte opeenvolgende perioden']],
+    7: [7, 'D-007', 8, 2, 0, 'Gemiddeld', 'DEMO-PR01-S01', ['Controle of herstel'], { knelpunt: true, knelpuntCategorie: 'Controle of herstelwerk', knelpuntGevolgen: ['Herstelwerk', 'Extra actieve tijd'] }],
+  };
   const procesmetingen = [];
   const stapmetingen = [];
   for (const [procesId, nr, datum, medewerkerId, casustype, aantalUitvoeringen, omvang, meetwijze, rijen] of metingen) {
@@ -2642,9 +3239,17 @@ function maakDemogegevens() {
     procesmetingen.push({
       metingId, datum, procesId, procesnaam: proces.naam, medewerkerId, casustype, aantalUitvoeringen, aantalUitvoeringenHerkomst: 'Ingevoerd', omvang,
       ...eenhedenUit(proces), meetwijze, toelichting: 'Fictieve demometing', demo: true, aangemaakt: tijd, gewijzigd: null,
+      ...(rijen ? {} : { detailmeting: false, actieveTijdTotaal: 31, wachttijdTotaal: 0, belangrijksteKnelpunt: 'Herberekening moest worden gecorrigeerd' }),
+      ...(procesId === 'DEMO-PR01' && dossiers[nr] ? (() => {
+        const [volgnummer, dossierId, regels, blokken, onderbrekingen, complexiteit, stapId, redenen, knelpunt] = dossiers[nr];
+        return {
+          steekproefId, volgnummerSteekproef: volgnummer, dossierId, aantalPerioderegels: regels, aantalBlokken: blokken, aantalOnderbrekingen: onderbrekingen, complexiteit,
+          tijdrovendsteStapId: stapId, tijdrovendsteStapnaam: stappen.find((s) => s.stapId === stapId).naam, redenenTijdsbelasting: redenen, ...(knelpunt || {}),
+        };
+      })() : {}),
     });
     const procesStappen = stappen.filter((s) => s.procesId === procesId);
-    rijen.forEach(([actief, wacht, reden, opmerking, knelpunt], i) => {
+    (rijen || []).forEach(([actief, wacht, reden, opmerking, knelpunt], i) => {
       const s = procesStappen[i];
       stapmetingen.push({
         metingId, stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.naam, actieveTijd: actief, wachttijd: wacht,
@@ -2665,7 +3270,15 @@ function maakDemogegevens() {
       medewerkerId: '', periodeEenheid: 'Week', bereik: 'Team', afbakening: 'Hele team', meetellenInTotaal: true },
   ].map((f) => ({ ...f, ...eenhedenUit(processen.find((p) => p.procesId === f.procesId)), demo: true, aangemaakt: tijd, gewijzigd: null }));
 
+  const steekproeven = [{
+    steekproefId, procesId: 'DEMO-PR01', naam: 'Herberekeningen maart 2026 (demo)', populatie: 'Fictief: alle herberekeningsdossiers die in maart 2026 zijn binnengekomen',
+    populatiegrootte: 140, steekproefgrootte: 10, selectiemethode: 'Willekeurig', inclusiecriteria: 'Fictief: herberekening na wijziging dienstverband',
+    exclusiecriteria: 'Fictief: bezwaarzaken', startdatum: '2026-03-01', einddatum: '2026-03-31', toelichting: 'Fictieve demosteekproef', status: 'Bezig',
+    demo: true, aangemaakt: tijd, gewijzigd: null,
+  }];
+
   return {
+    steekproeven,
     processen: processen.map((p) => ({ ...p, demo: true, aangemaakt: tijd, gewijzigd: tijd })),
     processtappen: stappen,
     procesmetingen,
@@ -2687,11 +3300,13 @@ function laadDemogegevens() {
     ...d.processtappen.filter((s) => staat.processtappen.some((x) => x.stapId === s.stapId)).map((s) => s.stapId),
     ...d.procesmetingen.filter((m) => zoekMeting(m.metingId)).map((m) => m.metingId),
     ...d.frequentiemetingen.filter((f) => zoekFrequentie(f.frequentieId)).map((f) => f.frequentieId),
+    ...d.steekproeven.filter((s) => zoekSteekproef(s.steekproefId)).map((s) => s.steekproefId),
   ];
   if (botsingen.length) throw new Error('De demogegevens gebruiken codes die al bestaan: ' + botsingen.join(', '));
   for (const k of Object.keys(d)) staat[k].push(...d[k]);
   for (const m of d.procesmetingen) registreerVolgnummer('meting', m.procesId, m.metingId);
   for (const f of d.frequentiemetingen) registreerVolgnummer('frequentie', f.procesId, f.frequentieId);
+  for (const s of d.steekproeven) registreerVolgnummer('steekproef', s.procesId, s.steekproefId);
 }
 
 // ===== ui-algemeen.js =====
@@ -2707,6 +3322,7 @@ function toonTab(naam) {
   for (const s of $$('section.tab')) s.hidden = s.id !== 'tab-' + naam;
   for (const b of $$('#tabs button')) b.classList.toggle('actief', b.dataset.tab === naam);
   if (naam === 'resultaten') renderResultaten();
+  if (naam === 'steekproeven') renderSteekproeven();
   if (naam === 'overzicht') renderOverzicht();
   if (naam === 'importexport') renderImportExport();
   try { sessionStorage.setItem('meettool-tab', naam); } catch (e) { /* niet kritiek */ }
@@ -2879,8 +3495,10 @@ function renderAlles() {
   werkDemoBalkBij();
   renderProcessenLijst();
   vulMetingProcesKeuze();
+  werkDossierVeldenBij();
   vulFrequentieProcesKeuze();
   renderFrequentieRecent();
+  if (actieveTab === 'steekproeven') renderSteekproeven();
   if (actieveTab === 'overzicht') renderOverzicht();
   if (actieveTab === 'resultaten') renderResultaten();
   if (actieveTab === 'importexport') renderImportExport();
@@ -3019,6 +3637,9 @@ function renderProcesEditor(fouten = []) {
       <div class="veld breed">
         <label class="keuzes" style="font-weight:400"><input type="checkbox" id="peBlokken" ${procesBlokkenAan(b) ? 'checked' : ''}> Bij metingen ook het <strong>aantal resulterende diensttijdblokken</strong> vastleggen (optioneel veld; standaard aan voor PR24)</label>
       </div>
+      <div class="veld breed">
+        <label class="keuzes" style="font-weight:400"><input type="checkbox" id="peDossierkenmerken" ${procesDossierkenmerkenAan(b) ? 'checked' : ''}> Bij metingen ook de <strong>dossierkenmerken</strong> vastleggen (ABP-periode-regels, onderbrekingen, complexiteit, meest tijdrovende stap, reden tijdsbelasting; optioneel; standaard aan voor PR24)</label>
+      </div>
     </div>
     ${b.origineelId && staat.procesmetingen.some((m) => m.procesId === b.origineelId) ? '<p class="klein zacht">Bestaande metingen behouden de eenheden die bij het meten zijn vastgelegd. Alleen metingen zonder vastgelegde eenheid (uit een eerdere versie) tonen de eenheden van het proces.</p>' : ''}
     <h4>Processtappen</h4>
@@ -3054,6 +3675,7 @@ function verwerkProcesEditorInvoer(e) {
   } else if (t.id === 'peNaam') b.naam = t.value;
   else if (t.dataset.eenheidveld) b[t.dataset.eenheidveld] = t.value;
   else if (t.id === 'peBlokken') b.blokkenVastleggen = t.checked;
+  else if (t.id === 'peDossierkenmerken') b.dossierkenmerken = t.checked;
   else if (t.dataset.stapveld) {
     const i = Number(t.closest('tr').dataset.index);
     const s = b.stappen[i];
@@ -3068,6 +3690,8 @@ async function slaProcesOp() {
   // Alleen vastleggen als de gebruiker de instelling heeft gewijzigd; anders geldt de standaard (aan voor PR24).
   if (typeof b.blokkenVastleggen === 'boolean') invoer.blokkenVastleggen = b.blokkenVastleggen;
   else if (b.origineelId && typeof (zoekProces(b.origineelId) || {}).blokkenVastleggen === 'boolean') invoer.blokkenVastleggen = zoekProces(b.origineelId).blokkenVastleggen;
+  if (typeof b.dossierkenmerken === 'boolean') invoer.dossierkenmerken = b.dossierkenmerken;
+  else if (b.origineelId && typeof (zoekProces(b.origineelId) || {}).dossierkenmerken === 'boolean') invoer.dossierkenmerken = zoekProces(b.origineelId).dossierkenmerken;
   const fouten = valideerProces(invoer, b.origineelId);
   if (!b.origineelId && /^demo-/i.test(invoer.procesId)) fouten.push('ProcesID\'s die beginnen met "DEMO-" zijn gereserveerd voor demogegevens.');
   if (fouten.length) { renderProcesEditor(fouten); return; }
@@ -3186,6 +3810,313 @@ function procesBlokkenAan(b) {
   return b.origineelId ? blokkenVastleggen(b.origineelId) : (b.procesId || '').trim() === 'PR24';
 }
 
+/** Stand van de instelling 'dossierkenmerken vastleggen' in de proceseditor. */
+function procesDossierkenmerkenAan(b) {
+  if (typeof b.dossierkenmerken === 'boolean') return b.dossierkenmerken;
+  return b.origineelId ? dossierkenmerkenVastleggen(b.origineelId) : (b.procesId || '').trim() === 'PR24';
+}
+
+// ===== ui-steekproeven.js =====
+// ---------- 2. Steekproeven ----------
+
+// Bij aanpassen: het oorspronkelijke SteekproefID; bij een nieuwe steekproef: null.
+let steekproefBewerkId = null;
+
+function initSteekproeven() {
+  vulSelect($('#spStatus'), STEEKPROEF_STATUSSEN, 'Concept');
+  vulSelect($('#spSelectiemethode'), SELECTIEMETHODEN, null, '— Kies —');
+  vulSelect($('#srMeetwijze'), [{ waarde: 'alle', label: 'Alle meetwijzen (gemengd, wordt vermeld)' }, ...MEETWIJZE_GROEPEN.map((g) => ({ waarde: g.code, label: g.label }))], 'alle');
+  $('#spProces').addEventListener('change', () => { if (!steekproefBewerkId) werkSteekproefIdBij(); });
+  $('#steekproefFormulier').addEventListener('submit', (e) => { e.preventDefault(); slaSteekproefOp(); });
+  for (const id of ['#srSteekproef', '#srMeetwijze', '#srMetTest']) $(id).addEventListener('change', renderSteekproefResultaten);
+}
+
+function werkSteekproefIdBij() {
+  const pid = $('#spProces').value;
+  $('#spId').value = steekproefBewerkId || (pid ? volgendeId('steekproef', pid).id : '');
+}
+
+function startSteekproefBewerking(steekproefId) {
+  const sp = steekproefId ? zoekSteekproef(steekproefId) : null;
+  steekproefBewerkId = sp ? sp.steekproefId : null;
+  const procesIds = sp ? [sp.procesId] : staat.processen.map((p) => p.procesId);
+  vulSelect($('#spProces'), procesIds.map((id) => ({ waarde: id, label: procesLabel(id) })), sp ? sp.procesId : (staat.processen.some((p) => p.procesId === 'PR24') ? 'PR24' : undefined), sp ? undefined : '— Kies een proces —');
+  // Het proces ligt vast zodra er metingen zijn gekoppeld.
+  $('#spProces').disabled = !!(sp && metingenVanSteekproef(sp.steekproefId).length);
+  if (sp && !$('#spProces').disabled) vulSelect($('#spProces'), staat.processen.map((p) => ({ waarde: p.procesId, label: procesLabel(p.procesId) })), sp.procesId);
+  $('#steekproefTitel').textContent = sp ? `Steekproef ${sp.steekproefId} aanpassen` : 'Nieuwe steekproef';
+  $('#spNaam').value = sp ? sp.naam : '';
+  $('#spStatus').value = sp ? sp.status : 'Concept';
+  $('#spPopulatie').value = sp ? sp.populatie || '' : '';
+  $('#spPopulatiegrootte').value = sp ? naarInvoer(sp.populatiegrootte) : '';
+  $('#spSteekproefgrootte').value = sp ? naarInvoer(sp.steekproefgrootte) : '';
+  $('#spSelectiemethode').value = sp ? sp.selectiemethode || '' : '';
+  $('#spStart').value = sp ? sp.startdatum || '' : '';
+  $('#spEind').value = sp ? sp.einddatum || '' : '';
+  $('#spInclusie').value = sp ? sp.inclusiecriteria || '' : '';
+  $('#spExclusie').value = sp ? sp.exclusiecriteria || '' : '';
+  $('#spToelichting').value = sp ? sp.toelichting || '' : '';
+  $('#spFouten').innerHTML = '';
+  werkSteekproefIdBij();
+  $('#steekproefFormulier').hidden = false;
+  $('#steekproefFormulier').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('#spNaam').focus();
+}
+
+function sluitSteekproefEditor() {
+  steekproefBewerkId = null;
+  $('#steekproefFormulier').hidden = true;
+}
+
+async function slaSteekproefOp() {
+  const invoerFouten = [];
+  const geheel = (id, label) => {
+    const r = leesGetal($(id).value);
+    if (r.fout) invoerFouten.push(`${label}: ${r.fout}`);
+    $(id).classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && (r.waarde <= 0 || !Number.isInteger(r.waarde))));
+    return r.fout ? NaN : r.waarde;
+  };
+  const pid = $('#spProces').value;
+  const sp = {
+    steekproefId: steekproefBewerkId || (pid ? volgendeId('steekproef', pid).id : ''),
+    procesId: pid,
+    naam: $('#spNaam').value.trim(),
+    populatie: $('#spPopulatie').value.trim(),
+    populatiegrootte: geheel('#spPopulatiegrootte', 'Totale populatiegrootte'),
+    steekproefgrootte: geheel('#spSteekproefgrootte', 'Beoogde steekproefgrootte'),
+    selectiemethode: $('#spSelectiemethode').value,
+    inclusiecriteria: $('#spInclusie').value.trim(),
+    exclusiecriteria: $('#spExclusie').value.trim(),
+    startdatum: $('#spStart').value,
+    einddatum: $('#spEind').value,
+    toelichting: $('#spToelichting').value.trim(),
+    status: $('#spStatus').value,
+  };
+  const { fouten, waarschuwingen } = invoerFouten.length ? { fouten: invoerFouten, waarschuwingen: [] } : valideerSteekproef(sp, steekproefBewerkId);
+  $('#spFouten').innerHTML = foutenHtml(fouten, 'De steekproef is nog niet opgeslagen. Controleer het volgende:');
+  if (fouten.length) return;
+  if (waarschuwingen.length && !(await bevestig('Controleer voor het opslaan', `<ul>${waarschuwingen.map((w) => `<li>${esc(w)}</li>`).join('')}</ul><p>Wilt u de steekproef toch opslaan?</p>`, 'Toch opslaan'))) return;
+  const was = !!steekproefBewerkId;
+  const record = bewaarSteekproef(sp, steekproefBewerkId);
+  sluitSteekproefEditor();
+  $('#srSteekproef').dataset.kies = record.steekproefId;
+  await naWijziging(`Steekproef ${record.steekproefId} is ${was ? 'bijgewerkt' : 'opgeslagen'}.`);
+}
+
+async function verwijderSteekproefMetBevestiging(steekproefId) {
+  const sp = zoekSteekproef(steekproefId);
+  if (!sp) return;
+  const n = metingenVanSteekproef(steekproefId).length;
+  const ok = await bevestig('Steekproef verwijderen',
+    `<p>Steekproef <strong>${esc(sp.steekproefId)}</strong> (${esc(sp.naam)}) wordt verwijderd.</p>
+     ${n ? `<div class="melding waarschuwing">Er ${n === 1 ? 'is 1 procesmeting' : `zijn ${n} procesmetingen`} aan gekoppeld. Die metingen blijven bestaan; alleen de koppeling (SteekproefID en volgnummer) vervalt. Het dossier-ID blijft bewaard.</div>` : ''}`,
+    'Steekproef verwijderen', true);
+  if (!ok) return;
+  verwijderSteekproef(steekproefId);
+  if (steekproefBewerkId === steekproefId) sluitSteekproefEditor();
+  await naWijziging(`Steekproef ${steekproefId} is verwijderd.`);
+}
+
+function renderSteekproeven() {
+  const lijst = staat.steekproeven;
+  $('#steekproevenLijst').innerHTML = lijst.length ? `<table>
+    <thead><tr><th>SteekproefID</th><th>Proces</th><th>Naam</th><th>Status</th><th>Voortgang</th><th class="getal">Populatie</th><th>Selectiemethode</th><th>Meetperiode</th><th></th></tr></thead>
+    <tbody>${lijst.map((sp) => {
+      const n = metingenVanSteekproef(sp.steekproefId).filter((m) => !isTestmeting(m)).length;
+      return `<tr><td class="mono">${esc(sp.steekproefId)}${demoLabel(sp)}</td><td>${esc(sp.procesId)}</td><td>${esc(sp.naam)}</td><td>${esc(sp.status)}</td>
+        <td>${voortgangHtml({ aantal: n, doel: sp.steekproefgrootte })}</td><td class="getal">${htmlAantal(sp.populatiegrootte)}</td><td>${htmlTekst(sp.selectiemethode)}</td>
+        <td class="klein">${sp.startdatum || sp.einddatum ? `${esc(sp.startdatum ? fmtDatum(sp.startdatum) : '…')} t/m ${esc(sp.einddatum ? fmtDatum(sp.einddatum) : '…')}` : '<span class="zacht">—</span>'}</td>
+        <td class="acties">
+          <button type="button" class="klein" data-actie="steekproef-resultaten" data-id="${esc(sp.steekproefId)}">Resultaten</button>
+          <button type="button" class="klein" data-actie="steekproef-koppelen" data-id="${esc(sp.steekproefId)}">Metingen koppelen</button>
+          <button type="button" class="klein" data-actie="steekproef-bewerken" data-id="${esc(sp.steekproefId)}">Aanpassen</button>
+          <button type="button" class="klein gevaar" data-actie="steekproef-verwijderen" data-id="${esc(sp.steekproefId)}">Verwijderen</button>
+        </td></tr>`;
+    }).join('')}</tbody></table>` : '<p class="zacht">Nog geen steekproeven vastgelegd. Klik op <em>Nieuwe steekproef</em>.</p>';
+  const kies = $('#srSteekproef').dataset.kies || $('#srSteekproef').value;
+  delete $('#srSteekproef').dataset.kies;
+  vulSelect($('#srSteekproef'), lijst.map((sp) => ({ waarde: sp.steekproefId, label: `${sp.steekproefId} – ${sp.naam}` })), kies || (lijst[0] && lijst[0].steekproefId), lijst.length ? undefined : '— Geen steekproeven —');
+  renderSteekproefResultaten();
+}
+
+function voortgangHtml(v) {
+  const pct = isGetal(v.doel) && v.doel > 0 ? Math.min(100, (v.aantal / v.doel) * 100) : null;
+  return `<strong>${esc(voortgangTekst(v))}</strong>${pct !== null ? `<div class="voortgang" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct.toFixed(1)}%"></span></div>` : ''}`;
+}
+
+function steekproefOpties() {
+  return { meetwijze: $('#srMeetwijze').value || 'alle', metTest: $('#srMetTest').checked };
+}
+
+function renderSteekproefResultaten() {
+  const houder = $('#steekproefResultaten');
+  const id = $('#srSteekproef').value;
+  const a = id ? steekproefAnalyse(id, steekproefOpties()) : null;
+  if (!a) { houder.innerHTML = '<p class="zacht">Kies een steekproef.</p>'; return; }
+  houder.innerHTML = steekproefResultatenHtml(a);
+}
+
+function tijdCel(x, eenheid = ' min') {
+  return x.n ? `${esc(fmtGetal(x.gemiddelde))}${esc(eenheid)}` : `<span class="onbekend">${ONBEKEND}</span>`;
+}
+
+function steekproefResultatenHtml(a) {
+  const sp = a.steekproef;
+  const e = eenhedenVoorResultaat(sp.procesId, a.metingen);
+  // Ieder MetingID blijft heel; afbreken alleen tussen de ID's.
+  const ids = (lijst) => (lijst.length ? `<span class="mono klein">${lijst.map((id) => `<span style="white-space:nowrap">${esc(id)}</span>`).join(', ')}</span>` : '<span class="zacht">—</span>');
+  const statRij = (label, b, extra = '') => `<tr><th>${label}</th><td class="getal berekend">${b.n ? esc(fmtGetal(b.gemiddelde)) : `<span class="onbekend">${ONBEKEND}</span>`}</td><td class="getal berekend">${htmlGetal(b.mediaan)}</td>
+    <td class="getal berekend">${htmlGetal(b.minimum)}</td><td class="getal berekend">${htmlGetal(b.maximum)}</td><td class="getal">${b.n}</td>${extra}</tr>`;
+  const kenmerkRij = (label, k) => `<tr><th>${label}</th><td class="getal berekend">${htmlGetal(k.waarde)}</td><td class="getal">${k.n}</td><td class="klein">${k.ontbrekend.length ? `onbekend bij ${esc(k.ontbrekend.join(', '))}` : ''}</td></tr>`;
+  const verdelingTabel = (titel, rijen) => `<div><h4>${titel}</h4><div class="tabelhouder"><table class="klein"><thead><tr><th></th><th class="getal">Dossiers</th><th class="getal">%</th></tr></thead>
+    <tbody>${rijen.map((r) => `<tr><td>${esc(r.waarde)}</td><td class="getal berekend">${r.aantal}</td><td class="getal berekend">${htmlGetal(r.percentage, 1)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const x = a.extrapolatie;
+  return `
+    <div class="melding neutraal klein">Steekproef <strong>${esc(sp.steekproefId)}</strong> – ${esc(sp.naam)} · proces ${esc(procesLabel(sp.procesId))} · status ${esc(sp.status.toLowerCase())} · selectiemethode ${esc(sp.selectiemethode ? sp.selectiemethode.toLowerCase() : 'onbekend')} · meetwijze: ${esc(a.meetwijzeLabel)} · testmetingen ${a.opties.metTest ? 'meegenomen' : 'uitgesloten'}${a.testmetingen.length && !a.opties.metTest ? ` (${a.testmetingen.length} uitgesloten)` : ''}</div>
+    ${a.waarschuwingen.map((w) => `<div class="melding waarschuwing klein">${esc(w)}</div>`).join('')}
+    <div class="velden kerncijfers mt" id="srKerncijfers">
+      <div><div class="klein">Voortgang</div>${voortgangHtml(a.voortgang)}</div>
+      <div><div class="klein">Bruikbare metingen ${infoHtml('steekproef')}</div><strong>${a.bruikbaar.length}</strong> <span class="klein zacht">van ${a.metingen.length}</span></div>
+      <div><div class="klein">Totale actieve tijd</div><strong>${htmlGetal(a.totaalActief, 2, ' min')}</strong></div>
+      <div><div class="klein">Gemiddelde actieve tijd per ${esc(e.uitvoeringseenheid)}</div><strong>${tijdCel(a.actief)}</strong></div>
+      <div><div class="klein">Mediane actieve tijd per ${esc(e.uitvoeringseenheid)}</div><strong>${htmlGetal(a.actief.mediaan, 2, ' min')}</strong></div>
+      <div><div class="klein">Totale wachttijd</div><strong>${htmlGetal(a.totaalWacht, 2, ' min')}</strong></div>
+    </div>
+
+    <h4>Tijd per ${esc(e.uitvoeringseenheid)} (alle dossiers en per casustype)</h4>
+    <div class="tabelhouder"><table id="srTijden">
+      <thead><tr><th></th><th class="getal">Gemiddelde (min)</th><th class="getal">Mediaan (min)</th><th class="getal">Minimum (min)</th><th class="getal">Maximum (min)</th><th class="getal">n</th><th>Onderliggende metingen</th></tr></thead>
+      <tbody>
+        ${statRij('Actieve tijd – alle dossiers', a.actief, `<td>${ids(a.actief.metingIds)}</td>`)}
+        ${a.perCasustype.map((c) => statRij(`Actieve tijd – ${esc(c.casustype.toLowerCase())}`, c.actief, `<td>${ids(c.actief.metingIds)}</td>`)).join('')}
+        ${statRij('Wachttijd – alle dossiers', a.wacht, `<td>${ids(a.wacht.metingIds)}</td>`)}
+      </tbody></table></div>
+    <p class="klein zacht">Totale wachttijd ${htmlGetal(a.totaalWacht, 2, ' min')} (n = ${a.wacht.n}); gemiddelde wachttijd per ${esc(e.uitvoeringseenheid)} ${tijdCel(a.wacht)}.
+      ${a.nietBruikbaar.length ? `Niet bruikbaar voor de actieve tijd: ${a.nietBruikbaar.map((n) => `${esc(n.metingId)} (${esc(n.reden)})`).join('; ')}.` : 'Alle metingen hebben een bekende actieve tijd.'}</p>
+
+    <div class="twee-kolommen">
+      <div><h4>Gemiddelde actieve tijd per complexiteitsniveau</h4>
+        <div class="tabelhouder"><table class="klein" id="srComplexiteit"><thead><tr><th>Complexiteit</th><th class="getal">Dossiers</th><th class="getal">Gemiddelde (min)</th><th class="getal">Mediaan (min)</th><th class="getal">n</th></tr></thead>
+        <tbody>${a.perComplexiteit.map((r) => `<tr><td>${esc(r.complexiteit)}</td><td class="getal">${r.aantalMetingen}</td><td class="getal berekend">${tijdCel(r.actief, '')}</td><td class="getal berekend">${htmlGetal(r.actief.mediaan)}</td><td class="getal">${r.actief.n}</td></tr>`).join('')}</tbody></table></div></div>
+      <div><h4>Gemiddelde dossierkenmerken (per ${esc(e.uitvoeringseenheid)})</h4>
+        <div class="tabelhouder"><table class="klein" id="srKenmerken"><thead><tr><th></th><th class="getal">Gemiddeld</th><th class="getal">n</th><th></th></tr></thead>
+        <tbody>${kenmerkRij('ABP-periode-regels', a.kenmerken.perioderegels)}${kenmerkRij('Diensttijdblokken', a.kenmerken.blokken)}${kenmerkRij('Onderbrekingen', a.kenmerken.onderbrekingen)}</tbody></table></div>
+        <p class="klein zacht">Gemiddeld = totaal ÷ aantal dossiers, alleen over metingen waarbij de waarde bekend is.</p></div>
+    </div>
+
+    <div class="twee-kolommen">
+      ${verdelingTabel('Verdeling complexiteit', a.complexiteit)}
+      ${verdelingTabel('Verdeling normale situaties en uitzonderingen', a.casustypen)}
+    </div>
+
+    <div class="twee-kolommen">
+      <div><h4>1. Meest genoemde tijdrovende processtap ${infoHtml('tijdrovend')}</h4>
+        <p class="klein zacht">Telling van de keuze per dossier, over <strong>alle</strong> procesmetingen (ook zonder detailmeting). Dit is geen gemeten tijd. ${a.tijdrovend.n} van ${a.metingen.length} metingen noemen een stap.</p>
+        ${a.tijdrovend.ranglijst.length ? `<div class="tabelhouder"><table class="klein" id="srTijdrovend"><thead><tr><th>#</th><th>StapID</th><th>Processtap</th><th class="getal">Keer genoemd</th><th class="getal">%</th><th>Metingen</th></tr></thead>
+        <tbody>${a.tijdrovend.ranglijst.map((r, i) => `<tr><td>${i + 1}</td><td class="mono">${esc(r.stapId)}</td><td>${esc(r.naam)}</td><td class="getal berekend">${r.aantal}</td><td class="getal berekend">${htmlGetal(r.percentage, 1)}</td><td>${ids(r.metingIds)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="zacht klein">Nog bij geen enkele meting ingevuld.</p>'}</div>
+      <div><h4>2. Gemiddelde tijd per processtap</h4>
+        <p class="klein zacht">Uitsluitend uit aanwezige stapmetingen: ${a.stapTijden.metingenMetDetail.length} van ${a.metingen.length} metingen hebben een detailmeting per stap. Voor metingen zonder detailmeting wordt <strong>geen</strong> tijd per stap berekend.</p>
+        <div class="tabelhouder"><table class="klein" id="srStapTijden"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Gem. actief (min)</th><th class="getal">Mediaan actief</th><th class="getal">Gem. wacht (min)</th><th class="getal">n</th></tr></thead>
+        <tbody>${a.stapTijden.stappen.map((r) => `<tr><td class="mono">${esc(r.stapId)}</td><td>${esc(r.naam)}</td>${r.actief.n || r.wacht.n
+          ? `<td class="getal berekend">${tijdCel(r.actief, '')}</td><td class="getal berekend">${htmlGetal(r.actief.mediaan)}</td><td class="getal berekend">${tijdCel(r.wacht, '')}</td><td class="getal">${r.actief.n}</td>`
+          : '<td colspan="4" class="zacht">Geen stapmetingen</td>'}</tr>`).join('')}</tbody></table></div></div>
+    </div>
+
+    <div class="twee-kolommen">
+      <div><h4>Meest voorkomende knelpunten</h4>
+        <p class="klein zacht">${a.knelpunten.metingenMetKnelpunt.length} van ${a.metingen.length} dossiers met minimaal één knelpunt (op dossierniveau of bij een stap). Per categorie telt een dossier één keer.</p>
+        ${a.knelpunten.perCategorie.length ? `<div class="tabelhouder"><table class="klein" id="srKnelpunten"><thead><tr><th>Categorie</th><th class="getal">Dossiers</th><th class="getal">%</th><th>Omschrijvingen</th><th>Metingen</th></tr></thead>
+        <tbody>${a.knelpunten.perCategorie.map((r) => `<tr><td>${esc(r.categorie)}</td><td class="getal berekend">${r.aantal}</td><td class="getal berekend">${htmlGetal(r.percentage, 1)}</td><td>${esc(r.omschrijvingen.join('; '))}</td><td>${ids(r.metingIds)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="zacht klein">Geen knelpunten geregistreerd.</p>'}</div>
+      <div><h4>Gemeten en geschatte tijdswaarden</h4>
+        <div class="tabelhouder"><table class="klein" id="srMeetwijzen"><thead><tr><th>Meetwijze</th><th class="getal">Metingen</th><th class="getal">Met bekende actieve tijd</th></tr></thead>
+        <tbody>${a.meetwijzen.map((r) => `<tr><td>${meetwijzeHtml(r.meetwijze)}</td><td class="getal">${r.aantal}</td><td class="getal">${r.metBekendeTijd}</td></tr>`).join('')}</tbody></table></div>
+        <p class="klein zacht">Tijdswaarden: ${a.tijdswaarden.gemeten} gemeten of geobserveerd, ${a.tijdswaarden.geschat} geschat door medewerker, ${a.tijdswaarden.systeem} uit systeemgegevens; daarnaast ${a.tijdswaarden.stapwaarden} actieve tijden per processtap.</p></div>
+    </div>
+
+    <h4>Geschatte tijdsbelasting populatie ${infoHtml('extrapolatie')}</h4>
+    <div class="berekend-kader" id="srExtrapolatie">
+      <span class="etiket berekend">Automatisch berekend – schatting</span>
+      ${isGetal(x.waarde) ? `<div style="font-size:1.4em"><strong>${esc(fmtGetal(x.waarde))} minuten</strong> (${esc(fmtGetal(x.uren))} uur)</div>
+        <div class="klein">= gemiddelde actieve tijd per ${esc(e.uitvoeringseenheid)} ${esc(fmtGetal(x.gemiddelde))} min × populatiegrootte ${esc(fmtAantal(x.populatiegrootte))} ${esc(e.uitvoeringseenheidMeervoud)}.
+        Gebaseerd op ${x.n} onderzochte ${x.n === 1 ? esc(e.uitvoeringseenheid) : esc(e.uitvoeringseenheidMeervoud)} met een bekende actieve tijd (normaal en uitzondering samen).</div>`
+        : `<div><span class="onbekend">${ONBEKEND}</span></div><ul class="klein">${x.ontbreekt.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>`}
+      <div class="klein zacht">Gebruikte populatiegrootte: ${htmlAantal(x.populatiegrootte)} · aantal onderzochte dossiers: ${x.n}. Wachttijd telt niet mee. Dit is een extrapolatie, geen meting.</div>
+    </div>
+    <div class="knoppen"><button type="button" class="klein" data-actie="steekproef-dossiers" data-id="${esc(sp.steekproefId)}">Gekoppelde dossiers bekijken</button>
+      <button type="button" class="klein" data-actie="steekproef-koppelen" data-id="${esc(sp.steekproefId)}">Metingen koppelen</button></div>`;
+}
+
+/** Herleidbaarheid: alle gekoppelde dossiermetingen met hun kenmerken en berekende tijd. */
+function toonSteekproefDossiers(steekproefId) {
+  const sp = zoekSteekproef(steekproefId);
+  if (!sp) return;
+  const lijst = metingenVanSteekproef(steekproefId);
+  informeer(`Dossiers in steekproef ${sp.steekproefId}`, lijst.length ? `<div class="tabelhouder"><table class="klein">
+    <thead><tr><th class="getal">Nr.</th><th>DossierID</th><th>MetingID</th><th>Datum</th><th>Medewerker</th><th>Casustype</th><th>Meetwijze</th><th>Complexiteit</th><th class="getal">Periode-regels</th><th class="getal">Blokken</th><th class="getal">Onderbr.</th><th>Tijdrovendste stap</th><th>Detail</th><th class="getal">Actief per dossier</th><th class="getal">Wacht per dossier</th></tr></thead>
+    <tbody>${lijst.map((m) => {
+      const b = berekenMeting(m);
+      return `<tr><td class="getal">${htmlAantal(m.volgnummerSteekproef)}</td><td class="mono">${htmlTekst(m.dossierId)}</td><td class="mono">${esc(m.metingId)}${testLabel(m)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${htmlTekst(m.medewerkerId)}</td><td>${esc(m.casustype)}</td><td>${meetwijzeHtml(m.meetwijze)}</td>
+        <td>${htmlTekst(m.complexiteit)}</td><td class="getal">${htmlAantal(m.aantalPerioderegels)}</td><td class="getal">${htmlAantal(m.aantalBlokken)}</td><td class="getal">${htmlAantal(m.aantalOnderbrekingen)}</td>
+        <td>${m.tijdrovendsteStapId ? `<span class="mono">${esc(m.tijdrovendsteStapId)}</span>` : '<span class="zacht">—</span>'}</td><td>${heeftDetailmeting(m) ? 'Ja' : 'Nee'}</td>
+        <td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}</td><td class="getal berekend">${htmlGetal(b.wachtPerUitvoering)}</td></tr>`;
+    }).join('')}</tbody></table></div><p class="klein zacht">Testmetingen zijn gemarkeerd met TEST en tellen standaard niet mee in de resultaten.</p>` : '<p class="zacht">Er zijn nog geen metingen gekoppeld.</p>');
+}
+
+/** Dialoog om bestaande procesmetingen van het proces aan de steekproef te koppelen of te ontkoppelen. */
+async function koppelMetingenDialoog(steekproefId) {
+  const sp = zoekSteekproef(steekproefId);
+  if (!sp) return;
+  const kandidaten = staat.procesmetingen
+    .filter((m) => m.procesId === sp.procesId && (!m.steekproefId || m.steekproefId === steekproefId))
+    .sort((a, b) => (a.steekproefId ? 0 : 1) - (b.steekproefId ? 0 : 1) || (a.volgnummerSteekproef || 0) - (b.volgnummerSteekproef || 0) || vergelijkTekst(a.metingId, b.metingId));
+  const elders = staat.procesmetingen.filter((m) => m.procesId === sp.procesId && m.steekproefId && m.steekproefId !== steekproefId).length;
+  if (!kandidaten.length) {
+    await informeer('Metingen koppelen', `<p>Er zijn geen procesmetingen van proces ${esc(sp.procesId)} die aan deze steekproef kunnen worden gekoppeld.</p>`);
+    return;
+  }
+  const keuze = await dialoog({
+    titel: `Metingen koppelen aan ${sp.steekproefId}`,
+    inhoud: `<p class="klein">Vink de procesmetingen aan die bij steekproef <strong>${esc(sp.naam)}</strong> horen en vul het volgnummer en het geanonimiseerde dossier-ID in. Uitvinken ontkoppelt een meting (de meting zelf blijft bestaan).${elders ? ` ${elders} meting(en) van dit proces zijn aan een andere steekproef gekoppeld en staan niet in deze lijst.` : ''}</p>
+      <div class="tabelhouder"><table class="klein" id="koppelTabel"><thead><tr><th>Koppelen</th><th>MetingID</th><th>Datum</th><th>Medewerker</th><th>Casustype</th><th>Meetwijze</th><th>Volgnummer</th><th>Dossier-ID</th></tr></thead>
+      <tbody>${kandidaten.map((m) => `<tr data-meting="${esc(m.metingId)}"><td><input type="checkbox" data-koppel ${m.steekproefId === steekproefId ? 'checked' : ''} aria-label="Meting ${esc(m.metingId)} koppelen"></td>
+        <td class="mono">${esc(m.metingId)}${testLabel(m)}${demoLabel(m)}</td><td>${esc(fmtDatum(m.datum))}</td><td>${htmlTekst(m.medewerkerId)}</td><td>${esc(m.casustype)}</td><td>${meetwijzeHtml(m.meetwijze)}</td>
+        <td><input type="text" class="tijd" data-volgnummer inputmode="numeric" value="${esc(naarInvoer(m.volgnummerSteekproef))}" aria-label="Volgnummer ${esc(m.metingId)}"></td>
+        <td><input type="text" data-dossier maxlength="40" value="${esc(m.dossierId || '')}" placeholder="bijv. D-001" aria-label="Dossier-ID ${esc(m.metingId)}"></td></tr>`).join('')}</tbody></table></div>
+      <div id="koppelFouten"></div>`,
+    knoppen: [
+      { label: 'Annuleren', waarde: false },
+      {
+        label: 'Koppeling opslaan', waarde: true, soort: 'primair',
+        controle: () => {
+          const koppelingen = [];
+          const fouten = [];
+          for (const rij of $$('#koppelTabel tbody tr')) {
+            if (!$('[data-koppel]', rij).checked) continue;
+            const r = leesGetal($('[data-volgnummer]', rij).value);
+            if (r.fout) fouten.push(`Meting ${rij.dataset.meting}: volgnummer – ${r.fout}`);
+            koppelingen.push({ metingId: rij.dataset.meting, volgnummer: r.fout ? NaN : r.waarde, dossierId: $('[data-dossier]', rij).value.trim() });
+          }
+          const alle = fouten.length ? fouten : koppelMetingen(steekproefId, koppelingen);
+          $('#koppelFouten').innerHTML = foutenHtml(alle, 'De koppeling is niet opgeslagen:');
+          return !alle.length;
+        },
+      },
+    ],
+  });
+  if (keuze === true) await naWijziging(`Koppeling van steekproef ${steekproefId} is opgeslagen.`);
+}
+
+/** Vult bij het aanvinken in het koppelvenster direct het eerstvolgende vrije volgnummer in (zichtbaar en aanpasbaar). */
+function initKoppelDialoog() {
+  $('#dialoogInhoud').addEventListener('change', (e) => {
+    if (!e.target.matches('#koppelTabel [data-koppel]') || !e.target.checked) return;
+    const veld = $('[data-volgnummer]', e.target.closest('tr'));
+    if (veld.value.trim()) return;
+    const gebruikt = $$('#koppelTabel tbody tr').filter((r) => $('[data-koppel]', r).checked).map((r) => leesGetal($('[data-volgnummer]', r).value).waarde).filter(isGetal);
+    veld.value = String(Math.max(0, ...gebruikt) + 1);
+  });
+}
+
 // ===== ui-meting.js =====
 // ---------- 2. Nieuwe procesmeting (en aanpassen van een bestaande meting) ----------
 
@@ -3233,7 +4164,11 @@ function initMetingFormulier() {
     werkEenheidLabelsBij();
     laadProcesStappenInFormulier(p ? p.procesId : null);
     werkMetingIdBij();
+    // Steekproef en meest tijdrovende stap horen bij het proces.
+    $('#mVolgnummer').value = '';
+    werkDossierVeldenBij('', '');
   });
+  initDossierVelden();
   $('#mTimerTonen').addEventListener('change', () => {
     $('#mStappen').classList.toggle('verborgen-kolom', !$('#mTimerTonen').checked);
   });
@@ -3258,6 +4193,8 @@ function initMetingFormulier() {
   });
   renderMetingStappen();
   werkKalenderweekBij();
+  werkDossierVeldenBij();
+  werkDetailBij();
 }
 
 /** Toont onder de meetdatum de kalenderweek, bijv. "Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)". */
@@ -3442,7 +4379,9 @@ function leesMetingFormulier() {
   if (!$('#mBlokkenVeld').hidden || $('#mBlokken').value.trim()) meting.aantalBlokken = blokken.fout ? NaN : blokken.waarde;
   // Alleen vastleggen als het een test/fictieve meting is; ontbreken = geen testmeting.
   if ($('#mTest').checked) meting.testmeting = true;
-  const stapmetingen = formulierStappen.map((s) => {
+  leesDossierVelden(meting, invoerFouten);
+  const detail = meting.detailmeting !== false;
+  const stapmetingen = !detail ? [] : formulierStappen.map((s) => {
     const rij = $(`tr[data-stap="${CSS.escape(s.stapId)}"]`, $('#mStappen'));
     const lees = (veld) => {
       const invoer = $(`[data-veld="${veld}"]`, rij);
@@ -3475,10 +4414,12 @@ function werkBerekeningBij() {
   const houder = $('#mBerekend');
   if (!formulierStappen.length) { houder.innerHTML = '<span class="etiket berekend">Automatisch berekend</span><div class="klein">Nog geen processtappen geladen.</div>'; return; }
   const { meting, stapmetingen } = leesMetingFormulier();
+  const zonderDetail = meting.detailmeting === false;
   const actief = stapmetingen.map((s) => s.actieveTijd);
   const wacht = stapmetingen.map((s) => s.wachttijd);
-  const totaalActief = actief.every(isGetal) ? som(actief) : null;
-  const totaalWacht = wacht.every(isGetal) ? som(wacht) : null;
+  const totaalVan = (waarden, totaal) => (zonderDetail ? (isGetal(totaal) ? totaal : null) : waarden.every(isGetal) ? som(waarden) : null);
+  const totaalActief = totaalVan(actief, meting.actieveTijdTotaal);
+  const totaalWacht = totaalVan(wacht, meting.wachttijdTotaal);
   const omvangOk = isGetal(meting.omvang) && meting.omvang > 0;
   const aantalOk = isGetal(meting.aantalUitvoeringen) && meting.aantalUitvoeringen > 0;
   const e = eenhedenVan(meting);
@@ -3493,8 +4434,8 @@ function werkBerekeningBij() {
       ${isGetal(meting.aantalBlokken) ? `<div><div class="klein">Actieve tijd per diensttijdblok</div><strong>${htmlGetal(meting.aantalBlokken > 0 && isGetal(totaalActief) ? totaalActief / meting.aantalBlokken : null, 2, ' min')}</strong></div>` : ''}
       <div><div class="klein">Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</div><strong>${htmlGetal(isGetal(totaalActief) && isGetal(totaalWacht) ? totaalActief + totaalWacht : null, 2, ' min')}</strong></div>
     </div>
-    ${controleHtml(controleProcesStap(meting, stapmetingen))}
-    ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
+    ${zonderDetail ? '<div class="klein mt">Geen detailmeting per processtap: de tijden komen uit de totalen hierboven. Er wordt geen tijd per stap berekend.</div>' : controleHtml(controleProcesStap(meting, stapmetingen))}
+    ${!isGetal(totaalActief) || !isGetal(totaalWacht) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
 }
 
 async function slaMetingOp() {
@@ -3557,6 +4498,10 @@ function resetMetingFormulier(behoudAlgemeen) {
   metingConceptBasis = null;
   annuleerMetingConceptTimer();
   $('#mToelichting').value = '';
+  // Bij de volgende meting blijven steekproef en detailmeting staan; het volgnummer schuift door.
+  const steekproef = behoudAlgemeen && !wasBewerking ? $('#mSteekproef').value : '';
+  if (!behoudAlgemeen || wasBewerking) $('#mDetail').value = 'ja';
+  zetDossierVelden({});
   vulMetingProcesKeuze();
   const p = zoekProces($('#mProces').value);
   formulierEenheden = p ? eenhedenKopie(p.procesId) : eenhedenKopieLeeg();
@@ -3564,6 +4509,10 @@ function resetMetingFormulier(behoudAlgemeen) {
   laadProcesStappenInFormulier(p ? p.procesId : null);
   werkMetingIdBij();
   werkKalenderweekBij();
+  werkDossierVeldenBij(steekproef, '');
+  if (steekproef && zoekSteekproef(steekproef)) $('#mVolgnummer').value = String(volgendVolgnummer(steekproef));
+  werkDetailBij();
+  werkDossierKnelpuntBij();
 }
 
 /** Laadt een bestaande meting in het formulier om aan te passen. */
@@ -3599,13 +4548,21 @@ function bewerkMeting(metingId) {
   $('#mMeetwijze').value = m.meetwijze || '';
   $('#mToelichting').value = m.toelichting || '';
   const sm = stapmetingenVan(metingId);
-  formulierStappen = sm.map((s) => ({ stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.stapnaam, tijdvastlegging: s.tijdvastlegging || 'Handmatig' }));
+  // Zonder detailmeting: de huidige stappen van het proces, zodat alsnog per stap kan worden gemeten.
+  formulierStappen = sm.length
+    ? sm.map((s) => ({ stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.stapnaam, tijdvastlegging: s.tijdvastlegging || 'Handmatig' }))
+    : stappenVanProces(m.procesId).map((s) => ({ stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.naam, tijdvastlegging: 'Handmatig' }));
   const waarden = {};
   for (const s of sm) waarden[s.stapId] = s;
   $('#mAnnuleren').textContent = 'Aanpassen annuleren';
   $('#mFouten').innerHTML = '';
+  $('#mDetail').value = heeftDetailmeting(m) ? 'ja' : 'nee';
+  zetDossierVelden(m);
   renderMetingStappen(waarden);
   werkKalenderweekBij();
+  werkDossierVeldenBij(m.steekproefId || '', m.tijdrovendsteStapId || '');
+  werkDetailBij();
+  werkDossierKnelpuntBij();
   toonTab('meting');
 }
 
@@ -3725,6 +4682,143 @@ function controleHtml(c) {
   return `<div class="melding waarschuwing mt">${controleTekst(c).map(esc).join('<br>')}<br><span class="klein">U kunt de meting toch opslaan; de afwijking wordt vastgelegd in de export. Voor de berekeningen wordt de som van de stapmetingen gebruikt.</span>${tabel}</div>`;
 }
 
+// ---------- Steekproef, dossierkenmerken en detailmeting (versie 1.7) ----------
+
+function huidigMetingProcesId() {
+  return metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
+}
+
+function initDossierVelden() {
+  $('#mRedenen').innerHTML = REDENEN_TIJDSBELASTING.map((r) => `<label><input type="checkbox" data-reden value="${esc(r)}"> ${esc(r)}</label>`).join('');
+  $('#mKnelpuntGevolgen').innerHTML = KNELPUNT_GEVOLGEN.map((g) => `<label><input type="checkbox" data-mgevolg value="${esc(g)}"> ${esc(g)}</label>`).join('');
+  vulSelect($('#mKnelpuntCategorie'), KNELPUNT_CATEGORIEEN, null, '— Kies —');
+  $('#mSteekproef').addEventListener('change', () => {
+    // Een gekozen steekproef krijgt direct het eerstvolgende vrije volgnummer (zichtbaar en aanpasbaar).
+    if (!$('#mSteekproef').value) $('#mVolgnummer').value = '';
+    else if (!$('#mVolgnummer').value.trim() || !metingBewerkId) $('#mVolgnummer').value = String(volgendVolgnummer($('#mSteekproef').value, metingBewerkId));
+    werkSteekproefHintBij();
+  });
+  $('#mDetail').addEventListener('change', werkDetailBij);
+  $('#mKnelpunt').addEventListener('change', werkDossierKnelpuntBij);
+}
+
+function kenmerkenIngevuld() {
+  return !!($('#mPerioderegels').value.trim() || $('#mOnderbrekingen').value.trim() || $('input[name="complexiteit"]:checked')
+    || $('#mTijdrovendste').value || $$('[data-reden]').some((c) => c.checked));
+}
+
+/** Vult de keuzelijsten voor steekproef en meest tijdrovende stap en toont de dossierkenmerken bij het juiste proces. */
+function werkDossierVeldenBij(steekproef, stap) {
+  const pid = huidigMetingProcesId();
+  const lijst = pid ? steekproevenVanProces(pid) : [];
+  const gekozen = steekproef !== undefined ? steekproef : $('#mSteekproef').value;
+  vulSelect($('#mSteekproef'), lijst.map((s) => ({ waarde: s.steekproefId, label: `${s.steekproefId} – ${s.naam}${s.status !== 'Bezig' ? ` (${s.status.toLowerCase()})` : ''}${s.demo ? ' [DEMO]' : ''}` })),
+    gekozen, lijst.length ? '— Geen steekproef —' : '— Geen steekproef (nog geen steekproef bij dit proces) —');
+  const stapKeuze = stap !== undefined ? stap : $('#mTijdrovendste').value;
+  const stappen = pid ? stappenVanProces(pid).map((s) => ({ waarde: s.stapId, label: `${s.stapId} – ${s.naam}` })) : [];
+  const bewerkt = metingBewerkId && zoekMeting(metingBewerkId);
+  if (stapKeuze && !stappen.some((s) => s.waarde === stapKeuze) && bewerkt && bewerkt.tijdrovendsteStapId === stapKeuze) {
+    stappen.push({ waarde: stapKeuze, label: `${stapKeuze} – ${bewerkt.tijdrovendsteStapnaam || ''} (stap bestaat niet meer)` });
+  }
+  vulSelect($('#mTijdrovendste'), stappen, stapKeuze, '— Niet ingevuld —');
+  $('#mKenmerken').hidden = !(pid && dossierkenmerkenVastleggen(pid)) && !kenmerkenIngevuld();
+  werkSteekproefHintBij();
+}
+
+function werkSteekproefHintBij() {
+  const sp = zoekSteekproef($('#mSteekproef').value);
+  const hint = $('#mSteekproefHint');
+  if (!sp) { hint.textContent = 'Optioneel. Steekproeven legt u vast op het tabblad Steekproeven.'; return; }
+  const n = metingenVanSteekproef(sp.steekproefId).filter((m) => !isTestmeting(m)).length;
+  hint.textContent = `${sp.naam} · status ${sp.status.toLowerCase()} · ${n}${isGetal(sp.steekproefgrootte) ? ` van ${sp.steekproefgrootte}` : ''} dossiers gemeten${sp.startdatum || sp.einddatum ? ` · ${sp.startdatum ? fmtDatum(sp.startdatum) : '…'} t/m ${sp.einddatum ? fmtDatum(sp.einddatum) : '…'}` : ''}`;
+}
+
+/** Zonder detailmeting verdwijnt de stappentabel en worden de totalen de tijden van de meting. */
+function werkDetailBij() {
+  const nee = $('#mDetail').value === 'nee';
+  $('#mStappen').hidden = nee;
+  $('#mActiefTotaalLabel').innerHTML = `${nee ? 'Totale actieve tijd (min)' : 'Totale actieve tijd volgens procesmeting (min)'} ${infoHtml('actief')}`;
+  $('#mWachtTotaalLabel').innerHTML = `${nee ? 'Totale wachttijd (min)' : 'Totale wachttijd volgens procesmeting (min)'} ${infoHtml('wacht')}`;
+  $('#mActiefTotaal').placeholder = nee ? 'bijv. 25' : 'Optioneel, ter controle';
+  $('#mWachtTotaal').placeholder = nee ? 'bijv. 0' : 'Optioneel, ter controle';
+  $('#mActiefTotaalHint').textContent = nee
+    ? 'Geen detailmeting: dit is de actieve tijd van de hele uitvoering. Er wordt geen tijd per processtap afgeleid.'
+    : 'Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.';
+  werkBerekeningBij();
+}
+
+function werkDossierKnelpuntBij() {
+  const ja = $('#mKnelpunt').value === 'ja';
+  $('#mKnelpuntCategorieVeld').hidden = !ja;
+  $('#mKnelpuntGevolgVeld').hidden = !ja;
+}
+
+/** Zet de velden voor steekproef, dossierkenmerken en het knelpunt op dossierniveau (de keuzelijsten volgen via werkDossierVeldenBij). */
+function zetDossierVelden(m) {
+  $('#mVolgnummer').value = naarInvoer(m.volgnummerSteekproef);
+  $('#mDossierId').value = m.dossierId || '';
+  $('#mPerioderegels').value = naarInvoer(m.aantalPerioderegels);
+  $('#mOnderbrekingen').value = naarInvoer(m.aantalOnderbrekingen);
+  $$('input[name="complexiteit"]').forEach((r) => { r.checked = r.value === m.complexiteit; });
+  $$('[data-reden]').forEach((c) => { c.checked = (m.redenenTijdsbelasting || []).includes(c.value); });
+  $('#mKnelpunt').value = m.knelpunt === true ? 'ja' : m.knelpunt === false ? 'nee' : '';
+  $('#mKnelpuntCategorie').value = m.knelpuntCategorie || '';
+  $$('[data-mgevolg]').forEach((c) => { c.checked = (m.knelpuntGevolgen || []).includes(c.value); });
+  $('#mBelangrijksteKnelpunt').value = m.belangrijksteKnelpunt || '';
+}
+
+/** Leest steekproef, dossierkenmerken, knelpunt op dossierniveau en detailmeting. Lege velden worden niet vastgelegd. */
+function leesDossierVelden(meting, invoerFouten) {
+  const geheel = (id, label, minimum) => {
+    const r = leesGetal($(id).value);
+    if (r.fout) invoerFouten.push(`${label}: ${r.fout}`);
+    $(id).classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && (r.waarde < minimum || !Number.isInteger(r.waarde))));
+    return r.fout ? NaN : r.waarde;
+  };
+  meting.detailmeting = $('#mDetail').value !== 'nee';
+  const spId = $('#mSteekproef').value;
+  if (spId) meting.steekproefId = spId;
+  const volgnummer = geheel('#mVolgnummer', 'Volgnummer binnen de steekproef', 1);
+  if (volgnummer !== null) meting.volgnummerSteekproef = volgnummer;
+  const dossierId = $('#mDossierId').value.trim();
+  if (dossierId) meting.dossierId = dossierId;
+  if (!$('#mKenmerken').hidden) {
+    const regels = geheel('#mPerioderegels', 'Aantal ABP-periode-regels', 0);
+    if (regels !== null) meting.aantalPerioderegels = regels;
+    const onderbrekingen = geheel('#mOnderbrekingen', 'Aantal onderbrekingen', 0);
+    if (onderbrekingen !== null) meting.aantalOnderbrekingen = onderbrekingen;
+    const complexiteit = $('input[name="complexiteit"]:checked');
+    if (complexiteit) meting.complexiteit = complexiteit.value;
+    const stapId = $('#mTijdrovendste').value;
+    if (stapId) {
+      const stap = stappenVanProces(meting.procesId).find((s) => s.stapId === stapId);
+      const bewerkt = metingBewerkId && zoekMeting(metingBewerkId);
+      meting.tijdrovendsteStapId = stapId;
+      meting.tijdrovendsteStapnaam = stap ? stap.naam : (bewerkt && bewerkt.tijdrovendsteStapnaam) || '';
+    }
+    const redenen = $$('[data-reden]').filter((c) => c.checked).map((c) => c.value);
+    if (redenen.length) meting.redenenTijdsbelasting = redenen;
+  }
+  const knelpunt = $('#mKnelpunt').value;
+  if (knelpunt === 'nee') meting.knelpunt = false;
+  if (knelpunt === 'ja') {
+    meting.knelpunt = true;
+    if ($('#mKnelpuntCategorie').value) meting.knelpuntCategorie = $('#mKnelpuntCategorie').value;
+    const gevolgen = $$('[data-mgevolg]').filter((c) => c.checked).map((c) => c.value);
+    if (gevolgen.length) meting.knelpuntGevolgen = gevolgen;
+  }
+}
+
+function dossierConceptWaarden() {
+  const complexiteit = $('input[name="complexiteit"]:checked');
+  return {
+    detail: $('#mDetail').value, steekproef: $('#mSteekproef').value, volgnummer: $('#mVolgnummer').value, dossierId: $('#mDossierId').value,
+    perioderegels: $('#mPerioderegels').value, onderbrekingen: $('#mOnderbrekingen').value, complexiteit: complexiteit ? complexiteit.value : '',
+    tijdrovendste: $('#mTijdrovendste').value, redenen: $$('[data-reden]').filter((c) => c.checked).map((c) => c.value),
+    knelpunt: $('#mKnelpunt').value, knelpuntCategorie: $('#mKnelpuntCategorie').value, knelpuntGevolgen: $$('[data-mgevolg]').filter((c) => c.checked).map((c) => c.value),
+  };
+}
+
 // ---------- Meting dupliceren ----------
 
 /** Laadt een kopie van een bestaande meting als NIEUWE meting in het formulier (pas opgeslagen na controle). */
@@ -3765,12 +4859,20 @@ async function dupliceerMeting(metingId) {
   $('#mActiefTotaal').value = naarInvoer(bron.actieveTijdTotaal);
   $('#mWachtTotaal').value = naarInvoer(bron.wachttijdTotaal);
   $('#mTest').checked = isTestmeting(bron);
+  $('#mDetail').value = heeftDetailmeting(bron) ? 'ja' : 'nee';
+  // Volgnummer en dossier-ID horen bij één dossier en worden nooit gekopieerd.
+  zetDossierVelden({ ...bron, volgnummerSteekproef: null, dossierId: '' });
   renderMetingStappen(waarden);
   werkEenheidLabelsBij();
   werkMetingIdBij();
   werkKalenderweekBij();
+  werkDossierVeldenBij(bron.steekproefId || '', bron.tijdrovendsteStapId || '');
+  if (bron.steekproefId && zoekSteekproef(bron.steekproefId)) $('#mVolgnummer').value = String(volgendVolgnummer(bron.steekproefId));
+  werkDetailBij();
+  werkDossierKnelpuntBij();
   $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Kopie van meting ${esc(metingId)} – nog niet opgeslagen.</strong>
     De meetdatum is op vandaag gezet en de meting krijgt een nieuw MetingID. Controleer en pas zo nodig medewerker, omvang, tijden, casustype en toelichting aan, en sla daarna op.
+    Het volgnummer binnen de steekproef is doorgenummerd en het dossier-ID is leeg gelaten.
     Gekopieerde tijden zijn gemarkeerd als "Gekopieerd".</div>`;
   toonTab('meting');
   bewaarMetingConcept();
@@ -3795,6 +4897,7 @@ function annuleerMetingConceptTimer() {
 function metingConceptHeeftInhoud(g) {
   const v = g.velden;
   return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.blokken || v.belangrijksteKnelpunt || v.bijzonderheden || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
+    || v.volgnummer || v.dossierId || v.perioderegels || v.onderbrekingen || v.complexiteit || v.tijdrovendste || (v.redenen || []).length || v.knelpunt || v.detail === 'nee'
     || Object.values(g.waarden).some((w) => Object.values(w).some((x) => String(x).trim() !== ''))
     || /Kopie van meting/.test(g.melding || ''));
 }
@@ -3818,6 +4921,7 @@ function metingConceptGegevens() {
       aantal: $('#mAantal').value, omvang: $('#mOmvang').value, blokken: $('#mBlokken').value,
       belangrijksteKnelpunt: $('#mBelangrijksteKnelpunt').value, bijzonderheden: $('#mBijzonderheden').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
       actiefTotaal: $('#mActiefTotaal').value, wachtTotaal: $('#mWachtTotaal').value, test: $('#mTest').checked,
+      ...dossierConceptWaarden(),
     },
     stappen: formulierStappen,
     waarden,
@@ -3861,11 +4965,24 @@ function herstelMetingConcept() {
   $('#mActiefTotaal').value = v.actiefTotaal || '';
   $('#mWachtTotaal').value = v.wachtTotaal || '';
   $('#mTest').checked = !!v.test;
+  $('#mDetail').value = v.detail === 'nee' ? 'nee' : 'ja';
+  $('#mVolgnummer').value = v.volgnummer || '';
+  $('#mDossierId').value = v.dossierId || '';
+  $('#mPerioderegels').value = v.perioderegels || '';
+  $('#mOnderbrekingen').value = v.onderbrekingen || '';
+  $$('input[name="complexiteit"]').forEach((r) => { r.checked = r.value === v.complexiteit; });
+  $$('[data-reden]').forEach((c) => { c.checked = (v.redenen || []).includes(c.value); });
+  $('#mKnelpunt').value = v.knelpunt || '';
+  $('#mKnelpuntCategorie').value = v.knelpuntCategorie || '';
+  $$('[data-mgevolg]').forEach((c) => { c.checked = (v.knelpuntGevolgen || []).includes(c.value); });
   formulierStappen = Array.isArray(g.stappen) ? g.stappen : formulierStappen;
   renderMetingStappen(g.waarden || {});
   werkEenheidLabelsBij();
   werkMetingIdBij();
   werkKalenderweekBij();
+  werkDossierVeldenBij(v.steekproef || '', v.tijdrovendste || '');
+  werkDetailBij();
+  werkDossierKnelpuntBij();
   $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Niet-afgerond concept hersteld</strong> (automatisch opgeslagen op ${esc(fmtTijdstip(c.opgeslagen))}).
     Controleer de invoer en sla de meting op, of verwijder het concept.${g.bewerkId ? ` Dit is een concept voor het aanpassen van meting ${esc(g.bewerkId)}.` : ''}</div>`;
   toonConceptStatus('m', true, c.opgeslagen);
@@ -4146,7 +5263,7 @@ function initOverzicht() {
     $('#ozMeetwijze').value = '';
     renderOverzicht();
   });
-  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze']) {
+  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze', '#ozSteekproef']) {
     $(id).addEventListener('input', renderOverzichtTabel);
     $(id).addEventListener('change', renderOverzichtTabel);
   }
@@ -4161,11 +5278,12 @@ function overzichtFilters() {
     medewerker: $('#ozMedewerker').value,
     casustype: $('#ozCasustype').value,
     meetwijze: $('#ozMeetwijze').value,
+    steekproef: $('#ozSteekproef').value,
   };
 }
 
 function wisOverzichtFilters() {
-  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze']) $(id).value = '';
+  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze', '#ozSteekproef']) $(id).value = '';
   renderOverzichtTabel();
 }
 
@@ -4179,6 +5297,8 @@ function renderOverzicht() {
   vulSelect($('#ozMedewerker'), [...medewerkers, { waarde: '__leeg__', label: '(niet ingevuld)' }], huidigeMedewerker, 'Alle medewerkers');
   vulSelect($('#ozCasustype'), CASUSTYPEN, $('#ozCasustype').value, 'Alle casustypen');
   vulSelect($('#ozMeetwijze'), isFreq ? MEETWIJZEN_FREQUENTIE : MEETWIJZEN_METING, $('#ozMeetwijze').value, 'Alle meetwijzen');
+  vulSelect($('#ozSteekproef'), [...staat.steekproeven.map((s) => ({ waarde: s.steekproefId, label: `${s.steekproefId} – ${s.naam}` })), { waarde: '__geen__', label: '(geen steekproef)' }], $('#ozSteekproef').value, 'Alle steekproeven');
+  for (const el of $$('#overzichtFilters [data-filter="steekproef"]')) el.hidden = isFreq;
   renderOverzichtTabel();
 }
 
@@ -4190,6 +5310,8 @@ function metingVoldoetAanOverzicht(m, f) {
   if (f.medewerker && f.medewerker !== '__leeg__' && m.medewerkerId !== f.medewerker) return false;
   if (f.casustype && m.casustype !== f.casustype) return false;
   if (f.meetwijze && m.meetwijze !== f.meetwijze) return false;
+  if (f.steekproef === '__geen__' && m.steekproefId) return false;
+  if (f.steekproef && f.steekproef !== '__geen__' && m.steekproefId !== f.steekproef) return false;
   return true;
 }
 
@@ -4208,7 +5330,7 @@ function renderOverzichtTabel() {
 function renderProcesmetingenTabel(f) {
   const lijst = staat.procesmetingen
     .filter((m) => metingVoldoetAanOverzicht(m, f))
-    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting, m.belangrijksteKnelpunt, m.bijzonderheden,
+    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting, m.belangrijksteKnelpunt, m.bijzonderheden, m.steekproefId, m.dossierId, m.complexiteit, m.tijdrovendsteStapId, m.knelpuntCategorie, ...(m.redenenTijdsbelasting || []),
       ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking, ...knelpuntZoekwaarden(s)])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
   const nTest = lijst.filter(isTestmeting).length;
@@ -4220,7 +5342,7 @@ function renderProcesmetingenTabel(f) {
     const stappen = stapmetingenVan(m.metingId);
     let html = `<tr>
       <td><button type="button" class="klein" data-actie="meting-uitklappen" data-id="${esc(m.metingId)}" aria-expanded="${open}" title="Stapmetingen tonen of verbergen">${open ? '▾' : '▸'} ${stappen.length}</button></td>
-      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}${knelpuntLabel(stappen)}</td>
+      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}${knelpuntLabel(stappen, m)}${steekproefLabel(m)}</td>
       <td>${esc(fmtDatum(m.datum))}<br><span class="klein zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
@@ -4228,7 +5350,7 @@ function renderProcesmetingenTabel(f) {
       <td class="getal">${htmlMetEenheid(m.aantalUitvoeringen, eenhedenVan(m), 'uitvoering')}</td>
       <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}${isGetal(m.aantalBlokken) ? `<br><span class="klein zacht">${esc(fmtAantal(m.aantalBlokken))} ${m.aantalBlokken === 1 ? 'diensttijdblok' : 'diensttijdblokken'}</span>` : ''}</td>
       <td>${meetwijzeHtml(m.meetwijze)}</td>
-      <td class="getal berekend">${htmlGetal(b.totaalActief)}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
+      <td class="getal berekend">${htmlGetal(b.totaalActief)}${b.aantalStappen ? '' : '<br><span class="klein zacht" title="Geen detailmeting per processtap: totaal van de procesmeting">totaal, geen detail</span>'}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
       <td class="getal berekend">${htmlGetal(b.totaalWacht)}</td>
       <td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}<span class="klein"> /${esc(eenhedenVan(m).uitvoeringseenheid)}</span></td>
       <td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}<span class="klein"> /${esc(eenhedenVan(m).omvangseenheid)}</span></td>
@@ -4267,13 +5389,19 @@ function knelpuntCelHtml(s) {
     + `${s.knelpuntBron ? `<br><span class="zacht">Bron: ${esc(s.knelpuntBron)}</span>` : ''}`;
 }
 
-function knelpuntLabel(stappen) {
-  const n = stappen.filter((s) => s.knelpunt === true).length;
-  return n ? ` <span class="knelpuntlabel" title="${n} ${n === 1 ? 'processtap' : 'processtappen'} met knelpunt">${n} knelpunt${n === 1 ? '' : 'en'}</span>` : '';
+function knelpuntLabel(stappen, m) {
+  const n = stappen.filter((s) => s.knelpunt === true).length + (m && m.knelpunt === true ? 1 : 0);
+  return n ? ` <span class="knelpuntlabel" title="${n} knelpunt${n === 1 ? '' : 'en'} (processtappen${m && m.knelpunt === true ? ' en dossierniveau' : ''})">${n} knelpunt${n === 1 ? '' : 'en'}</span>` : '';
+}
+
+/** Steekproef, volgnummer en dossier-ID onder het MetingID. */
+function steekproefLabel(m) {
+  if (!m.steekproefId && !m.dossierId) return '';
+  return `<span class="steekproeflabel">${m.steekproefId ? `${esc(m.steekproefId)}${isGetal(m.volgnummerSteekproef) ? ` · nr. ${esc(fmtAantal(m.volgnummerSteekproef))}` : ''}` : ''}${m.steekproefId && m.dossierId ? ' · ' : ''}${m.dossierId ? `dossier ${esc(m.dossierId)}` : ''}</span>`;
 }
 
 function stapmetingenMiniTabel(stappen) {
-  if (!stappen.length) return '<span class="zacht">Geen stapmetingen.</span>';
+  if (!stappen.length) return '<span class="zacht">Geen stapmetingen (geen detailmeting per processtap).</span>';
   return `<table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th>Knelpunt</th></tr></thead><tbody>
     ${stappen.map((s) => `<tr><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td><td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td>
       <td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td><td class="klein">${knelpuntCelHtml(s)}</td></tr>`).join('')}
@@ -4347,8 +5475,19 @@ function metingDetailHtml(m) {
         <dt>Eenheden</dt><dd class="klein">uitvoeringseenheid: ${esc(e.uitvoeringseenheid)} · omvangseenheid: ${esc(e.omvangseenheid)}</dd>
         <dt>Meetwijze</dt><dd>${meetwijzeHtml(m.meetwijze)}</dd>
         <dt>Algemene toelichting</dt><dd>${esc(m.toelichting || '—')}</dd>
+        <dt>Steekproef</dt><dd>${m.steekproefId ? `${esc(m.steekproefId)}${zoekSteekproef(m.steekproefId) ? ` – ${esc(zoekSteekproef(m.steekproefId).naam)}` : ''}` : '—'}</dd>
+        <dt>Volgnummer binnen de steekproef</dt><dd>${isGetal(m.volgnummerSteekproef) ? esc(fmtAantal(m.volgnummerSteekproef)) : '—'}</dd>
+        <dt>Geanonimiseerd dossier-ID</dt><dd class="mono">${esc(m.dossierId || '—')}</dd>
+        ${heeftDossierkenmerken(m) || dossierkenmerkenVastleggen(m.procesId) ? `<dt>Aantal ABP-periode-regels</dt><dd>${htmlAantal(m.aantalPerioderegels)}</dd>
+        <dt>Aantal onderbrekingen</dt><dd>${htmlAantal(m.aantalOnderbrekingen)}</dd>
+        <dt>Complexiteit</dt><dd>${htmlTekst(m.complexiteit)}</dd>
+        <dt>Meest tijdrovende processtap</dt><dd>${m.tijdrovendsteStapId ? `${esc(m.tijdrovendsteStapId)} – ${esc(m.tijdrovendsteStapnaam || '')}` : '—'}</dd>
+        <dt>Reden tijdsbelasting</dt><dd>${esc((m.redenenTijdsbelasting || []).join(', ') || '—')}</dd>` : ''}
+        <dt>Knelpunt op dossierniveau</dt><dd>${m.knelpunt === true ? `<strong>Ja</strong>${m.knelpuntCategorie ? ` – ${esc(m.knelpuntCategorie)}` : ''}${(m.knelpuntGevolgen || []).length ? ` <span class="zacht">(gevolg: ${esc(m.knelpuntGevolgen.join(', '))})</span>` : ''}` : m.knelpunt === false ? 'Nee' : '—'}</dd>
         <dt>Belangrijkste knelpunt tijdens deze uitvoering</dt><dd>${esc(m.belangrijksteKnelpunt || '—')}</dd>
         <dt>Bijzonderheden of uitzonderingen</dt><dd>${esc(m.bijzonderheden || '—')}</dd>
+        <dt>Detailmeting per processtap</dt><dd>${heeftDetailmeting(m) ? 'Ja' : 'Nee – de tijden komen uit de totalen van de procesmeting'}</dd>
+        ${!heeftDetailmeting(m) ? `<dt>Totale actieve tijd (procesmeting)</dt><dd>${htmlGetal(m.actieveTijdTotaal, 2, ' min')}</dd><dt>Totale wachttijd (procesmeting)</dt><dd>${htmlGetal(m.wachttijdTotaal, 2, ' min')}</dd>` : ''}
         <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(m.aangemaakt))}</dd>
         <dt>Laatst gewijzigd</dt><dd>${m.gewijzigd ? esc(fmtTijdstip(m.gewijzigd)) : 'Niet gewijzigd'}</dd>
       </dl>
@@ -4367,7 +5506,7 @@ function metingDetailHtml(m) {
         <dt>Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</dt><dd>${htmlGetal(b.actiefPerOmvang, 2, ' min')}</dd>
         <dt>Wachttijd per ${esc(e.omvangseenheid)}</dt><dd>${htmlGetal(b.wachtPerOmvang, 2, ' min')}</dd>
       </dl>
-      <div class="formule">Totale actieve tijd = ${stappen.map((s) => (isGetal(s.actieveTijd) ? fmtGetal(s.actieveTijd) : ONBEKEND)).join(' + ')}${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}</div>
+      <div class="formule">${!stappen.length ? `Totale actieve tijd = totaal van de procesmeting (geen detailmeting per processtap)${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}` : `Totale actieve tijd = ${stappen.map((s) => (isGetal(s.actieveTijd) ? fmtGetal(s.actieveTijd) : ONBEKEND)).join(' + ')}${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}`}</div>
       ${isGetal(b.actiefPerUitvoering) ? `<div class="formule">Actieve tijd per ${esc(e.uitvoeringseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.aantalUitvoeringen))} = ${fmtGetal(b.actiefPerUitvoering)}</div>` : ''}
       ${isGetal(b.actiefPerOmvang) ? `<div class="formule">Actieve tijd per ${esc(e.omvangseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.omvang))} = ${fmtGetal(b.actiefPerOmvang)}</div>` : ''}
       ${b.ontbrekendActief.length ? `<div class="klein">Actieve tijd ontbreekt bij: ${esc(b.ontbrekendActief.join(', '))}</div>` : ''}
@@ -4928,6 +6067,10 @@ function stapResultatenHtml(procesId, filters, e) {
     </tr>`).join('');
   return `
     <p class="klein zacht mt">Casustype: <strong>${esc(resultaatCasustype)}</strong>. Tijden in minuten per ${esc(e.uitvoeringseenheid)}: stapwaarde gedeeld door het aantal ${esc(e.uitvoeringseenheidMeervoud)} van de meting. n = aantal waarnemingen met een bekende waarde.</p>
+    ${(() => {
+      const zonder = staat.procesmetingen.filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId }) && m.casustype === resultaatCasustype && !stapmetingenVan(m.metingId).length).map((m) => m.metingId);
+      return zonder.length ? `<div class="melding neutraal klein">${zonder.length} meting(en) zonder detailmeting per processtap tellen niet mee in de tijd per stap (wel in de tijd per ${esc(e.uitvoeringseenheid)}): <span class="mono">${esc(zonder.join(', '))}</span>. Er wordt nooit een tijd per stap afgeleid.</div>` : '';
+    })()}
     <div class="tabelhouder"><table>
       <thead><tr><th>StapID</th><th>Processtap</th><th class="getal">n actief</th><th class="getal">Mediaan actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal">Gemiddelde actief</th><th class="getal">Min. actief</th><th class="getal">Max. actief</th>
       <th class="getal">n wacht</th><th class="getal">Mediaan wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal">Gemiddelde wacht</th><th class="getal">Metingen met wachttijd</th></tr></thead>
@@ -5003,6 +6146,7 @@ function renderImportExport() {
       <dt>Processen</dt><dd>${staat.processen.length} (${staat.processtappen.length} processtappen)</dd>
       <dt>Procesmetingen</dt><dd>${staat.procesmetingen.length} (${staat.stapmetingen.length} stapmetingen)</dd>
       <dt>Frequentiemetingen</dt><dd>${staat.frequentiemetingen.length}</dd>
+      <dt>Steekproeven</dt><dd>${staat.steekproeven.length} (${staat.procesmetingen.filter((m) => m.steekproefId).length} gekoppelde procesmetingen)</dd>
       <dt>Demogegevens aanwezig</dt><dd>${bevatDemo() ? 'Ja' : 'Nee'}</dd>
       <dt>Toolversie</dt><dd>${esc(VERSIE)}</dd>
     </dl>
@@ -5060,6 +6204,49 @@ const KOLOMMEN_KNELPUNTEN = [
   ['Gemeten wachttijd stap (min)', ({ s }) => s.wachttijd],
   ['Belangrijkste knelpunt (procesmeting)', ({ m }) => m.belangrijksteKnelpunt || ''],
   ['Bijzonderheden of uitzonderingen (procesmeting)', ({ m }) => m.bijzonderheden || ''],
+  // Sinds versie 1.7
+  ['Niveau', ({ niveau }) => niveau || 'Processtap'],
+  ['SteekproefID', ({ m }) => m.steekproefId || ''],
+  ['Volgnummer binnen steekproef', ({ m }) => (isGetal(m.volgnummerSteekproef) ? m.volgnummerSteekproef : null)],
+  ['DossierID', ({ m }) => m.dossierId || ''],
+];
+
+/** Knelpunten voor export: per processtap én op dossierniveau (procesmeting), op MetingID. */
+function alleKnelpuntRijenExport() {
+  const rijen = [];
+  for (const m of [...staat.procesmetingen].sort((a, b) => vergelijkTekst(a.metingId, b.metingId))) {
+    const k = kalenderweek(m.datum);
+    if (m.knelpunt === true) {
+      rijen.push({ m, k, niveau: 'Dossier (procesmeting)', s: { stapId: '', stapnaam: '', knelpuntCategorie: m.knelpuntCategorie, knelpuntOmschrijving: m.belangrijksteKnelpunt, knelpuntGevolgen: m.knelpuntGevolgen, knelpuntBron: '', actieveTijd: null, wachttijd: null } });
+    }
+    for (const s of knelpuntenVanMeting(m)) rijen.push({ m, s, k, niveau: 'Processtap' });
+  }
+  return rijen;
+}
+
+function jaNeeTekst(w, leeg = 'Niet ingevuld') {
+  return w === true ? 'Ja' : w === false ? 'Nee' : leeg;
+}
+
+const KOLOMMEN_STEEKPROEVEN = [
+  ['SteekproefID', (s) => s.steekproefId],
+  ['ProcesID', (s) => s.procesId],
+  ['Naam van de steekproef', (s) => s.naam],
+  ['Omschrijving populatie', (s) => s.populatie || ''],
+  ['Totale populatiegrootte', (s) => (isGetal(s.populatiegrootte) ? s.populatiegrootte : null)],
+  ['Beoogde steekproefgrootte', (s) => (isGetal(s.steekproefgrootte) ? s.steekproefgrootte : null)],
+  ['Selectiemethode', (s) => s.selectiemethode || ''],
+  ['Inclusiecriteria', (s) => s.inclusiecriteria || ''],
+  ['Exclusiecriteria', (s) => s.exclusiecriteria || ''],
+  ['Startdatum meting', (s) => s.startdatum || ''],
+  ['Einddatum meting', (s) => s.einddatum || ''],
+  ['Toelichting', (s) => s.toelichting || ''],
+  ['Status', (s) => s.status],
+  ['Gekoppelde procesmetingen (aantal)', (s) => metingenVanSteekproef(s.steekproefId).length],
+  ['Gekoppelde MetingID\'s', (s) => metingenVanSteekproef(s.steekproefId).map((m) => m.metingId).join(', ')],
+  ['Vastgelegd op', (s) => s.aangemaakt || ''],
+  ['Laatst gewijzigd', (s) => s.gewijzigd || ''],
+  ['Demogegevens', (s) => (s.demo ? 'Ja' : 'Nee')],
 ];
 
 const KOLOMMEN_PROCESMETINGEN = [
@@ -5089,6 +6276,20 @@ const KOLOMMEN_PROCESMETINGEN = [
   // Sinds versie 1.6
   ['Belangrijkste knelpunt', (m) => m.belangrijksteKnelpunt || ''],
   ['Bijzonderheden of uitzonderingen', (m) => m.bijzonderheden || ''],
+  // Sinds versie 1.7
+  ['SteekproefID', (m) => m.steekproefId || ''],
+  ['Volgnummer binnen steekproef', (m) => (isGetal(m.volgnummerSteekproef) ? m.volgnummerSteekproef : null)],
+  ['Geanonimiseerd dossier-ID', (m) => m.dossierId || ''],
+  ['Aantal ABP-periode-regels', (m) => (isGetal(m.aantalPerioderegels) ? m.aantalPerioderegels : null)],
+  ['Aantal onderbrekingen', (m) => (isGetal(m.aantalOnderbrekingen) ? m.aantalOnderbrekingen : null)],
+  ['Complexiteit', (m) => m.complexiteit || ''],
+  ['Meest tijdrovende processtap (StapID)', (m) => m.tijdrovendsteStapId || ''],
+  ['Meest tijdrovende processtap (naam bij meting)', (m) => m.tijdrovendsteStapnaam || ''],
+  ['Reden(en) tijdsbelasting', (m) => (m.redenenTijdsbelasting || []).join('; ')],
+  ['Knelpunt aanwezig (dossierniveau)', (m) => jaNeeTekst(m.knelpunt)],
+  ['Knelpuntcategorie (dossierniveau)', (m) => (m.knelpunt ? m.knelpuntCategorie || '' : '')],
+  ['Gevolg(en) knelpunt (dossierniveau)', (m) => (m.knelpunt ? (m.knelpuntGevolgen || []).join('; ') : '')],
+  ['Detailmeting op stapniveau uitgevoerd', (m) => (typeof m.detailmeting === 'boolean' ? jaNeeTekst(m.detailmeting) : 'Niet vastgelegd (stapmetingen aanwezig)')],
 ];
 
 const KOLOMMEN_STAPMETINGEN = [
@@ -5105,6 +6306,9 @@ const KOLOMMEN_STAPMETINGEN = [
   ['Test/fictief (via procesmeting)', (s) => (isTestStapmeting(s) ? 'Ja' : 'Nee')],
   // Sinds versie 1.6
   ...KNELPUNT_KOLOMMEN,
+  // Sinds versie 1.7 (herleidbaarheid via de procesmeting)
+  ['SteekproefID (via procesmeting)', (s) => (zoekMeting(s.metingId) || {}).steekproefId || ''],
+  ['DossierID (via procesmeting)', (s) => (zoekMeting(s.metingId) || {}).dossierId || ''],
 ];
 
 const KOLOMMEN_FREQUENTIE = [
@@ -5150,7 +6354,8 @@ async function exporteerCsv(soort) {
     procesmetingen: [KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), 'Meettool_procesmetingen'],
     stapmetingen: [KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), 'Meettool_stapmetingen'],
     frequentie: [KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), 'Meettool_frequentiemetingen'],
-    knelpunten: [KOLOMMEN_KNELPUNTEN, alleKnelpuntRijen(), 'Meettool_knelpunten'],
+    knelpunten: [KOLOMMEN_KNELPUNTEN, alleKnelpuntRijenExport(), 'Meettool_knelpunten'],
+    steekproeven: [KOLOMMEN_STEEKPROEVEN, [...staat.steekproeven].sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId)), 'Meettool_steekproeven'],
   }[soort];
   const [kolommen, records, naam] = def;
   const csv = maakCsv(kolommen.map((k) => k[0]), records.map((r) => kolommen.map((k) => k[1](r))), bevatDemo() ? [DEMO_WAARSCHUWING] : []);
@@ -5404,6 +6609,83 @@ function medewerkerBlad(filters) {
   return { naam: 'Per medewerker', rijen, kolombreedtes: [16, 14, 18, 26, 16, 16, 18, 10, 34, 12, 14, 10, 14, 14, 16, 14, 16, 14, 16, 14, 14, 14, 14, 14, 14, 50], kopRij };
 }
 
+/** Tabblad 'Steekproefresultaten': per steekproef de samenvatting, uitsplitsingen en alle dossiers (herleidbaar). */
+function steekproefBlad(opties) {
+  const rijen = [];
+  const titel = (tekst) => rijen.push([{ v: tekst, s: 'titel' }]);
+  titel('Steekproefresultaten – automatisch berekend uit de gekoppelde procesmetingen');
+  if (bevatDemo()) rijen.push([{ v: DEMO_WAARSCHUWING, s: 'waarschuwing' }]);
+  const groep = MEETWIJZE_GROEPEN.find((g) => g.code === opties.meetwijze);
+  rijen.push(['Gebruikte keuzes', `Meetwijze: ${groep ? groep.label : 'alle meetwijzen (gemengd)'}; testmetingen: ${opties.metTest ? 'meegenomen' : 'uitgesloten'} (instellingen op het tabblad Steekproeven)`]);
+  rijen.push(['Let op', 'Normale gevallen en uitzonderingen samen beschrijven de steekproef; ze staan ook apart. "Meest genoemde tijdrovende processtap" is een telling over alle metingen; "Gemiddelde tijd per processtap" komt uitsluitend uit aanwezige stapmetingen. Er wordt nooit een tijd per stap afgeleid zonder stapmeting.']);
+  rijen.push(['Geschatte tijdsbelasting populatie', 'Gemiddelde actieve tijd per dossier × totale populatiegrootte. Een extrapolatie (schatting), geen meting; wachttijd telt niet mee.']);
+  rijen.push([]);
+  const analyses = staat.steekproeven.map((sp) => steekproefAnalyse(sp.steekproefId, opties));
+  titel('Samenvatting per steekproef');
+  rijen.push(['SteekproefID', 'ProcesID', 'Naam', 'Status', 'Selectiemethode', 'Totale populatiegrootte', 'Beoogde steekproefgrootte', 'Gemeten dossiers (procesmetingen)', 'Voortgang (%)',
+    'Bruikbare metingen', 'Totale actieve tijd (min)', 'Gemiddelde actieve tijd per dossier (min)', 'Mediaan actieve tijd per dossier (min)', 'Minimum (min)', 'Maximum (min)',
+    'Totale wachttijd (min)', 'Gemiddelde wachttijd per dossier (min)', 'n wachttijd', 'Gemiddeld aantal ABP-periode-regels', 'Gemiddeld aantal diensttijdblokken', 'Gemiddeld aantal onderbrekingen',
+    'Geschatte tijdsbelasting populatie (min)', 'Geschatte tijdsbelasting populatie (uur)', 'Gebruikte populatiegrootte', 'Aantal onderzochte dossiers (extrapolatie)',
+    'Gemeten of geobserveerde tijdswaarden', 'Geschatte tijdswaarden', 'Tijdswaarden uit systeemgegevens', 'Actieve tijden per processtap (stapwaarden)', 'MetingID\'s (bruikbaar)', 'Opmerkingen'].map(kop));
+  const kopRij = rijen.length;
+  for (const a of analyses) {
+    const sp = a.steekproef;
+    rijen.push([sp.steekproefId, sp.procesId, sp.naam, sp.status, sp.selectiemethode || '', getalOfLeeg(sp.populatiegrootte), getalOfLeeg(sp.steekproefgrootte), a.voortgang.aantal, getalOfLeeg(a.voortgang.percentage),
+      a.bruikbaar.length, getalOfLeeg(a.totaalActief), getalOfLeeg(a.actief.gemiddelde), getalOfLeeg(a.actief.mediaan), getalOfLeeg(a.actief.minimum), getalOfLeeg(a.actief.maximum),
+      getalOfLeeg(a.totaalWacht), getalOfLeeg(a.wacht.gemiddelde), a.wacht.n, getalOfLeeg(a.kenmerken.perioderegels.waarde), getalOfLeeg(a.kenmerken.blokken.waarde), getalOfLeeg(a.kenmerken.onderbrekingen.waarde),
+      getalOfLeeg(a.extrapolatie.waarde), getalOfLeeg(a.extrapolatie.uren), getalOfLeeg(a.extrapolatie.populatiegrootte), a.extrapolatie.n,
+      a.tijdswaarden.gemeten, a.tijdswaarden.geschat, a.tijdswaarden.systeem, a.tijdswaarden.stapwaarden, a.bruikbaar.join(', '), [...a.waarschuwingen, ...a.extrapolatie.ontbreekt].join(' ')]);
+  }
+  const sectie = (naam, koppen, vul) => {
+    rijen.push([]);
+    titel(naam);
+    rijen.push(koppen.map(kop));
+    for (const a of analyses) vul(a, a.steekproef.steekproefId);
+  };
+  sectie('Actieve tijd per casustype', ['SteekproefID', 'Casustype', 'Dossiers', 'Gemiddelde actief (min)', 'Mediaan actief (min)', 'Minimum (min)', 'Maximum (min)', 'n', 'Gemiddelde wacht (min)', 'MetingID\'s'], (a, id) => {
+    for (const c of a.perCasustype) rijen.push([id, c.casustype, c.aantal, getalOfLeeg(c.actief.gemiddelde), getalOfLeeg(c.actief.mediaan), getalOfLeeg(c.actief.minimum), getalOfLeeg(c.actief.maximum), c.actief.n, getalOfLeeg(c.wacht.gemiddelde), c.actief.metingIds.join(', ')]);
+  });
+  sectie('Complexiteit', ['SteekproefID', 'Complexiteit', 'Dossiers', 'Percentage', 'Gemiddelde actief (min)', 'Mediaan actief (min)', 'n', 'MetingID\'s'], (a, id) => {
+    for (const r of a.perComplexiteit) {
+      const v = a.complexiteit.find((x) => x.waarde === r.complexiteit) || { percentage: null, metingIds: [] };
+      rijen.push([id, r.complexiteit, r.aantalMetingen, getalOfLeeg(v.percentage), getalOfLeeg(r.actief.gemiddelde), getalOfLeeg(r.actief.mediaan), r.actief.n, v.metingIds.join(', ')]);
+    }
+  });
+  sectie('Verdeling normale situaties en uitzonderingen', ['SteekproefID', 'Casustype', 'Dossiers', 'Percentage', 'MetingID\'s'], (a, id) => {
+    for (const r of a.casustypen) rijen.push([id, r.waarde, r.aantal, getalOfLeeg(r.percentage), r.metingIds.join(', ')]);
+  });
+  sectie('1. Meest genoemde tijdrovende processtap (alle procesmetingen; telling, geen gemeten tijd)', ['SteekproefID', 'Rang', 'StapID', 'Processtap', 'Keer genoemd', 'Percentage van metingen met een genoemde stap', 'MetingID\'s'], (a, id) => {
+    a.tijdrovend.ranglijst.forEach((r, i) => rijen.push([id, i + 1, r.stapId, r.naam, r.aantal, r.percentage, r.metingIds.join(', ')]));
+  });
+  sectie('2. Gemiddelde tijd per processtap (uitsluitend aanwezige stapmetingen, per dossier)', ['SteekproefID', 'StapID', 'Processtap', 'Gemiddelde actief (min)', 'Mediaan actief (min)', 'Gemiddelde wacht (min)', 'n', 'Metingen met detailmeting', 'Metingen zonder detailmeting (niet meegeteld)'], (a, id) => {
+    for (const r of a.stapTijden.stappen) rijen.push([id, r.stapId, r.naam, r.actief.n ? r.actief.gemiddelde : 'Geen stapmetingen', getalOfLeeg(r.actief.mediaan), r.wacht.n ? r.wacht.gemiddelde : 'Geen stapmetingen', r.actief.n, a.stapTijden.metingenMetDetail.join(', '), a.stapTijden.metingenZonderDetail.join(', ')]);
+  });
+  sectie('Meest voorkomende knelpunten (dossiers per categorie; dossierniveau en processtappen)', ['SteekproefID', 'Categorie', 'Dossiers', 'Percentage', 'Omschrijvingen', 'MetingID\'s'], (a, id) => {
+    for (const r of a.knelpunten.perCategorie) rijen.push([id, r.categorie, r.aantal, getalOfLeeg(r.percentage), r.omschrijvingen.join('; '), r.metingIds.join(', ')]);
+  });
+  sectie('Gemeten en geschatte tijdswaarden', ['SteekproefID', 'Meetwijze', 'Metingen', 'Met bekende actieve tijd'], (a, id) => {
+    for (const r of a.meetwijzen) rijen.push([id, r.meetwijze, r.aantal, r.metBekendeTijd]);
+  });
+  rijen.push([]);
+  titel('Alle gekoppelde dossiermetingen (herleidbaarheid)');
+  rijen.push(['SteekproefID', 'Volgnummer', 'DossierID', 'MetingID', 'Meetdatum', 'MedewerkerID', 'Casustype', 'Meetwijze', 'Complexiteit', 'ABP-periode-regels', 'Diensttijdblokken', 'Onderbrekingen',
+    'Meest tijdrovende StapID', 'Reden(en) tijdsbelasting', 'Knelpunt (dossierniveau)', 'Detailmeting per stap', 'Bron totale tijd', 'Totale actieve tijd (min)', 'Actieve tijd per dossier (min)', 'Wachttijd per dossier (min)',
+    'Test/fictief', 'Meegenomen in resultaten', 'Reden niet meegenomen'].map(kop));
+  for (const a of analyses) {
+    for (const m of metingenVanSteekproef(a.steekproef.steekproefId)) {
+      const b = berekenMeting(m);
+      const binnen = a.metingIds.includes(m.metingId);
+      const reden = !binnen ? (isTestmeting(m) && !opties.metTest ? 'test/fictieve meting' : 'andere meetwijze') : !isGetal(b.actiefPerUitvoering) ? redenOntbrekend(m, b, 'actiefPerUitvoering') : '';
+      rijen.push([a.steekproef.steekproefId, isGetal(m.volgnummerSteekproef) ? m.volgnummerSteekproef : null, m.dossierId || '', m.metingId, m.datum, m.medewerkerId || '', m.casustype, m.meetwijze, m.complexiteit || '',
+        isGetal(m.aantalPerioderegels) ? m.aantalPerioderegels : null, isGetal(m.aantalBlokken) ? m.aantalBlokken : null, isGetal(m.aantalOnderbrekingen) ? m.aantalOnderbrekingen : null,
+        m.tijdrovendsteStapId || '', (m.redenenTijdsbelasting || []).join('; '), jaNeeTekst(m.knelpunt), heeftDetailmeting(m) ? 'Ja' : 'Nee', b.bronTijd,
+        getalOfLeeg(b.totaalActief), getalOfLeeg(b.actiefPerUitvoering), getalOfLeeg(b.wachtPerUitvoering), isTestmeting(m) ? 'Ja' : 'Nee', binnen && isGetal(b.actiefPerUitvoering) ? 'Ja' : 'Nee', reden]);
+    }
+  }
+  if (!analyses.length) rijen.push(['Er zijn nog geen steekproeven vastgelegd.']);
+  return { naam: 'Steekproefresultaten', rijen, kolombreedtes: [16, 12, 24, 14, 16, 14, 14, 16, 12, 12, 14, 16, 16, 12, 12, 14, 16, 10, 16, 16, 16, 18, 16, 14, 14, 14, 12, 12, 14, 40, 60], kopRij };
+}
+
 function methodeBlad(filters) {
   const r = [];
   const t = (tekst) => [{ v: tekst, s: 'titel' }];
@@ -5425,8 +6707,8 @@ function methodeBlad(filters) {
   r.push(['Casustype', 'Normaal of Uitzondering. Beide groepen worden altijd afzonderlijk geanalyseerd.']);
   r.push([]);
   r.push(t('Formules'));
-  r.push(['Totale actieve tijd', 'Som van de actieve tijd van alle processtappen van een meting.']);
-  r.push(['Totale wachttijd', 'Som van de wachttijd van alle processtappen van een meting.']);
+  r.push(['Totale actieve tijd', 'Som van de actieve tijd van alle processtappen van een meting. Zonder detailmeting per processtap (versie 1.7): de totale actieve tijd die bij de procesmeting is vastgelegd.']);
+  r.push(['Totale wachttijd', 'Som van de wachttijd van alle processtappen van een meting. Zonder detailmeting per processtap: de totale wachttijd die bij de procesmeting is vastgelegd.']);
   r.push(['Actieve tijd per uitvoering (PRIMAIRE UITKOMST)', 'Totale actieve tijd / aantal uitvoeringen (bijv. minuten per dossier).']);
   r.push(['Wachttijd per uitvoering', 'Totale wachttijd / aantal uitvoeringen.']);
   r.push(['Actieve tijd per omvangseenheid (aanvullende uitkomst)', 'Totale actieve tijd / omvang (bijv. minuten per dienstperiode).']);
@@ -5451,6 +6733,10 @@ function methodeBlad(filters) {
   r.push(['Controle proces- en stapmetingen', `Als bij een procesmeting een totale actieve tijd of wachttijd is genoteerd, wordt die vergeleken met de som van de stapmetingen. Een verschil groter dan ${fmtGetal(CONTROLE_TOLERANTIE)} minuut geeft een waarschuwing (opslaan blijft mogelijk) en staat in het tabblad Per medewerker. Voor alle berekeningen wordt de som van de stapmetingen gebruikt.`]);
   r.push(['Gekopieerde tijden', 'Tijdvastlegging "Gekopieerd" = waarde overgenomen bij het dupliceren van een eerdere meting; "Gekopieerd, handmatig aangepast" = daarna door de gebruiker gewijzigd.']);
   r.push(['Diensttijdblokken', 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd (optioneel, geheel getal ≥ 0). Berekeningen (totaal ÷ totaal, normale gevallen, binnen de filters): dienstperioden per dossier = Σ dienstperioden ÷ Σ dossiers; diensttijdblokken per dossier = Σ blokken ÷ Σ dossiers; actieve tijd per diensttijdblok = Σ actieve tijd ÷ Σ blokken; geschat aantal blokken per periode = blokken per dossier × totale frequentie; verhouding = Σ blokken ÷ Σ dienstperioden. Metingen zonder aantal blokken tellen alleen niet mee in de berekeningen per blok. De geschatte actieve tijdsbelasting wordt NIET met het aantal blokken vermenigvuldigd: de tijd voor de blokken zit al in de actieve tijd per dossier.']);
+  r.push(['Steekproeven', 'Een steekproef legt vast welke populatie wordt onderzocht (omschrijving en grootte), de beoogde steekproefgrootte, de selectiemethode (willekeurig, opeenvolgend of doelgericht), in- en exclusiecriteria, de meetperiode en de status. Procesmetingen worden gekoppeld met het SteekproefID, een volgnummer (uniek binnen de steekproef) en een geanonimiseerd dossier-ID. Steekproefresultaten: voortgang (gemeten dossiers van de beoogde steekproefgrootte), bruikbare metingen (bekende actieve tijd per dossier), totale, gemiddelde en mediane actieve tijd met minimum en maximum, wachttijd, gemiddelde dossierkenmerken (totaal ÷ aantal dossiers), verdelingen naar complexiteit en casustype, knelpunten (dossiers per categorie) en het aantal gemeten en geschatte tijdswaarden. Normale gevallen en uitzonderingen staan samen en apart.']);
+  r.push(['Detailmeting per processtap', 'Stapmetingen zijn optioneel. Zonder detailmeting komt de tijd van een procesmeting uit de totale actieve tijd en wachttijd van de procesmeting zelf. Er wordt dan nooit een tijd per processtap afgeleid: de gemiddelde tijd per processtap komt uitsluitend uit aanwezige stapmetingen.']);
+  r.push(['Meest genoemde tijdrovende processtap', 'Per dossier kan de meest tijdrovende processtap worden gekozen. De ranglijst telt hoe vaak iedere stap is genoemd, over alle procesmetingen (ook zonder detailmeting). Dit is een inschatting, geen gemeten tijd, en staat los van de gemiddelde tijd per processtap.']);
+  r.push(['Geschatte tijdsbelasting populatie', 'Gemiddelde actieve tijd per dossier in de steekproef × totale populatiegrootte. De gebruikte populatiegrootte en het aantal onderzochte dossiers worden vermeld. Bij een doelgerichte steekproef is deze extrapolatie niet representatief.']);
   r.push(['Knelpunten', 'Per processtap kan worden vastgelegd of er een knelpunt was (ja/nee; leeg = niet geregistreerd), met categorie, korte omschrijving, gevolg(en), geschatte extra actieve tijd en wachttijd en bron. Per procesmeting kunnen het belangrijkste knelpunt en bijzonderheden worden vastgelegd. Analyse (binnen de filters, normale gevallen en uitzonderingen apart): aantal en percentage metingen met minimaal één knelpunt (van alle metingen), voorkomens per stap, per categorie en per medewerker, en totale en gemiddelde geschatte extra tijd (gemiddelde per knelpunt met een schatting). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd en wachttijd en wordt NIET opgeteld bij procesduur, gemiddelden of tijdsbelasting (geen dubbeltelling).']);
   r.push(['Totaaloverzicht', 'Totale frequentie = som van het aantal uitvoeringen van frequentiemetingen van hetzelfde proces met "Meetellen in totaal" = Ja en dezelfde periode (dag, week, maand, kwartaal of jaar; perioden worden niet omgerekend). Geschatte actieve tijdsbelasting (min) = totale frequentie × gemiddelde actieve tijd per uitvoering (normale gevallen, alle medewerkers of de gekozen medewerker); uren = minuten / 60. Alleen actieve tijd; wachttijd wordt apart getoond als onderdeel van de doorlooptijd.']);
   r.push(['Overlap en dubbele telling', 'Twee of meer frequenties worden alleen automatisch opgeteld als ze allemaal het bereik "Eigen werkzaamheden" hebben en bij verschillende, ingevulde MedewerkerID\'s horen. Bij een schatting voor de gehele afdeling, een team- of ander bereik, dezelfde medewerker of een ontbrekende MedewerkerID wordt het totaal niet berekend en verschijnt een waarschuwing. Ontbreekt het aantal uitvoeringen, dan wordt het totaal ook niet berekend.']);
@@ -5485,9 +6771,11 @@ async function exporteerExcel() {
     totaalBlad(filters),
     medewerkerBlad(filters),
     knelpuntBlad(filters),
+    steekproefBlad(steekproefOpties()),
+    ruwBlad('Steekproeven', KOLOMMEN_STEEKPROEVEN, [...staat.steekproeven].sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId)), [16, 10, 30, 40, 12, 12, 14, 34, 34, 12, 12, 34, 10, 12, 40, 22, 22, 12]),
     ruwBlad('Procesmetingen', KOLOMMEN_PROCESMETINGEN, gesorteerdeProcesmetingen(), [16, 11, 12, 34, 13, 13, 9, 14, 24, 40, 22, 22, 13]),
     ruwBlad('Stapmetingen', KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), [16, 16, 9, 34, 16, 16, 34, 34, 24, 13]),
-    ruwBlad('Knelpunten', KOLOMMEN_KNELPUNTEN, alleKnelpuntRijen(), [12, 26, 16, 16, 28, 12, 12, 10, 10, 18, 12, 10, 28, 40, 34, 14, 14, 22, 14, 14, 34, 34]),
+    ruwBlad('Knelpunten', KOLOMMEN_KNELPUNTEN, alleKnelpuntRijenExport(), [12, 26, 16, 16, 28, 12, 12, 10, 10, 18, 12, 10, 28, 40, 34, 14, 14, 22, 14, 14, 34, 34]),
     ruwBlad('Frequentie', KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), [18, 12, 20, 18, 14, 14, 24, 40, 22, 22, 13]),
     methodeBlad(filters),
   ]);
@@ -5515,6 +6803,7 @@ function maakBackup() {
     procesmetingen: staat.procesmetingen,
     stapmetingen: staat.stapmetingen,
     frequentiemetingen: staat.frequentiemetingen,
+    steekproeven: staat.steekproeven,
     volgnummers: staat.volgnummers,
     instellingen: { volgnummers: staat.volgnummers },
     medewerkerIds: uniek([...staat.procesmetingen, ...staat.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst),
@@ -5546,7 +6835,10 @@ function controleerBackup(json) {
   if (json.formaat !== BACKUP_FORMAAT) return { fouten: ['Het bestand is geen back-up van deze meettool (het kenmerk "formaat" ontbreekt of klopt niet).'] };
   const lijsten = ['processen', 'processtappen', 'procesmetingen', 'stapmetingen', 'frequentiemetingen'];
   for (const k of lijsten) if (!Array.isArray(json[k])) fouten.push(`Het onderdeel "${k}" ontbreekt of is geen lijst.`);
+  // Steekproeven bestaan sinds versie 1.7; oudere back-ups hebben dit onderdeel niet.
+  if (json.steekproeven !== undefined && !Array.isArray(json.steekproeven)) fouten.push('Het onderdeel "steekproeven" is geen lijst.');
   if (fouten.length) return { fouten };
+  const steekproeven = json.steekproeven || [];
 
   const getalOfNull = (v) => v === null || v === undefined || isGetal(v);
   const tekst = (v) => typeof v === 'string' && v.trim() !== '';
@@ -5578,6 +6870,42 @@ function controleerBackup(json) {
     if (!getalOfNull(m.omvang) || (isGetal(m.omvang) && m.omvang <= 0)) fouten.push(`${l}: omvang moet groter zijn dan nul of leeg.`);
     if (m.aantalBlokken !== undefined && m.aantalBlokken !== null && !(Number.isInteger(m.aantalBlokken) && m.aantalBlokken >= 0)) fouten.push(`${l}: aantal diensttijdblokken moet een geheel getal van 0 of hoger zijn.`);
     if ('aantalUitvoeringen' in m && (!getalOfNull(m.aantalUitvoeringen) || (isGetal(m.aantalUitvoeringen) && m.aantalUitvoeringen <= 0))) fouten.push(`${l}: aantal uitvoeringen moet groter zijn dan nul of leeg.`);
+  });
+  steekproeven.forEach((s, i) => {
+    const l = `Steekproef ${s.steekproefId || i + 1}`;
+    if (!tekst(s.steekproefId)) fouten.push(`Steekproef ${i + 1}: SteekproefID ontbreekt.`);
+    if (!tekst(s.procesId)) fouten.push(`${l}: ProcesID ontbreekt.`);
+    if (!tekst(s.naam)) fouten.push(`${l}: naam ontbreekt.`);
+    if (!STEEKPROEF_STATUSSEN.includes(s.status)) fouten.push(`${l}: status ontbreekt of is ongeldig.`);
+    if (s.selectiemethode && !SELECTIEMETHODEN.includes(s.selectiemethode)) fouten.push(`${l}: selectiemethode is ongeldig.`);
+    for (const v of ['populatiegrootte', 'steekproefgrootte']) if (s[v] !== undefined && s[v] !== null && !(Number.isInteger(s[v]) && s[v] > 0)) fouten.push(`${l}: ${v} moet een geheel getal groter dan nul zijn.`);
+    for (const v of ['startdatum', 'einddatum']) if (s[v] && !isGeldigeDatum(s[v])) fouten.push(`${l}: ${v} is ongeldig.`);
+  });
+  const steekproefPerId = new Map(steekproeven.map((s) => [s.steekproefId, s]));
+  const volgnummersGezien = new Set();
+  json.procesmetingen.forEach((m, i) => {
+    const l = `Meting ${m.metingId || i + 1}`;
+    if (m.steekproefId !== undefined) {
+      const sp = steekproefPerId.get(m.steekproefId);
+      if (!sp) fouten.push(`${l}: steekproef ${m.steekproefId} staat niet in het bestand.`);
+      else if (sp.procesId !== m.procesId) fouten.push(`${l}: hoort bij een ander proces dan steekproef ${m.steekproefId}.`);
+    }
+    if (m.volgnummerSteekproef !== undefined && m.volgnummerSteekproef !== null) {
+      if (!(Number.isInteger(m.volgnummerSteekproef) && m.volgnummerSteekproef >= 1) || !m.steekproefId) fouten.push(`${l}: volgnummer binnen de steekproef is ongeldig.`);
+      const sleutel = `${m.steekproefId}#${m.volgnummerSteekproef}`;
+      if (volgnummersGezien.has(sleutel)) fouten.push(`${l}: volgnummer ${m.volgnummerSteekproef} komt in steekproef ${m.steekproefId} meer dan één keer voor.`);
+      volgnummersGezien.add(sleutel);
+    }
+    if (m.dossierId !== undefined && typeof m.dossierId !== 'string') fouten.push(`${l}: dossier-ID is ongeldig.`);
+    for (const v of ['aantalPerioderegels', 'aantalOnderbrekingen']) if (m[v] !== undefined && m[v] !== null && !(Number.isInteger(m[v]) && m[v] >= 0)) fouten.push(`${l}: ${v === 'aantalPerioderegels' ? 'aantal ABP-periode-regels' : 'aantal onderbrekingen'} moet een geheel getal van 0 of hoger zijn.`);
+    if (m.complexiteit && !COMPLEXITEITEN.includes(m.complexiteit)) fouten.push(`${l}: complexiteit is ongeldig.`);
+    if (m.redenenTijdsbelasting !== undefined && (!Array.isArray(m.redenenTijdsbelasting) || m.redenenTijdsbelasting.some((r) => !REDENEN_TIJDSBELASTING.includes(r)))) fouten.push(`${l}: reden(en) tijdsbelasting zijn ongeldig.`);
+    if (m.knelpunt !== undefined && typeof m.knelpunt !== 'boolean') fouten.push(`${l}: "knelpunt aanwezig" is ongeldig.`);
+    if (m.knelpuntCategorie && !KNELPUNT_CATEGORIEEN.includes(m.knelpuntCategorie)) fouten.push(`${l}: knelpuntcategorie is ongeldig.`);
+    if (m.knelpuntGevolgen !== undefined && (!Array.isArray(m.knelpuntGevolgen) || m.knelpuntGevolgen.some((g) => !KNELPUNT_GEVOLGEN.includes(g)))) fouten.push(`${l}: gevolg(en) van het knelpunt zijn ongeldig.`);
+    if (m.detailmeting !== undefined && typeof m.detailmeting !== 'boolean') fouten.push(`${l}: "detailmeting per processtap" is ongeldig.`);
+    if (m.detailmeting !== false && !json.stapmetingen.some((s) => s.metingId === m.metingId)) fouten.push(`${l}: heeft geen stapmetingen, terwijl geen "geen detailmeting" is vastgelegd.`);
+    for (const v of ['actieveTijdTotaal', 'wachttijdTotaal']) if (m[v] !== undefined && m[v] !== null && !(isGetal(m[v]) && m[v] >= 0)) fouten.push(`${l}: totale tijd volgens procesmeting is ongeldig.`);
   });
   const metingIds = new Set(json.procesmetingen.map((m) => m.metingId));
   json.stapmetingen.forEach((s, i) => {
@@ -5626,6 +6954,7 @@ function controleerBackup(json) {
   dubbel(json.procesmetingen, (m) => m.metingId, 'MetingID');
   dubbel(json.stapmetingen, (s) => `${s.metingId}/${s.stapId}`, 'Stapmeting');
   dubbel(json.frequentiemetingen, (f) => f.frequentieId, 'FrequentieID');
+  dubbel(steekproeven, (s) => s.steekproefId, 'SteekproefID');
 
   const normaliseerGetal = (v) => (isGetal(v) ? v : null);
   const gegevens = normaliseerStaat(json);
@@ -5638,6 +6967,7 @@ function controleerBackup(json) {
   }));
   gegevens.stapmetingen = gegevens.stapmetingen.map((s) => ({ ...s, actieveTijd: normaliseerGetal(s.actieveTijd), wachttijd: normaliseerGetal(s.wachttijd) }));
   gegevens.frequentiemetingen = gegevens.frequentiemetingen.map((f) => ({ ...f, aantalUitvoeringen: normaliseerGetal(f.aantalUitvoeringen), totaalVolume: normaliseerGetal(f.totaalVolume) }));
+  gegevens.steekproeven = gegevens.steekproeven.map((s) => ({ ...s, populatiegrootte: normaliseerGetal(s.populatiegrootte), steekproefgrootte: normaliseerGetal(s.steekproefgrootte) }));
   return { fouten, gegevens };
 }
 
@@ -5645,7 +6975,7 @@ const vergelijkbaar = (r) => JSON.stringify(r, Object.keys(r).filter((k) => !['a
 
 /** Voegt gegevens samen. Bestaande gegevens worden nooit overschreven. Geeft een verslag terug. */
 function voegSamen(nieuw, uitvoeren) {
-  const verslag = { toegevoegd: { processen: 0, procesmetingen: 0, frequentiemetingen: 0 }, gelijk: [], conflicten: [] };
+  const verslag = { toegevoegd: { processen: 0, procesmetingen: 0, frequentiemetingen: 0, steekproeven: 0 }, gelijk: [], conflicten: [] };
   const doel = uitvoeren ? staat : JSON.parse(JSON.stringify(staat));
   for (const p of nieuw.processen) {
     const bestaand = doel.processen.find((x) => x.procesId === p.procesId);
@@ -5664,6 +6994,18 @@ function voegSamen(nieuw, uitvoeren) {
     doel.processtappen.push(...stappen);
     verslag.toegevoegd.processen++;
   }
+  // Steekproeven vóór de metingen, zodat koppelingen naar een nieuwe steekproef blijven kloppen.
+  const nietToegevoegdeSteekproeven = new Set();
+  for (const s of nieuw.steekproeven) {
+    const bestaand = doel.steekproeven.find((x) => x.steekproefId === s.steekproefId);
+    if (bestaand) {
+      if (vergelijkbaar(bestaand) === vergelijkbaar(s)) verslag.gelijk.push(`Steekproef ${s.steekproefId}`);
+      else { verslag.conflicten.push(`Steekproef ${s.steekproefId}: bestaat al met een andere inhoud; de huidige versie blijft behouden.`); nietToegevoegdeSteekproeven.add(s.steekproefId); }
+      continue;
+    }
+    doel.steekproeven.push(s);
+    verslag.toegevoegd.steekproeven++;
+  }
   for (const m of nieuw.procesmetingen) {
     const bestaand = doel.procesmetingen.find((x) => x.metingId === m.metingId);
     const stappen = nieuw.stapmetingen.filter((s) => s.metingId === m.metingId);
@@ -5673,6 +7015,15 @@ function voegSamen(nieuw, uitvoeren) {
         JSON.stringify(bestaandeStappen.map(vergelijkbaar).sort()) === JSON.stringify(stappen.map(vergelijkbaar).sort());
       if (gelijk) verslag.gelijk.push(`Meting ${m.metingId}`);
       else verslag.conflicten.push(`Meting ${m.metingId}: bestaat al met andere waarden; de huidige versie blijft behouden.`);
+      continue;
+    }
+    if (m.steekproefId && nietToegevoegdeSteekproeven.has(m.steekproefId)) {
+      verslag.conflicten.push(`Meting ${m.metingId}: hoort bij steekproef ${m.steekproefId}, die hier al met een andere inhoud bestaat; meting niet toegevoegd.`);
+      continue;
+    }
+    const dubbelNummer = m.steekproefId && isGetal(m.volgnummerSteekproef) && doel.procesmetingen.find((x) => x.steekproefId === m.steekproefId && x.volgnummerSteekproef === m.volgnummerSteekproef);
+    if (dubbelNummer) {
+      verslag.conflicten.push(`Meting ${m.metingId}: volgnummer ${m.volgnummerSteekproef} in steekproef ${m.steekproefId} is hier al gebruikt door ${dubbelNummer.metingId}; meting niet toegevoegd.`);
       continue;
     }
     doel.procesmetingen.push(m);
@@ -5689,7 +7040,8 @@ function voegSamen(nieuw, uitvoeren) {
     doel.frequentiemetingen.push(f);
     verslag.toegevoegd.frequentiemetingen++;
   }
-  for (const soort of ['meting', 'frequentie']) {
+  doel.steekproeven.sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId));
+  for (const soort of ['meting', 'frequentie', 'steekproef']) {
     for (const [pid, nr] of Object.entries(nieuw.volgnummers[soort] || {})) {
       if (isGetal(nr) && nr > (doel.volgnummers[soort][pid] || 0)) doel.volgnummers[soort][pid] = nr;
     }
@@ -5719,7 +7071,7 @@ async function importeerBackup(bestand) {
         <dt>Bestand</dt><dd>${esc(bestand.name)}</dd>
         <dt>Toolversie back-up</dt><dd>${esc(json.toolversie || ONBEKEND)}${json.toolversie && json.toolversie !== VERSIE ? ` (huidige versie: ${esc(VERSIE)})` : ''}</dd>
         <dt>Exportdatum</dt><dd>${esc(fmtTijdstip(json.exportdatum))}</dd>
-        <dt>Inhoud</dt><dd>${gegevens.processen.length} processen, ${gegevens.processtappen.length} processtappen, ${gegevens.procesmetingen.length} procesmetingen, ${gegevens.stapmetingen.length} stapmetingen, ${gegevens.frequentiemetingen.length} frequentiemetingen</dd>
+        <dt>Inhoud</dt><dd>${gegevens.processen.length} processen, ${gegevens.processtappen.length} processtappen, ${gegevens.steekproeven.length} steekproeven, ${gegevens.procesmetingen.length} procesmetingen, ${gegevens.stapmetingen.length} stapmetingen, ${gegevens.frequentiemetingen.length} frequentiemetingen</dd>
         <dt>Demogegevens</dt><dd>${json.bevatDemogegevens ? '<strong>Ja</strong>' : 'Nee'}</dd>
         <dt>Test/fictief</dt><dd>${gegevens.procesmetingen.filter(isTestmeting).length} procesmeting(en), ${gegevens.frequentiemetingen.filter(isTestmeting).length} frequentiemeting(en)</dd>
         <dt>Medewerker-ID's</dt><dd>${esc(uniek([...gegevens.procesmetingen, ...gegevens.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst).join(', ') || '—')}</dd>
@@ -5728,7 +7080,7 @@ async function importeerBackup(bestand) {
       <div class="melding info mt">Het bestand is gecontroleerd: het formaat klopt, verplichte velden zijn aanwezig en alle identificatiecodes zijn uniek.</div>
       <h4>Kies hoe u wilt importeren</h4>
       <p><strong>Samenvoegen:</strong> nieuwe gegevens worden toegevoegd; bestaande gegevens worden nooit overschreven.
-      Resultaat: ${proef.toegevoegd.processen} processen, ${proef.toegevoegd.procesmetingen} procesmetingen en ${proef.toegevoegd.frequentiemetingen} frequentiemetingen erbij;
+      Resultaat: ${proef.toegevoegd.processen} processen, ${proef.toegevoegd.steekproeven} steekproeven, ${proef.toegevoegd.procesmetingen} procesmetingen en ${proef.toegevoegd.frequentiemetingen} frequentiemetingen erbij;
       ${proef.gelijk.length} al aanwezig (identiek); ${proef.conflicten.length} conflicten (niet geïmporteerd).</p>
       ${proef.conflicten.length ? `<div class="melding waarschuwing"><ul>${proef.conflicten.slice(0, 15).map((c) => `<li>${esc(c)}</li>`).join('')}</ul>${proef.conflicten.length > 15 ? `… en nog ${proef.conflicten.length - 15}` : ''}</div>` : ''}
       <p><strong>Huidige gegevens vervangen:</strong> alle huidige gegevens (${staat.procesmetingen.length} procesmetingen, ${staat.frequentiemetingen.length} frequentiemetingen, ${staat.processen.length} processen) worden gewist en vervangen door de inhoud van de back-up.</p>`,
@@ -5741,7 +7093,7 @@ async function importeerBackup(bestand) {
   if (keuze === 'samenvoegen') {
     const verslag = voegSamen(gegevens, true);
     await naWijziging('Back-up samengevoegd.');
-    await informeer('Samenvoegen voltooid', `<p>Toegevoegd: ${verslag.toegevoegd.processen} processen, ${verslag.toegevoegd.procesmetingen} procesmetingen, ${verslag.toegevoegd.frequentiemetingen} frequentiemetingen.</p>
+    await informeer('Samenvoegen voltooid', `<p>Toegevoegd: ${verslag.toegevoegd.processen} processen, ${verslag.toegevoegd.steekproeven} steekproeven, ${verslag.toegevoegd.procesmetingen} procesmetingen, ${verslag.toegevoegd.frequentiemetingen} frequentiemetingen.</p>
       ${verslag.conflicten.length ? `<div class="melding waarschuwing"><strong>Niet geïmporteerd (conflict):</strong><ul>${verslag.conflicten.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}`);
   } else if (keuze === 'vervangen') {
     const ok = await bevestig('Huidige gegevens vervangen', '<div class="melding waarschuwing">Alle huidige gegevens worden gewist en vervangen door de back-up.</div><p>Vóór het vervangen wordt automatisch een <strong>veiligheidsback-up</strong> van de huidige gegevens gedownload (en lokaal bewaard). Weet u het zeker?</p>', 'Ja, vervangen', true);
@@ -5749,6 +7101,7 @@ async function importeerBackup(bestand) {
     maakVeiligheidsbackup();
     staat = gegevens;
     metingBewerkId = null;
+    sluitSteekproefEditor();
     frequentieBewerkId = null;
     procesBewerking = null;
     renderProcesEditor();
@@ -5784,6 +7137,7 @@ async function wisAlleGegevens() {
   if (stap2 !== true) return;
   staat = legeStaat();
   procesBewerking = null;
+  sluitSteekproefEditor();
   renderProcesEditor();
   resetMetingFormulier(false);
   resetFrequentieFormulier();
@@ -5868,6 +7222,18 @@ const ACTIES = {
   'csv-stapmetingen': () => exporteerCsv('stapmetingen'),
   'csv-frequentie': () => exporteerCsv('frequentie'),
   'csv-knelpunten': () => exporteerCsv('knelpunten'),
+  'csv-steekproeven': () => exporteerCsv('steekproeven'),
+  'steekproef-nieuw': () => startSteekproefBewerking(null),
+  'steekproef-bewerken': (el) => startSteekproefBewerking(el.dataset.id),
+  'steekproef-annuleren': () => sluitSteekproefEditor(),
+  'steekproef-verwijderen': (el) => verwijderSteekproefMetBevestiging(el.dataset.id),
+  'steekproef-koppelen': (el) => koppelMetingenDialoog(el.dataset.id),
+  'steekproef-dossiers': (el) => toonSteekproefDossiers(el.dataset.id),
+  'steekproef-resultaten': (el) => {
+    $('#srSteekproef').value = el.dataset.id;
+    renderSteekproefResultaten();
+    $('#steekproefResultatenKaart').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
   'backup-download': () => downloadBackup(),
   'backup-import': () => $('#backupBestand').click(),
   'demo-laden': () => laadDemo(),
@@ -5895,7 +7261,7 @@ async function start() {
     }
   });
   $('#procesEditor').addEventListener('input', verwerkProcesEditorInvoer);
-  $('#procesEditor').addEventListener('change', (e) => { if (e.target.id === 'peBlokken') verwerkProcesEditorInvoer(e); });
+  $('#procesEditor').addEventListener('change', (e) => { if (e.target.id === 'peBlokken' || e.target.id === 'peDossierkenmerken') verwerkProcesEditorInvoer(e); });
   $('#processenCsvBestand').addEventListener('change', async (e) => {
     const bestand = e.target.files[0];
     e.target.value = '';
@@ -5916,6 +7282,8 @@ async function start() {
     toonMelding('De opgeslagen gegevens konden niet worden gelezen. Importeer zo nodig een back-up.', true);
   }
 
+  initSteekproeven();
+  initKoppelDialoog();
   initMetingFormulier();
   initFrequentieFormulier();
   initOverzicht();
@@ -5959,6 +7327,7 @@ async function start() {
     berekenTotaalOverzicht,
     blokkenAnalyse,
     knelpuntAnalyse,
+    steekproefAnalyse,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,
