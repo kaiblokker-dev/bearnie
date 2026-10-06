@@ -50,6 +50,18 @@ const ACTIES = {
   'csv-stapmetingen': () => exporteerCsv('stapmetingen'),
   'csv-frequentie': () => exporteerCsv('frequentie'),
   'csv-knelpunten': () => exporteerCsv('knelpunten'),
+  'csv-steekproeven': () => exporteerCsv('steekproeven'),
+  'steekproef-nieuw': () => startSteekproefBewerking(null),
+  'steekproef-bewerken': (el) => startSteekproefBewerking(el.dataset.id),
+  'steekproef-annuleren': () => sluitSteekproefEditor(),
+  'steekproef-verwijderen': (el) => verwijderSteekproefMetBevestiging(el.dataset.id),
+  'steekproef-koppelen': (el) => koppelMetingenDialoog(el.dataset.id),
+  'steekproef-dossiers': (el) => toonSteekproefDossiers(el.dataset.id),
+  'steekproef-resultaten': (el) => {
+    $('#srSteekproef').value = el.dataset.id;
+    renderSteekproefResultaten();
+    $('#steekproefResultatenKaart').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
   'backup-download': () => downloadBackup(),
   'backup-import': () => $('#backupBestand').click(),
   'demo-laden': () => laadDemo(),
@@ -77,7 +89,7 @@ async function start() {
     }
   });
   $('#procesEditor').addEventListener('input', verwerkProcesEditorInvoer);
-  $('#procesEditor').addEventListener('change', (e) => { if (e.target.id === 'peBlokken') verwerkProcesEditorInvoer(e); });
+  $('#procesEditor').addEventListener('change', (e) => { if (e.target.id === 'peBlokken' || e.target.id === 'peDossierkenmerken') verwerkProcesEditorInvoer(e); });
   $('#processenCsvBestand').addEventListener('change', async (e) => {
     const bestand = e.target.files[0];
     e.target.value = '';
@@ -98,6 +110,8 @@ async function start() {
     toonMelding('De opgeslagen gegevens konden niet worden gelezen. Importeer zo nodig een back-up.', true);
   }
 
+  initSteekproeven();
+  initKoppelDialoog();
   initMetingFormulier();
   initFrequentieFormulier();
   initOverzicht();
@@ -141,6 +155,7 @@ async function start() {
     berekenTotaalOverzicht,
     blokkenAnalyse,
     knelpuntAnalyse,
+    steekproefAnalyse,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,

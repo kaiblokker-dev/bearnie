@@ -316,6 +316,13 @@ const UITLEG = {
   meetellen: 'Meetellen in totaal: alleen aanvinken als deze frequentie een eigen, niet-overlappend deel van het werk beschrijft. Alleen aangevinkte frequenties worden opgeteld.',
   blokken: 'Aantal resulterende diensttijdblokken: het aantal aaneengesloten diensttijdblokken dat na beoordeling van de ABP-periode-regels overblijft en mogelijk als afzonderlijke registratie in Visma wordt ingevoerd. Bijv. 40 beoordeelde dienstperioden → 4 diensttijdblokken.',
   knelpunt: 'Knelpunt: iets dat de uitvoering van een stap hindert (bijv. wachten, systeem, onduidelijke informatie). De geschatte extra tijd is verklarend: die zit al in de gemeten actieve tijd of wachttijd en wordt niet opnieuw opgeteld bij de procesduur of tijdsbelasting.',
+  steekproef: 'Steekproef: een afgebakende set dossiers uit een populatie. Koppel een procesmeting aan een steekproef met het SteekproefID, een volgnummer en een geanonimiseerd dossier-ID, zodat iedere uitkomst herleidbaar blijft.',
+  dossierkenmerken: 'Dossierkenmerken: kenmerken van het gemeten dossier (periode-regels, onderbrekingen, complexiteit, meest tijdrovende stap, reden tijdsbelasting). Alle velden zijn optioneel; leeg = onbekend, nooit 0.',
+  tijdrovend: 'Meest tijdrovende processtap: de stap die bij dit dossier de meeste tijd kostte, volgens de medewerker of onderzoeker. Dit is een inschatting per dossier en geen gemeten tijd per stap; de uitkomst is een ranglijst van hoe vaak een stap is genoemd.',
+  detailmeting: 'Detailmeting per processtap: Ja = per stap actieve tijd en wachttijd vastgelegd. Nee = alleen de totale tijd van de uitvoering; er wordt dan nooit een tijd per stap berekend.',
+  populatie: 'Populatiegrootte: het totale aantal dossiers waaruit de steekproef is getrokken. Wordt gebruikt voor de geschatte tijdsbelasting van de populatie (gemiddelde actieve tijd per dossier × populatiegrootte).',
+  selectiemethode: 'Selectiemethode: willekeurig (aselect), opeenvolgend (alle dossiers in volgorde van binnenkomst) of doelgericht (bewust gekozen). Bij een doelgerichte steekproef is extrapolatie naar de populatie niet representatief.',
+  extrapolatie: 'Geschatte tijdsbelasting populatie: gemiddelde actieve tijd per dossier in de steekproef × totale populatiegrootte. Een schatting; de nauwkeurigheid hangt af van de steekproefgrootte en de selectiemethode.',
   test: 'Test/fictieve meting: blijft zichtbaar in de ruwe gegevens, maar telt standaard niet mee in gemiddelden, grafieken, totalen en tijdsbelasting.',
 };
 

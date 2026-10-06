@@ -12,7 +12,7 @@ function initOverzicht() {
     $('#ozMeetwijze').value = '';
     renderOverzicht();
   });
-  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze']) {
+  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze', '#ozSteekproef']) {
     $(id).addEventListener('input', renderOverzichtTabel);
     $(id).addEventListener('change', renderOverzichtTabel);
   }
@@ -27,11 +27,12 @@ function overzichtFilters() {
     medewerker: $('#ozMedewerker').value,
     casustype: $('#ozCasustype').value,
     meetwijze: $('#ozMeetwijze').value,
+    steekproef: $('#ozSteekproef').value,
   };
 }
 
 function wisOverzichtFilters() {
-  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze']) $(id).value = '';
+  for (const id of ['#ozZoek', '#ozProces', '#ozVan', '#ozTot', '#ozMedewerker', '#ozCasustype', '#ozMeetwijze', '#ozSteekproef']) $(id).value = '';
   renderOverzichtTabel();
 }
 
@@ -45,6 +46,8 @@ function renderOverzicht() {
   vulSelect($('#ozMedewerker'), [...medewerkers, { waarde: '__leeg__', label: '(niet ingevuld)' }], huidigeMedewerker, 'Alle medewerkers');
   vulSelect($('#ozCasustype'), CASUSTYPEN, $('#ozCasustype').value, 'Alle casustypen');
   vulSelect($('#ozMeetwijze'), isFreq ? MEETWIJZEN_FREQUENTIE : MEETWIJZEN_METING, $('#ozMeetwijze').value, 'Alle meetwijzen');
+  vulSelect($('#ozSteekproef'), [...staat.steekproeven.map((s) => ({ waarde: s.steekproefId, label: `${s.steekproefId} – ${s.naam}` })), { waarde: '__geen__', label: '(geen steekproef)' }], $('#ozSteekproef').value, 'Alle steekproeven');
+  for (const el of $$('#overzichtFilters [data-filter="steekproef"]')) el.hidden = isFreq;
   renderOverzichtTabel();
 }
 
@@ -56,6 +59,8 @@ function metingVoldoetAanOverzicht(m, f) {
   if (f.medewerker && f.medewerker !== '__leeg__' && m.medewerkerId !== f.medewerker) return false;
   if (f.casustype && m.casustype !== f.casustype) return false;
   if (f.meetwijze && m.meetwijze !== f.meetwijze) return false;
+  if (f.steekproef === '__geen__' && m.steekproefId) return false;
+  if (f.steekproef && f.steekproef !== '__geen__' && m.steekproefId !== f.steekproef) return false;
   return true;
 }
 
@@ -74,7 +79,7 @@ function renderOverzichtTabel() {
 function renderProcesmetingenTabel(f) {
   const lijst = staat.procesmetingen
     .filter((m) => metingVoldoetAanOverzicht(m, f))
-    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting, m.belangrijksteKnelpunt, m.bijzonderheden,
+    .filter((m) => bevatZoekterm([m.metingId, m.datum, fmtDatum(m.datum), m.procesId, m.procesnaam, m.medewerkerId, m.casustype, m.aantalUitvoeringen, m.omvang, m.aantalBlokken, ...EENHEID_VELDEN.map((k) => m[k]), m.meetwijze, m.toelichting, m.belangrijksteKnelpunt, m.bijzonderheden, m.steekproefId, m.dossierId, m.complexiteit, m.tijdrovendsteStapId, m.knelpuntCategorie, ...(m.redenenTijdsbelasting || []),
       ...stapmetingenVan(m.metingId).flatMap((s) => [s.stapId, s.stapnaam, s.redenWachttijd, s.opmerking, ...knelpuntZoekwaarden(s)])], f.zoek))
     .sort((a, b) => String(b.datum).localeCompare(String(a.datum)) || vergelijkTekst(b.metingId, a.metingId));
   const nTest = lijst.filter(isTestmeting).length;
@@ -86,7 +91,7 @@ function renderProcesmetingenTabel(f) {
     const stappen = stapmetingenVan(m.metingId);
     let html = `<tr>
       <td><button type="button" class="klein" data-actie="meting-uitklappen" data-id="${esc(m.metingId)}" aria-expanded="${open}" title="Stapmetingen tonen of verbergen">${open ? '▾' : '▸'} ${stappen.length}</button></td>
-      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}${knelpuntLabel(stappen)}</td>
+      <td class="mono">${esc(m.metingId)}${demoLabel(m)}${testLabel(m)}${knelpuntLabel(stappen, m)}${steekproefLabel(m)}</td>
       <td>${esc(fmtDatum(m.datum))}<br><span class="klein zacht">${esc(kalenderweekTekst(m.datum, true))}</span></td>
       <td>${esc(m.procesId)}${zoekProces(m.procesId) ? '' : ' <span class="zacht klein">(verwijderd)</span>'}</td>
       <td>${htmlTekst(m.medewerkerId)}</td>
@@ -94,7 +99,7 @@ function renderProcesmetingenTabel(f) {
       <td class="getal">${htmlMetEenheid(m.aantalUitvoeringen, eenhedenVan(m), 'uitvoering')}</td>
       <td class="getal">${htmlMetEenheid(m.omvang, eenhedenVan(m), 'omvang')}${isGetal(m.aantalBlokken) ? `<br><span class="klein zacht">${esc(fmtAantal(m.aantalBlokken))} ${m.aantalBlokken === 1 ? 'diensttijdblok' : 'diensttijdblokken'}</span>` : ''}</td>
       <td>${meetwijzeHtml(m.meetwijze)}</td>
-      <td class="getal berekend">${htmlGetal(b.totaalActief)}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
+      <td class="getal berekend">${htmlGetal(b.totaalActief)}${b.aantalStappen ? '' : '<br><span class="klein zacht" title="Geen detailmeting per processtap: totaal van de procesmeting">totaal, geen detail</span>'}${(() => { const c = controleProcesStap(m, stapmetingenVan(m.metingId)); return c.heeftAfwijking ? ` <span class="afwijking" title="${esc(controleTekst(c).join(' '))}">⚠</span>` : ''; })()}</td>
       <td class="getal berekend">${htmlGetal(b.totaalWacht)}</td>
       <td class="getal berekend">${htmlGetal(b.actiefPerUitvoering)}<span class="klein"> /${esc(eenhedenVan(m).uitvoeringseenheid)}</span></td>
       <td class="getal berekend">${htmlGetal(b.actiefPerOmvang)}<span class="klein"> /${esc(eenhedenVan(m).omvangseenheid)}</span></td>
@@ -133,13 +138,19 @@ function knelpuntCelHtml(s) {
     + `${s.knelpuntBron ? `<br><span class="zacht">Bron: ${esc(s.knelpuntBron)}</span>` : ''}`;
 }
 
-function knelpuntLabel(stappen) {
-  const n = stappen.filter((s) => s.knelpunt === true).length;
-  return n ? ` <span class="knelpuntlabel" title="${n} ${n === 1 ? 'processtap' : 'processtappen'} met knelpunt">${n} knelpunt${n === 1 ? '' : 'en'}</span>` : '';
+function knelpuntLabel(stappen, m) {
+  const n = stappen.filter((s) => s.knelpunt === true).length + (m && m.knelpunt === true ? 1 : 0);
+  return n ? ` <span class="knelpuntlabel" title="${n} knelpunt${n === 1 ? '' : 'en'} (processtappen${m && m.knelpunt === true ? ' en dossierniveau' : ''})">${n} knelpunt${n === 1 ? '' : 'en'}</span>` : '';
+}
+
+/** Steekproef, volgnummer en dossier-ID onder het MetingID. */
+function steekproefLabel(m) {
+  if (!m.steekproefId && !m.dossierId) return '';
+  return `<span class="steekproeflabel">${m.steekproefId ? `${esc(m.steekproefId)}${isGetal(m.volgnummerSteekproef) ? ` · nr. ${esc(fmtAantal(m.volgnummerSteekproef))}` : ''}` : ''}${m.steekproefId && m.dossierId ? ' · ' : ''}${m.dossierId ? `dossier ${esc(m.dossierId)}` : ''}</span>`;
 }
 
 function stapmetingenMiniTabel(stappen) {
-  if (!stappen.length) return '<span class="zacht">Geen stapmetingen.</span>';
+  if (!stappen.length) return '<span class="zacht">Geen stapmetingen (geen detailmeting per processtap).</span>';
   return `<table class="klein"><thead><tr><th>StapID</th><th>Processtap</th><th class="getal">Actieve tijd (min)</th><th class="getal">Wachttijd (min)</th><th>Reden wachttijd</th><th>Opmerking</th><th>Tijdvastlegging</th><th>Knelpunt</th></tr></thead><tbody>
     ${stappen.map((s) => `<tr><td class="mono">${esc(s.stapId)}</td><td>${esc(s.stapnaam)}</td><td class="getal">${htmlGetal(s.actieveTijd)}</td><td class="getal">${htmlGetal(s.wachttijd)}</td>
       <td>${esc(s.redenWachttijd || '')}</td><td>${esc(s.opmerking || '')}</td><td>${esc(s.tijdvastlegging || '')}</td><td class="klein">${knelpuntCelHtml(s)}</td></tr>`).join('')}
@@ -213,8 +224,19 @@ function metingDetailHtml(m) {
         <dt>Eenheden</dt><dd class="klein">uitvoeringseenheid: ${esc(e.uitvoeringseenheid)} · omvangseenheid: ${esc(e.omvangseenheid)}</dd>
         <dt>Meetwijze</dt><dd>${meetwijzeHtml(m.meetwijze)}</dd>
         <dt>Algemene toelichting</dt><dd>${esc(m.toelichting || '—')}</dd>
+        <dt>Steekproef</dt><dd>${m.steekproefId ? `${esc(m.steekproefId)}${zoekSteekproef(m.steekproefId) ? ` – ${esc(zoekSteekproef(m.steekproefId).naam)}` : ''}` : '—'}</dd>
+        <dt>Volgnummer binnen de steekproef</dt><dd>${isGetal(m.volgnummerSteekproef) ? esc(fmtAantal(m.volgnummerSteekproef)) : '—'}</dd>
+        <dt>Geanonimiseerd dossier-ID</dt><dd class="mono">${esc(m.dossierId || '—')}</dd>
+        ${heeftDossierkenmerken(m) || dossierkenmerkenVastleggen(m.procesId) ? `<dt>Aantal ABP-periode-regels</dt><dd>${htmlAantal(m.aantalPerioderegels)}</dd>
+        <dt>Aantal onderbrekingen</dt><dd>${htmlAantal(m.aantalOnderbrekingen)}</dd>
+        <dt>Complexiteit</dt><dd>${htmlTekst(m.complexiteit)}</dd>
+        <dt>Meest tijdrovende processtap</dt><dd>${m.tijdrovendsteStapId ? `${esc(m.tijdrovendsteStapId)} – ${esc(m.tijdrovendsteStapnaam || '')}` : '—'}</dd>
+        <dt>Reden tijdsbelasting</dt><dd>${esc((m.redenenTijdsbelasting || []).join(', ') || '—')}</dd>` : ''}
+        <dt>Knelpunt op dossierniveau</dt><dd>${m.knelpunt === true ? `<strong>Ja</strong>${m.knelpuntCategorie ? ` – ${esc(m.knelpuntCategorie)}` : ''}${(m.knelpuntGevolgen || []).length ? ` <span class="zacht">(gevolg: ${esc(m.knelpuntGevolgen.join(', '))})</span>` : ''}` : m.knelpunt === false ? 'Nee' : '—'}</dd>
         <dt>Belangrijkste knelpunt tijdens deze uitvoering</dt><dd>${esc(m.belangrijksteKnelpunt || '—')}</dd>
         <dt>Bijzonderheden of uitzonderingen</dt><dd>${esc(m.bijzonderheden || '—')}</dd>
+        <dt>Detailmeting per processtap</dt><dd>${heeftDetailmeting(m) ? 'Ja' : 'Nee – de tijden komen uit de totalen van de procesmeting'}</dd>
+        ${!heeftDetailmeting(m) ? `<dt>Totale actieve tijd (procesmeting)</dt><dd>${htmlGetal(m.actieveTijdTotaal, 2, ' min')}</dd><dt>Totale wachttijd (procesmeting)</dt><dd>${htmlGetal(m.wachttijdTotaal, 2, ' min')}</dd>` : ''}
         <dt>Vastgelegd op</dt><dd>${esc(fmtTijdstip(m.aangemaakt))}</dd>
         <dt>Laatst gewijzigd</dt><dd>${m.gewijzigd ? esc(fmtTijdstip(m.gewijzigd)) : 'Niet gewijzigd'}</dd>
       </dl>
@@ -233,7 +255,7 @@ function metingDetailHtml(m) {
         <dt>Actieve tijd per ${esc(e.omvangseenheid)} (aanvullend)</dt><dd>${htmlGetal(b.actiefPerOmvang, 2, ' min')}</dd>
         <dt>Wachttijd per ${esc(e.omvangseenheid)}</dt><dd>${htmlGetal(b.wachtPerOmvang, 2, ' min')}</dd>
       </dl>
-      <div class="formule">Totale actieve tijd = ${stappen.map((s) => (isGetal(s.actieveTijd) ? fmtGetal(s.actieveTijd) : ONBEKEND)).join(' + ')}${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}</div>
+      <div class="formule">${!stappen.length ? `Totale actieve tijd = totaal van de procesmeting (geen detailmeting per processtap)${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}` : `Totale actieve tijd = ${stappen.map((s) => (isGetal(s.actieveTijd) ? fmtGetal(s.actieveTijd) : ONBEKEND)).join(' + ')}${isGetal(b.totaalActief) ? ' = ' + fmtGetal(b.totaalActief) : ''}`}</div>
       ${isGetal(b.actiefPerUitvoering) ? `<div class="formule">Actieve tijd per ${esc(e.uitvoeringseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.aantalUitvoeringen))} = ${fmtGetal(b.actiefPerUitvoering)}</div>` : ''}
       ${isGetal(b.actiefPerOmvang) ? `<div class="formule">Actieve tijd per ${esc(e.omvangseenheid)} = ${fmtGetal(b.totaalActief)} / ${esc(fmtAantal(m.omvang))} = ${fmtGetal(b.actiefPerOmvang)}</div>` : ''}
       ${b.ontbrekendActief.length ? `<div class="klein">Actieve tijd ontbreekt bij: ${esc(b.ontbrekendActief.join(', '))}</div>` : ''}

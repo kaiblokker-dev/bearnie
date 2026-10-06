@@ -467,6 +467,10 @@ function stapResultatenHtml(procesId, filters, e) {
     </tr>`).join('');
   return `
     <p class="klein zacht mt">Casustype: <strong>${esc(resultaatCasustype)}</strong>. Tijden in minuten per ${esc(e.uitvoeringseenheid)}: stapwaarde gedeeld door het aantal ${esc(e.uitvoeringseenheidMeervoud)} van de meting. n = aantal waarnemingen met een bekende waarde.</p>
+    ${(() => {
+      const zonder = staat.procesmetingen.filter((m) => metingVoldoetAanFilters(m, { ...filters, procesId }) && m.casustype === resultaatCasustype && !stapmetingenVan(m.metingId).length).map((m) => m.metingId);
+      return zonder.length ? `<div class="melding neutraal klein">${zonder.length} meting(en) zonder detailmeting per processtap tellen niet mee in de tijd per stap (wel in de tijd per ${esc(e.uitvoeringseenheid)}): <span class="mono">${esc(zonder.join(', '))}</span>. Er wordt nooit een tijd per stap afgeleid.</div>` : '';
+    })()}
     <div class="tabelhouder"><table>
       <thead><tr><th>StapID</th><th>Processtap</th><th class="getal">n actief</th><th class="getal">Mediaan actief per ${esc(e.uitvoeringseenheid)}</th><th class="getal">Gemiddelde actief</th><th class="getal">Min. actief</th><th class="getal">Max. actief</th>
       <th class="getal">n wacht</th><th class="getal">Mediaan wacht per ${esc(e.uitvoeringseenheid)}</th><th class="getal">Gemiddelde wacht</th><th class="getal">Metingen met wachttijd</th></tr></thead>

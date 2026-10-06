@@ -44,7 +44,11 @@ function initMetingFormulier() {
     werkEenheidLabelsBij();
     laadProcesStappenInFormulier(p ? p.procesId : null);
     werkMetingIdBij();
+    // Steekproef en meest tijdrovende stap horen bij het proces.
+    $('#mVolgnummer').value = '';
+    werkDossierVeldenBij('', '');
   });
+  initDossierVelden();
   $('#mTimerTonen').addEventListener('change', () => {
     $('#mStappen').classList.toggle('verborgen-kolom', !$('#mTimerTonen').checked);
   });
@@ -69,6 +73,8 @@ function initMetingFormulier() {
   });
   renderMetingStappen();
   werkKalenderweekBij();
+  werkDossierVeldenBij();
+  werkDetailBij();
 }
 
 /** Toont onder de meetdatum de kalenderweek, bijv. "Kalenderweek 41 van 2026 (5 t/m 11 oktober 2026)". */
@@ -253,7 +259,9 @@ function leesMetingFormulier() {
   if (!$('#mBlokkenVeld').hidden || $('#mBlokken').value.trim()) meting.aantalBlokken = blokken.fout ? NaN : blokken.waarde;
   // Alleen vastleggen als het een test/fictieve meting is; ontbreken = geen testmeting.
   if ($('#mTest').checked) meting.testmeting = true;
-  const stapmetingen = formulierStappen.map((s) => {
+  leesDossierVelden(meting, invoerFouten);
+  const detail = meting.detailmeting !== false;
+  const stapmetingen = !detail ? [] : formulierStappen.map((s) => {
     const rij = $(`tr[data-stap="${CSS.escape(s.stapId)}"]`, $('#mStappen'));
     const lees = (veld) => {
       const invoer = $(`[data-veld="${veld}"]`, rij);
@@ -286,10 +294,12 @@ function werkBerekeningBij() {
   const houder = $('#mBerekend');
   if (!formulierStappen.length) { houder.innerHTML = '<span class="etiket berekend">Automatisch berekend</span><div class="klein">Nog geen processtappen geladen.</div>'; return; }
   const { meting, stapmetingen } = leesMetingFormulier();
+  const zonderDetail = meting.detailmeting === false;
   const actief = stapmetingen.map((s) => s.actieveTijd);
   const wacht = stapmetingen.map((s) => s.wachttijd);
-  const totaalActief = actief.every(isGetal) ? som(actief) : null;
-  const totaalWacht = wacht.every(isGetal) ? som(wacht) : null;
+  const totaalVan = (waarden, totaal) => (zonderDetail ? (isGetal(totaal) ? totaal : null) : waarden.every(isGetal) ? som(waarden) : null);
+  const totaalActief = totaalVan(actief, meting.actieveTijdTotaal);
+  const totaalWacht = totaalVan(wacht, meting.wachttijdTotaal);
   const omvangOk = isGetal(meting.omvang) && meting.omvang > 0;
   const aantalOk = isGetal(meting.aantalUitvoeringen) && meting.aantalUitvoeringen > 0;
   const e = eenhedenVan(meting);
@@ -304,8 +314,8 @@ function werkBerekeningBij() {
       ${isGetal(meting.aantalBlokken) ? `<div><div class="klein">Actieve tijd per diensttijdblok</div><strong>${htmlGetal(meting.aantalBlokken > 0 && isGetal(totaalActief) ? totaalActief / meting.aantalBlokken : null, 2, ' min')}</strong></div>` : ''}
       <div><div class="klein">Doorlooptijd (actief + wacht) ${infoHtml('doorlooptijd')}</div><strong>${htmlGetal(isGetal(totaalActief) && isGetal(totaalWacht) ? totaalActief + totaalWacht : null, 2, ' min')}</strong></div>
     </div>
-    ${controleHtml(controleProcesStap(meting, stapmetingen))}
-    ${!actief.every(isGetal) || !wacht.every(isGetal) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
+    ${zonderDetail ? '<div class="klein mt">Geen detailmeting per processtap: de tijden komen uit de totalen hierboven. Er wordt geen tijd per stap berekend.</div>' : controleHtml(controleProcesStap(meting, stapmetingen))}
+    ${!isGetal(totaalActief) || !isGetal(totaalWacht) || !omvangOk || !aantalOk ? '<div class="klein mt">Onbekend = niet alle benodigde velden zijn (geldig) ingevuld. Lege velden worden niet als nul geteld.</div>' : ''}`;
 }
 
 async function slaMetingOp() {
@@ -368,6 +378,10 @@ function resetMetingFormulier(behoudAlgemeen) {
   metingConceptBasis = null;
   annuleerMetingConceptTimer();
   $('#mToelichting').value = '';
+  // Bij de volgende meting blijven steekproef en detailmeting staan; het volgnummer schuift door.
+  const steekproef = behoudAlgemeen && !wasBewerking ? $('#mSteekproef').value : '';
+  if (!behoudAlgemeen || wasBewerking) $('#mDetail').value = 'ja';
+  zetDossierVelden({});
   vulMetingProcesKeuze();
   const p = zoekProces($('#mProces').value);
   formulierEenheden = p ? eenhedenKopie(p.procesId) : eenhedenKopieLeeg();
@@ -375,6 +389,10 @@ function resetMetingFormulier(behoudAlgemeen) {
   laadProcesStappenInFormulier(p ? p.procesId : null);
   werkMetingIdBij();
   werkKalenderweekBij();
+  werkDossierVeldenBij(steekproef, '');
+  if (steekproef && zoekSteekproef(steekproef)) $('#mVolgnummer').value = String(volgendVolgnummer(steekproef));
+  werkDetailBij();
+  werkDossierKnelpuntBij();
 }
 
 /** Laadt een bestaande meting in het formulier om aan te passen. */
@@ -410,13 +428,21 @@ function bewerkMeting(metingId) {
   $('#mMeetwijze').value = m.meetwijze || '';
   $('#mToelichting').value = m.toelichting || '';
   const sm = stapmetingenVan(metingId);
-  formulierStappen = sm.map((s) => ({ stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.stapnaam, tijdvastlegging: s.tijdvastlegging || 'Handmatig' }));
+  // Zonder detailmeting: de huidige stappen van het proces, zodat alsnog per stap kan worden gemeten.
+  formulierStappen = sm.length
+    ? sm.map((s) => ({ stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.stapnaam, tijdvastlegging: s.tijdvastlegging || 'Handmatig' }))
+    : stappenVanProces(m.procesId).map((s) => ({ stapId: s.stapId, volgorde: s.volgorde, stapnaam: s.naam, tijdvastlegging: 'Handmatig' }));
   const waarden = {};
   for (const s of sm) waarden[s.stapId] = s;
   $('#mAnnuleren').textContent = 'Aanpassen annuleren';
   $('#mFouten').innerHTML = '';
+  $('#mDetail').value = heeftDetailmeting(m) ? 'ja' : 'nee';
+  zetDossierVelden(m);
   renderMetingStappen(waarden);
   werkKalenderweekBij();
+  werkDossierVeldenBij(m.steekproefId || '', m.tijdrovendsteStapId || '');
+  werkDetailBij();
+  werkDossierKnelpuntBij();
   toonTab('meting');
 }
 
@@ -536,6 +562,143 @@ function controleHtml(c) {
   return `<div class="melding waarschuwing mt">${controleTekst(c).map(esc).join('<br>')}<br><span class="klein">U kunt de meting toch opslaan; de afwijking wordt vastgelegd in de export. Voor de berekeningen wordt de som van de stapmetingen gebruikt.</span>${tabel}</div>`;
 }
 
+// ---------- Steekproef, dossierkenmerken en detailmeting (versie 1.7) ----------
+
+function huidigMetingProcesId() {
+  return metingBewerkId ? zoekMeting(metingBewerkId).procesId : $('#mProces').value;
+}
+
+function initDossierVelden() {
+  $('#mRedenen').innerHTML = REDENEN_TIJDSBELASTING.map((r) => `<label><input type="checkbox" data-reden value="${esc(r)}"> ${esc(r)}</label>`).join('');
+  $('#mKnelpuntGevolgen').innerHTML = KNELPUNT_GEVOLGEN.map((g) => `<label><input type="checkbox" data-mgevolg value="${esc(g)}"> ${esc(g)}</label>`).join('');
+  vulSelect($('#mKnelpuntCategorie'), KNELPUNT_CATEGORIEEN, null, '— Kies —');
+  $('#mSteekproef').addEventListener('change', () => {
+    // Een gekozen steekproef krijgt direct het eerstvolgende vrije volgnummer (zichtbaar en aanpasbaar).
+    if (!$('#mSteekproef').value) $('#mVolgnummer').value = '';
+    else if (!$('#mVolgnummer').value.trim() || !metingBewerkId) $('#mVolgnummer').value = String(volgendVolgnummer($('#mSteekproef').value, metingBewerkId));
+    werkSteekproefHintBij();
+  });
+  $('#mDetail').addEventListener('change', werkDetailBij);
+  $('#mKnelpunt').addEventListener('change', werkDossierKnelpuntBij);
+}
+
+function kenmerkenIngevuld() {
+  return !!($('#mPerioderegels').value.trim() || $('#mOnderbrekingen').value.trim() || $('input[name="complexiteit"]:checked')
+    || $('#mTijdrovendste').value || $$('[data-reden]').some((c) => c.checked));
+}
+
+/** Vult de keuzelijsten voor steekproef en meest tijdrovende stap en toont de dossierkenmerken bij het juiste proces. */
+function werkDossierVeldenBij(steekproef, stap) {
+  const pid = huidigMetingProcesId();
+  const lijst = pid ? steekproevenVanProces(pid) : [];
+  const gekozen = steekproef !== undefined ? steekproef : $('#mSteekproef').value;
+  vulSelect($('#mSteekproef'), lijst.map((s) => ({ waarde: s.steekproefId, label: `${s.steekproefId} – ${s.naam}${s.status !== 'Bezig' ? ` (${s.status.toLowerCase()})` : ''}${s.demo ? ' [DEMO]' : ''}` })),
+    gekozen, lijst.length ? '— Geen steekproef —' : '— Geen steekproef (nog geen steekproef bij dit proces) —');
+  const stapKeuze = stap !== undefined ? stap : $('#mTijdrovendste').value;
+  const stappen = pid ? stappenVanProces(pid).map((s) => ({ waarde: s.stapId, label: `${s.stapId} – ${s.naam}` })) : [];
+  const bewerkt = metingBewerkId && zoekMeting(metingBewerkId);
+  if (stapKeuze && !stappen.some((s) => s.waarde === stapKeuze) && bewerkt && bewerkt.tijdrovendsteStapId === stapKeuze) {
+    stappen.push({ waarde: stapKeuze, label: `${stapKeuze} – ${bewerkt.tijdrovendsteStapnaam || ''} (stap bestaat niet meer)` });
+  }
+  vulSelect($('#mTijdrovendste'), stappen, stapKeuze, '— Niet ingevuld —');
+  $('#mKenmerken').hidden = !(pid && dossierkenmerkenVastleggen(pid)) && !kenmerkenIngevuld();
+  werkSteekproefHintBij();
+}
+
+function werkSteekproefHintBij() {
+  const sp = zoekSteekproef($('#mSteekproef').value);
+  const hint = $('#mSteekproefHint');
+  if (!sp) { hint.textContent = 'Optioneel. Steekproeven legt u vast op het tabblad Steekproeven.'; return; }
+  const n = metingenVanSteekproef(sp.steekproefId).filter((m) => !isTestmeting(m)).length;
+  hint.textContent = `${sp.naam} · status ${sp.status.toLowerCase()} · ${n}${isGetal(sp.steekproefgrootte) ? ` van ${sp.steekproefgrootte}` : ''} dossiers gemeten${sp.startdatum || sp.einddatum ? ` · ${sp.startdatum ? fmtDatum(sp.startdatum) : '…'} t/m ${sp.einddatum ? fmtDatum(sp.einddatum) : '…'}` : ''}`;
+}
+
+/** Zonder detailmeting verdwijnt de stappentabel en worden de totalen de tijden van de meting. */
+function werkDetailBij() {
+  const nee = $('#mDetail').value === 'nee';
+  $('#mStappen').hidden = nee;
+  $('#mActiefTotaalLabel').innerHTML = `${nee ? 'Totale actieve tijd (min)' : 'Totale actieve tijd volgens procesmeting (min)'} ${infoHtml('actief')}`;
+  $('#mWachtTotaalLabel').innerHTML = `${nee ? 'Totale wachttijd (min)' : 'Totale wachttijd volgens procesmeting (min)'} ${infoHtml('wacht')}`;
+  $('#mActiefTotaal').placeholder = nee ? 'bijv. 25' : 'Optioneel, ter controle';
+  $('#mWachtTotaal').placeholder = nee ? 'bijv. 0' : 'Optioneel, ter controle';
+  $('#mActiefTotaalHint').textContent = nee
+    ? 'Geen detailmeting: dit is de actieve tijd van de hele uitvoering. Er wordt geen tijd per processtap afgeleid.'
+    : 'Alleen invullen als u ook een totaal voor de hele uitvoering hebt genoteerd. Wordt vergeleken met de som van de stappen.';
+  werkBerekeningBij();
+}
+
+function werkDossierKnelpuntBij() {
+  const ja = $('#mKnelpunt').value === 'ja';
+  $('#mKnelpuntCategorieVeld').hidden = !ja;
+  $('#mKnelpuntGevolgVeld').hidden = !ja;
+}
+
+/** Zet de velden voor steekproef, dossierkenmerken en het knelpunt op dossierniveau (de keuzelijsten volgen via werkDossierVeldenBij). */
+function zetDossierVelden(m) {
+  $('#mVolgnummer').value = naarInvoer(m.volgnummerSteekproef);
+  $('#mDossierId').value = m.dossierId || '';
+  $('#mPerioderegels').value = naarInvoer(m.aantalPerioderegels);
+  $('#mOnderbrekingen').value = naarInvoer(m.aantalOnderbrekingen);
+  $$('input[name="complexiteit"]').forEach((r) => { r.checked = r.value === m.complexiteit; });
+  $$('[data-reden]').forEach((c) => { c.checked = (m.redenenTijdsbelasting || []).includes(c.value); });
+  $('#mKnelpunt').value = m.knelpunt === true ? 'ja' : m.knelpunt === false ? 'nee' : '';
+  $('#mKnelpuntCategorie').value = m.knelpuntCategorie || '';
+  $$('[data-mgevolg]').forEach((c) => { c.checked = (m.knelpuntGevolgen || []).includes(c.value); });
+  $('#mBelangrijksteKnelpunt').value = m.belangrijksteKnelpunt || '';
+}
+
+/** Leest steekproef, dossierkenmerken, knelpunt op dossierniveau en detailmeting. Lege velden worden niet vastgelegd. */
+function leesDossierVelden(meting, invoerFouten) {
+  const geheel = (id, label, minimum) => {
+    const r = leesGetal($(id).value);
+    if (r.fout) invoerFouten.push(`${label}: ${r.fout}`);
+    $(id).classList.toggle('ongeldig', !!r.fout || (isGetal(r.waarde) && (r.waarde < minimum || !Number.isInteger(r.waarde))));
+    return r.fout ? NaN : r.waarde;
+  };
+  meting.detailmeting = $('#mDetail').value !== 'nee';
+  const spId = $('#mSteekproef').value;
+  if (spId) meting.steekproefId = spId;
+  const volgnummer = geheel('#mVolgnummer', 'Volgnummer binnen de steekproef', 1);
+  if (volgnummer !== null) meting.volgnummerSteekproef = volgnummer;
+  const dossierId = $('#mDossierId').value.trim();
+  if (dossierId) meting.dossierId = dossierId;
+  if (!$('#mKenmerken').hidden) {
+    const regels = geheel('#mPerioderegels', 'Aantal ABP-periode-regels', 0);
+    if (regels !== null) meting.aantalPerioderegels = regels;
+    const onderbrekingen = geheel('#mOnderbrekingen', 'Aantal onderbrekingen', 0);
+    if (onderbrekingen !== null) meting.aantalOnderbrekingen = onderbrekingen;
+    const complexiteit = $('input[name="complexiteit"]:checked');
+    if (complexiteit) meting.complexiteit = complexiteit.value;
+    const stapId = $('#mTijdrovendste').value;
+    if (stapId) {
+      const stap = stappenVanProces(meting.procesId).find((s) => s.stapId === stapId);
+      const bewerkt = metingBewerkId && zoekMeting(metingBewerkId);
+      meting.tijdrovendsteStapId = stapId;
+      meting.tijdrovendsteStapnaam = stap ? stap.naam : (bewerkt && bewerkt.tijdrovendsteStapnaam) || '';
+    }
+    const redenen = $$('[data-reden]').filter((c) => c.checked).map((c) => c.value);
+    if (redenen.length) meting.redenenTijdsbelasting = redenen;
+  }
+  const knelpunt = $('#mKnelpunt').value;
+  if (knelpunt === 'nee') meting.knelpunt = false;
+  if (knelpunt === 'ja') {
+    meting.knelpunt = true;
+    if ($('#mKnelpuntCategorie').value) meting.knelpuntCategorie = $('#mKnelpuntCategorie').value;
+    const gevolgen = $$('[data-mgevolg]').filter((c) => c.checked).map((c) => c.value);
+    if (gevolgen.length) meting.knelpuntGevolgen = gevolgen;
+  }
+}
+
+function dossierConceptWaarden() {
+  const complexiteit = $('input[name="complexiteit"]:checked');
+  return {
+    detail: $('#mDetail').value, steekproef: $('#mSteekproef').value, volgnummer: $('#mVolgnummer').value, dossierId: $('#mDossierId').value,
+    perioderegels: $('#mPerioderegels').value, onderbrekingen: $('#mOnderbrekingen').value, complexiteit: complexiteit ? complexiteit.value : '',
+    tijdrovendste: $('#mTijdrovendste').value, redenen: $$('[data-reden]').filter((c) => c.checked).map((c) => c.value),
+    knelpunt: $('#mKnelpunt').value, knelpuntCategorie: $('#mKnelpuntCategorie').value, knelpuntGevolgen: $$('[data-mgevolg]').filter((c) => c.checked).map((c) => c.value),
+  };
+}
+
 // ---------- Meting dupliceren ----------
 
 /** Laadt een kopie van een bestaande meting als NIEUWE meting in het formulier (pas opgeslagen na controle). */
@@ -576,12 +739,20 @@ async function dupliceerMeting(metingId) {
   $('#mActiefTotaal').value = naarInvoer(bron.actieveTijdTotaal);
   $('#mWachtTotaal').value = naarInvoer(bron.wachttijdTotaal);
   $('#mTest').checked = isTestmeting(bron);
+  $('#mDetail').value = heeftDetailmeting(bron) ? 'ja' : 'nee';
+  // Volgnummer en dossier-ID horen bij één dossier en worden nooit gekopieerd.
+  zetDossierVelden({ ...bron, volgnummerSteekproef: null, dossierId: '' });
   renderMetingStappen(waarden);
   werkEenheidLabelsBij();
   werkMetingIdBij();
   werkKalenderweekBij();
+  werkDossierVeldenBij(bron.steekproefId || '', bron.tijdrovendsteStapId || '');
+  if (bron.steekproefId && zoekSteekproef(bron.steekproefId)) $('#mVolgnummer').value = String(volgendVolgnummer(bron.steekproefId));
+  werkDetailBij();
+  werkDossierKnelpuntBij();
   $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Kopie van meting ${esc(metingId)} – nog niet opgeslagen.</strong>
     De meetdatum is op vandaag gezet en de meting krijgt een nieuw MetingID. Controleer en pas zo nodig medewerker, omvang, tijden, casustype en toelichting aan, en sla daarna op.
+    Het volgnummer binnen de steekproef is doorgenummerd en het dossier-ID is leeg gelaten.
     Gekopieerde tijden zijn gemarkeerd als "Gekopieerd".</div>`;
   toonTab('meting');
   bewaarMetingConcept();
@@ -606,6 +777,7 @@ function annuleerMetingConceptTimer() {
 function metingConceptHeeftInhoud(g) {
   const v = g.velden;
   return !!(g.bewerkId || v.medewerker || v.casustype || v.aantal || v.omvang || v.blokken || v.belangrijksteKnelpunt || v.bijzonderheden || v.toelichting || v.actiefTotaal || v.wachtTotaal || v.test
+    || v.volgnummer || v.dossierId || v.perioderegels || v.onderbrekingen || v.complexiteit || v.tijdrovendste || (v.redenen || []).length || v.knelpunt || v.detail === 'nee'
     || Object.values(g.waarden).some((w) => Object.values(w).some((x) => String(x).trim() !== ''))
     || /Kopie van meting/.test(g.melding || ''));
 }
@@ -629,6 +801,7 @@ function metingConceptGegevens() {
       aantal: $('#mAantal').value, omvang: $('#mOmvang').value, blokken: $('#mBlokken').value,
       belangrijksteKnelpunt: $('#mBelangrijksteKnelpunt').value, bijzonderheden: $('#mBijzonderheden').value, meetwijze: $('#mMeetwijze').value, toelichting: $('#mToelichting').value,
       actiefTotaal: $('#mActiefTotaal').value, wachtTotaal: $('#mWachtTotaal').value, test: $('#mTest').checked,
+      ...dossierConceptWaarden(),
     },
     stappen: formulierStappen,
     waarden,
@@ -672,11 +845,24 @@ function herstelMetingConcept() {
   $('#mActiefTotaal').value = v.actiefTotaal || '';
   $('#mWachtTotaal').value = v.wachtTotaal || '';
   $('#mTest').checked = !!v.test;
+  $('#mDetail').value = v.detail === 'nee' ? 'nee' : 'ja';
+  $('#mVolgnummer').value = v.volgnummer || '';
+  $('#mDossierId').value = v.dossierId || '';
+  $('#mPerioderegels').value = v.perioderegels || '';
+  $('#mOnderbrekingen').value = v.onderbrekingen || '';
+  $$('input[name="complexiteit"]').forEach((r) => { r.checked = r.value === v.complexiteit; });
+  $$('[data-reden]').forEach((c) => { c.checked = (v.redenen || []).includes(c.value); });
+  $('#mKnelpunt').value = v.knelpunt || '';
+  $('#mKnelpuntCategorie').value = v.knelpuntCategorie || '';
+  $$('[data-mgevolg]').forEach((c) => { c.checked = (v.knelpuntGevolgen || []).includes(c.value); });
   formulierStappen = Array.isArray(g.stappen) ? g.stappen : formulierStappen;
   renderMetingStappen(g.waarden || {});
   werkEenheidLabelsBij();
   werkMetingIdBij();
   werkKalenderweekBij();
+  werkDossierVeldenBij(v.steekproef || '', v.tijdrovendste || '');
+  werkDetailBij();
+  werkDossierKnelpuntBij();
   $('#metingBewerkMelding').innerHTML = `<div class="melding info"><strong>Niet-afgerond concept hersteld</strong> (automatisch opgeslagen op ${esc(fmtTijdstip(c.opgeslagen))}).
     Controleer de invoer en sla de meting op, of verwijder het concept.${g.bewerkId ? ` Dit is een concept voor het aanpassen van meting ${esc(g.bewerkId)}.` : ''}</div>`;
   toonConceptStatus('m', true, c.opgeslagen);

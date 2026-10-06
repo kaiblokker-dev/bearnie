@@ -114,6 +114,9 @@ function renderProcesEditor(fouten = []) {
       <div class="veld breed">
         <label class="keuzes" style="font-weight:400"><input type="checkbox" id="peBlokken" ${procesBlokkenAan(b) ? 'checked' : ''}> Bij metingen ook het <strong>aantal resulterende diensttijdblokken</strong> vastleggen (optioneel veld; standaard aan voor PR24)</label>
       </div>
+      <div class="veld breed">
+        <label class="keuzes" style="font-weight:400"><input type="checkbox" id="peDossierkenmerken" ${procesDossierkenmerkenAan(b) ? 'checked' : ''}> Bij metingen ook de <strong>dossierkenmerken</strong> vastleggen (ABP-periode-regels, onderbrekingen, complexiteit, meest tijdrovende stap, reden tijdsbelasting; optioneel; standaard aan voor PR24)</label>
+      </div>
     </div>
     ${b.origineelId && staat.procesmetingen.some((m) => m.procesId === b.origineelId) ? '<p class="klein zacht">Bestaande metingen behouden de eenheden die bij het meten zijn vastgelegd. Alleen metingen zonder vastgelegde eenheid (uit een eerdere versie) tonen de eenheden van het proces.</p>' : ''}
     <h4>Processtappen</h4>
@@ -149,6 +152,7 @@ function verwerkProcesEditorInvoer(e) {
   } else if (t.id === 'peNaam') b.naam = t.value;
   else if (t.dataset.eenheidveld) b[t.dataset.eenheidveld] = t.value;
   else if (t.id === 'peBlokken') b.blokkenVastleggen = t.checked;
+  else if (t.id === 'peDossierkenmerken') b.dossierkenmerken = t.checked;
   else if (t.dataset.stapveld) {
     const i = Number(t.closest('tr').dataset.index);
     const s = b.stappen[i];
@@ -163,6 +167,8 @@ async function slaProcesOp() {
   // Alleen vastleggen als de gebruiker de instelling heeft gewijzigd; anders geldt de standaard (aan voor PR24).
   if (typeof b.blokkenVastleggen === 'boolean') invoer.blokkenVastleggen = b.blokkenVastleggen;
   else if (b.origineelId && typeof (zoekProces(b.origineelId) || {}).blokkenVastleggen === 'boolean') invoer.blokkenVastleggen = zoekProces(b.origineelId).blokkenVastleggen;
+  if (typeof b.dossierkenmerken === 'boolean') invoer.dossierkenmerken = b.dossierkenmerken;
+  else if (b.origineelId && typeof (zoekProces(b.origineelId) || {}).dossierkenmerken === 'boolean') invoer.dossierkenmerken = zoekProces(b.origineelId).dossierkenmerken;
   const fouten = valideerProces(invoer, b.origineelId);
   if (!b.origineelId && /^demo-/i.test(invoer.procesId)) fouten.push('ProcesID\'s die beginnen met "DEMO-" zijn gereserveerd voor demogegevens.');
   if (fouten.length) { renderProcesEditor(fouten); return; }
@@ -279,4 +285,10 @@ async function importeerProcessenCsv(bestand) {
 function procesBlokkenAan(b) {
   if (typeof b.blokkenVastleggen === 'boolean') return b.blokkenVastleggen;
   return b.origineelId ? blokkenVastleggen(b.origineelId) : (b.procesId || '').trim() === 'PR24';
+}
+
+/** Stand van de instelling 'dossierkenmerken vastleggen' in de proceseditor. */
+function procesDossierkenmerkenAan(b) {
+  if (typeof b.dossierkenmerken === 'boolean') return b.dossierkenmerken;
+  return b.origineelId ? dossierkenmerkenVastleggen(b.origineelId) : (b.procesId || '').trim() === 'PR24';
 }
