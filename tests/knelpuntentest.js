@@ -216,7 +216,7 @@ kop, data = tabel("Procesmetingen", "MetingID")
 pm = [dict(zip(kop, r)) for r in data]
 ana = [[c for c in r] for r in wb["Knelpuntenanalyse"].iter_rows(values_only=True)]
 print(json.dumps({"bladen": wb.sheetnames, "kn": kn, "sm": sm, "pm": pm, "ana": ana}, default=str))`]).toString());
-  assert.deepStrictEqual(x.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(x.bladen, ['PR24 Dashboard', 'PR24 Maandmetingen', 'PR24 Dossiers', 'PR24 Processtappen', 'PR24 Berekeningen', 'Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
   assert.strictEqual(x.kn.length, 4, 'alle knelpunten (incl. test) in ruw tabblad');
   const k1 = x.kn.find((r) => r.MetingID === 'M-PR24-001');
   for (const [kol, w] of [['ProcesID', 'PR24'], ['StapID', 'PR24-S01'], ['MedewerkerID', 'PZ01'], ['Kalenderweek', 41], ['Meetwijze', 'Gemeten'], ['Casustype', 'Normaal'], ['Categorie', 'Systeem'],

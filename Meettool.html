@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--
   Meettool administratieve processen
-  Versie: 1.7.0
-  Gebouwd op: 2026-10-06
+  Versie: 1.8.0
+  Gebouwd op: 2026-10-07
 
   Zelfstandig bestand: alle JavaScript en CSS staan hieronder in dit bestand.
   Er worden geen externe bronnen geladen en er worden geen gegevens verzonden.
@@ -351,6 +351,38 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 .kerncijfers > div { min-width: 0; }
 .steekproeflabel { display: block; font-size: 11px; color: var(--tekst-zacht); font-family: inherit; }
 
+/* Maanddashboard PR24 (versie 1.8) */
+.statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 8px; }
+.statkaart { background: var(--wit); border: 1px solid var(--rand); border-radius: var(--radius); padding: 10px 12px; min-width: 0; overflow-wrap: anywhere; }
+.statlabel { font-size: 13px; color: var(--tekst-zacht); }
+.statwaarde { font-size: 22px; font-weight: 700; margin-top: 2px; color: var(--berekend-tekst); }
+.statwaarde .onbekend { font-size: 14px; font-weight: 400; }
+.statsub { font-size: 12px; color: var(--tekst-zacht); margin-top: 2px; }
+.maandkop { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.maandlabel { display: block; font-size: 17px; margin-top: 4px; }
+.maandtabel td { overflow-wrap: anywhere; }
+.maandtabel input[type="text"]:not(.tijd) { min-width: 120px; }
+.schattinglabel { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 6px; text-transform: none; }
+.balk { height: 6px; background: var(--rand); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+.balk span { display: block; height: 100%; background: var(--berekend-rand); }
+details.herleiding summary { cursor: pointer; }
+#mmDashStappen td:nth-child(2) { min-width: 220px; }
+#mmDashStappen th { white-space: normal; }
+#mmDashStappen td:nth-child(5) { min-width: 170px; }
+#mmStappen select[data-sveld="meetwijze"] { min-width: 210px; }
+#mmStappen select[data-sveld="eenheid"] { min-width: 160px; }
+#mmStappen td:nth-child(2) { min-width: 200px; }
+#mmStappen tr[data-stapid] td { border-bottom: none; padding-bottom: 2px; }
+#mmStappen tr.stapdetail td { padding-top: 0; }
+.stapdetailvelden { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; color: var(--tekst-zacht); }
+.stapdetailvelden input { width: 100%; margin-top: 2px; }
+#mmDossiers input.tijd { width: 80px; }
+#mmDossiers th, #mmStappen th { white-space: normal; }
+#mmDossiers input.tijd, #mmStappen input.tijd { width: 72px; }
+#mmDossiers select[data-dveld="status"] { min-width: 190px; }
+#mmDossiers input[data-dveld="bijzonderheden"], #mmDossiers input[data-dveld="bron"] { min-width: 140px; width: 100%; }
+#mmStappen select[data-sveld="meetwijze"] { min-width: 200px; }
+
 </style>
 </head>
 <body>
@@ -366,17 +398,48 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 </div>
 
 <nav class="tabs" id="tabs">
-  <button type="button" data-tab="processen"><span class="nr">1</span>Processen beheren</button>
-  <button type="button" data-tab="steekproeven"><span class="nr">2</span>Steekproeven</button>
-  <button type="button" data-tab="meting"><span class="nr">3</span>Nieuwe procesmeting</button>
-  <button type="button" data-tab="frequentie"><span class="nr">4</span>Frequentie registreren</button>
-  <button type="button" data-tab="overzicht"><span class="nr">5</span>Metingen bekijken</button>
-  <button type="button" data-tab="resultaten"><span class="nr">6</span>Resultaten</button>
-  <button type="button" data-tab="importexport"><span class="nr">7</span>Importeren en exporteren</button>
+  <button type="button" data-tab="maand"><span class="nr">1</span>Maanddashboard PR24</button>
+  <button type="button" data-tab="processen"><span class="nr">2</span>Processen</button>
+  <button type="button" data-tab="steekproeven"><span class="nr">3</span>Steekproeven</button>
+  <button type="button" data-tab="meting"><span class="nr">4</span>Nieuwe procesmeting</button>
+  <button type="button" data-tab="frequentie"><span class="nr">5</span>Frequentie</button>
+  <button type="button" data-tab="overzicht"><span class="nr">6</span>Metingen bekijken</button>
+  <button type="button" data-tab="resultaten"><span class="nr">7</span>Resultaten</button>
+  <button type="button" data-tab="importexport"><span class="nr">8</span>Import en export</button>
 </nav>
 
 <main>
-  <!-- 1. Processen beheren -->
+  <!-- 1. Maanddashboard PR24 -->
+  <section class="tab" id="tab-maand" hidden>
+    <h2>Maanddashboard PR24</h2>
+    <p class="uitleg">Eén maandmeting per bestuur en maand: aantallen nieuwe medewerkers en diensttijdopgaven, geanonimiseerde dossiers en de tijd per processtap. Kies hieronder de maandmeting; het dashboard toont dan de gegevens van die combinatie. Wijzigingen worden direct lokaal opgeslagen.</p>
+    <div class="kaart maandselectie">
+      <div class="filterbalk">
+        <div class="veld" style="width:240px"><label for="mmProces">Proces</label><select id="mmProces"></select></div>
+        <div class="veld" style="width:150px"><label for="mmBestuur">Bestuur</label><select id="mmBestuur"></select></div>
+        <div class="veld" style="width:150px"><label for="mmMaand">Kalendermaand</label><select id="mmMaand"></select></div>
+        <div class="veld" style="width:110px"><label for="mmJaar">Kalenderjaar</label><select id="mmJaar"></select></div>
+        <div class="veld" style="width:auto"><span class="label">Maandmeting</span><strong id="mmLabel" class="maandlabel"></strong><span class="hint" id="mmStatus"></span></div>
+      </div>
+      <div class="knoppen">
+        <button type="button" class="primair" data-actie="maand-nieuw">Nieuwe maandmeting</button>
+        <button type="button" data-actie="maand-opslaan">Opslaan</button>
+        <button type="button" class="gevaar" data-actie="maand-verwijderen">Verwijderen</button>
+        <button type="button" data-actie="maand-exporteren">Exporteren</button>
+        <button type="button" data-actie="maand-importeren">Importeren</button>
+        <span class="conceptstatus" id="mmOpslagStatus" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="subtabs" id="maandSubtabs">
+      <button type="button" data-maandtab="dashboard" class="actief">Dashboard</button>
+      <button type="button" data-maandtab="gegevens">1. Maandgegevens</button>
+      <button type="button" data-maandtab="dossiers">2. Dossiers</button>
+      <button type="button" data-maandtab="stappen">3. Processtappen</button>
+    </div>
+    <div id="maandInhoud"></div>
+  </section>
+
+  <!-- 2. Processen beheren -->
   <section class="tab" id="tab-processen" hidden>
     <h2>Processen beheren</h2>
     <p class="uitleg">Leg hier de processen en processtappen vast die u wilt meten. Bestaande metingen bewaren hun eigen kopie van de proces- en stapnamen, zodat ze leesbaar blijven als een proces later wordt aangepast of verwijderd.</p>
@@ -395,7 +458,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 2. Steekproeven -->
+  <!-- 3. Steekproeven -->
   <section class="tab" id="tab-steekproeven" hidden>
     <h2>Steekproeven</h2>
     <p class="uitleg">Een steekproef is een afgebakende set dossiers uit een populatie, die u met procesmetingen onderzoekt. Leg hier de steekproef vast en koppel er procesmetingen aan (ook bestaande). Per steekproef ziet u de voortgang en de resultaten.</p>
@@ -485,7 +548,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 3. Nieuwe procesmeting -->
+  <!-- 4. Nieuwe procesmeting -->
   <section class="tab" id="tab-meting" hidden>
     <h2 id="metingTitel">Nieuwe procesmeting</h2>
     <p class="uitleg">Vul eerst de algemene gegevens in en daarna per processtap de tijden in minuten. Decimalen mogen met een komma of een punt (bijvoorbeeld 1,5). Laat een veld leeg als de waarde onbekend is: lege velden worden niet als nul geteld.</p>
@@ -665,7 +728,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </form>
   </section>
 
-  <!-- 4. Frequentie registreren -->
+  <!-- 5. Frequentie registreren -->
   <section class="tab" id="tab-frequentie" hidden>
     <h2 id="frequentieTitel">Frequentie registreren</h2>
     <p class="uitleg">Een frequentiemeting hoort bij een proces als geheel (niet bij een processtap). Leg vast hoe vaak het proces in een meetperiode is uitgevoerd en welk volume daarbij is verwerkt.</p>
@@ -754,7 +817,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 5. Metingen bekijken -->
+  <!-- 6. Metingen bekijken -->
   <section class="tab" id="tab-overzicht" hidden>
     <h2>Metingen bekijken</h2>
     <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
@@ -781,7 +844,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     </div>
   </section>
 
-  <!-- 6. Resultaten -->
+  <!-- 7. Resultaten -->
   <section class="tab" id="tab-resultaten" hidden>
     <h2>Resultaten</h2>
     <p class="uitleg">Alle waarden op deze pagina zijn <strong>automatisch berekend</strong> uit de opgeslagen metingen. De mediaan is de belangrijkste uitkomst. Normale gevallen en uitzonderingen worden altijd afzonderlijk berekend.</p>
@@ -798,7 +861,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     <div id="resultatenInhoud"></div>
   </section>
 
-  <!-- 7. Importeren en exporteren -->
+  <!-- 8. Importeren en exporteren -->
   <section class="tab" id="tab-importexport" hidden>
     <h2>Importeren en exporteren</h2>
     <p class="uitleg">Alle gegevens staan uitsluitend lokaal in deze browser op dit apparaat. Maak regelmatig een JSON-back-up: als de browsergegevens worden gewist, zijn de metingen anders verloren.</p>
@@ -806,7 +869,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Steekproefresultaten, Steekproeven, Procesmetingen, Stapmetingen, Knelpunten, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers. Steekproefresultaten volgen de keuzes op het tabblad Steekproeven (meetwijze en testmetingen).</p>
+        <p class="klein zacht">Werkmap met de tabbladen PR24 Dashboard, PR24 Maandmetingen, PR24 Dossiers, PR24 Processtappen, PR24 Berekeningen, Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Steekproefresultaten, Steekproeven, Procesmetingen, Stapmetingen, Knelpunten, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers. Steekproefresultaten volgen de keuzes op het tabblad Steekproeven (meetwijze en testmetingen).</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>
@@ -819,11 +882,14 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
           <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
           <button type="button" data-actie="csv-knelpunten">Knelpunten (CSV)</button>
           <button type="button" data-actie="csv-steekproeven">Steekproeven (CSV)</button>
+          <button type="button" data-actie="csv-maandmetingen">PR24-maandmetingen (CSV)</button>
+          <button type="button" data-actie="csv-maanddossiers">PR24-dossiers (CSV)</button>
+          <button type="button" data-actie="csv-maandstappen">PR24-processtappen (CSV)</button>
         </div>
       </div>
       <div class="kaart">
         <h3>Volledige back-up (JSON)</h3>
-        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, steekproeven, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
+        <p class="klein zacht">De volledige back-up bevat alle PR24-maandmetingen (met dossiers en processtappen), processen, processtappen, steekproeven, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
         <div class="knoppen">
           <button type="button" class="primair" data-actie="backup-download">Volledige back-up downloaden</button>
           <button type="button" data-actie="backup-import">Back-up herstellen</button>
@@ -864,7 +930,7 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 'use strict';
 // ===== versie.js =====
 // Versienummer van de meettool. Wordt opgenomen in exports en back-ups.
-const VERSIE = '1.7.0';
+const VERSIE = '1.8.0';
 const BACKUP_FORMAAT = 'meettool-backup';
 
 const CASUSTYPEN = ['Normaal', 'Uitzondering'];
@@ -903,6 +969,25 @@ const SELECTIEMETHODEN = ['Willekeurig', 'Opeenvolgend', 'Doelgericht'];
 const STEEKPROEF_STATUSSEN = ['Concept', 'Bezig', 'Afgerond'];
 const COMPLEXITEITEN = ['Eenvoudig', 'Gemiddeld', 'Complex'];
 const REDENEN_TIJDSBELASTING = ['Veel periode-regels', 'Veel diensttijdblokken', 'Onderbrekingen', 'Korte opeenvolgende perioden', 'Verschillende arbeidsverhoudingen', 'Onduidelijke informatie', 'Handmatige invoer', 'Controle of herstel', 'Anders'];
+
+// PR24-maandmetingen (versie 1.8): één maandmeting per bestuur, maand en jaar.
+const MAAND_PROCES = 'PR24';
+const BESTUREN = ['LEV', 'SAMANAS'];
+const DOSSIER_STATUSSEN = ['Nog niet verwerkt', 'Gedeeltelijk verwerkt', 'Volledig verwerkt', 'Status onbekend'];
+const MAAND_MEETWIJZEN = ['Daadwerkelijk gemeten', 'Geschat door onderzoeker', 'Geschat door medewerker', 'Afkomstig uit systeemregistratie'];
+const REKENEENHEDEN = { dossier: 'Per dossier', blok: 'Per diensttijdblok' };
+// Standaardstappen van PR24 met de voorgestelde rekeneenheid.
+const PR24_STAPPEN = [
+  ['PR24-S01', 'ABP-diensttijdoverzicht in het e-dossier openen', 'dossier'],
+  ['PR24-S02', 'Vaststellen welke diensttijd moet worden geregistreerd', 'dossier'],
+  ['PR24-S03', 'Dienstperioden en onderbrekingen beoordelen', 'dossier'],
+  ['PR24-S04', 'Nieuwe diensttijdregel toevoegen in Visma', 'blok'],
+  ['PR24-S05', 'Begin- en einddatum en werkgever invoeren', 'blok'],
+  ['PR24-S06', 'Instellingen van de diensttijdregel aanpassen', 'blok'],
+  ['PR24-S07', 'Controleren of alle relevante perioden zijn ingevoerd', 'dossier'],
+  ['PR24-S08', 'Ingevoerde diensttijd vergelijken met het overzicht', 'dossier'],
+  ['PR24-S09', 'Registratie van de diensttijd afronden', 'dossier'],
+].map(([stapId, naam, eenheid], i) => ({ stapId, naam, eenheid, volgorde: i + 1 }));
 
 // ===== hulpfuncties.js =====
 // ---------- Algemene hulpfuncties ----------
@@ -2769,6 +2854,266 @@ function voortgangTekst(v) {
   return `${v.aantal}${isGetal(v.doel) ? ` van ${v.doel}` : ''} ${v.aantal === 1 && !isGetal(v.doel) ? 'dossier' : 'dossiers'}`;
 }
 
+// ===== maandmetingen.js =====
+// ---------- PR24-maandmetingen (versie 1.8) ----------
+//
+// Eén maandmeting per combinatie van bestuur, maand en jaar (bijv. PR24 – LEV – augustus 2026), met
+// maandgegevens, geanonimiseerde dossiers en per processtap de tijd per eenheid.
+//
+// Opslag: een EIGEN localStorage-sleutel (MAAND_SLEUTEL). De bestaande gegevens van de tool (IndexedDB)
+// en de bestaande localStorage-sleutels worden niet gelezen, gewijzigd of overschreven. Is de opgeslagen
+// tekst onleesbaar, dan wordt er niet overheen geschreven (opslaan blijft dan geblokkeerd).
+//
+// maandmeting: { id, procesId, bestuur, jaar, maand (1–12), nieuweMedewerkers, aangeleverd, verwerkt,
+//                bron, toelichting, dossiers: [dossier], stappen: [stap], aangemaakt, gewijzigd }
+// dossier:     { dossierId, perioderegels, verwachteBlokken, status, vismaRegels, bijzonderheden, bron,
+//                aangemaakt, gewijzigd }
+// stap:        { stapId, naam, volgorde, eenheid ('dossier' | 'blok'), actief, wacht (min per eenheid),
+//                meetwijze, waarnemingen, knelpunt (true/false/null), knelpuntToelichting, opmerking, gewijzigd }
+// Ontbrekende getallen zijn null en worden nooit als nul behandeld. Berekende waarden worden niet opgeslagen.
+
+const MAAND_SLEUTEL = 'meettool-pr24-maandmetingen';
+const MAAND_FORMAAT = 'meettool-pr24-maandmetingen';
+const MAANDNAMEN = MAANDEN; // januari … december (hulpfuncties.js)
+
+let maandStaat = { maandmetingen: [] };
+let maandOpgeslagenOp = null;
+let maandOpslagGeblokkeerd = false;
+
+function laadMaandmetingen() {
+  maandOpslagGeblokkeerd = false;
+  try {
+    const tekst = localStorage.getItem(MAAND_SLEUTEL);
+    if (!tekst) { maandStaat = { maandmetingen: [] }; return true; }
+    const j = JSON.parse(tekst);
+    if (!j || !Array.isArray(j.maandmetingen)) throw new Error('onbekend formaat');
+    maandStaat = { maandmetingen: j.maandmetingen.map(normaliseerMaandmeting) };
+    maandOpgeslagenOp = j.opgeslagen || null;
+    return true;
+  } catch (e) {
+    // Niet overschrijven: de opgeslagen tekst blijft staan voor herstel.
+    maandStaat = { maandmetingen: [] };
+    maandOpslagGeblokkeerd = true;
+    return false;
+  }
+}
+
+/** Schrijft alle maandmetingen naar de eigen localStorage-sleutel. Geeft true bij succes. */
+function bewaarMaandmetingen() {
+  if (maandOpslagGeblokkeerd) return false;
+  const tijd = nuIso();
+  try {
+    localStorage.setItem(MAAND_SLEUTEL, JSON.stringify({ formaat: MAAND_FORMAAT, schemaversie: 1, toolversie: VERSIE, opgeslagen: tijd, maandmetingen: maandStaat.maandmetingen }));
+    maandOpgeslagenOp = tijd;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function maandId(bestuur, jaar, maand) {
+  return `${MAAND_PROCES}-${bestuur}-${jaar}-${String(maand).padStart(2, '0')}`;
+}
+
+function maandLabel(m) {
+  return `${m.procesId || MAAND_PROCES} – ${m.bestuur} – ${MAANDNAMEN[m.maand - 1]} ${m.jaar}`;
+}
+
+function zoekMaandmeting(bestuur, jaar, maand) {
+  return maandStaat.maandmetingen.find((m) => m.bestuur === bestuur && m.jaar === jaar && m.maand === maand) || null;
+}
+
+function legeStap(sjabloon) {
+  return { stapId: sjabloon.stapId, naam: sjabloon.naam, volgorde: sjabloon.volgorde, eenheid: sjabloon.eenheid, actief: null, wacht: null, meetwijze: '', waarnemingen: null, knelpunt: null, knelpuntToelichting: '', opmerking: '', gewijzigd: null };
+}
+
+/** Vult ontbrekende onderdelen aan zonder bestaande waarden te wijzigen. */
+function normaliseerMaandmeting(m) {
+  const r = { ...m };
+  r.procesId = r.procesId || MAAND_PROCES;
+  r.dossiers = Array.isArray(r.dossiers) ? r.dossiers : [];
+  r.stappen = Array.isArray(r.stappen) ? r.stappen : [];
+  for (const s of PR24_STAPPEN) if (!r.stappen.some((x) => x.stapId === s.stapId)) r.stappen.push(legeStap(s));
+  r.stappen.sort((a, b) => (a.volgorde || 99) - (b.volgorde || 99) || vergelijkTekst(a.stapId, b.stapId));
+  r.id = r.id || maandId(r.bestuur, r.jaar, r.maand);
+  return r;
+}
+
+function nieuweMaandmeting(bestuur, jaar, maand) {
+  const tijd = nuIso();
+  const m = {
+    id: maandId(bestuur, jaar, maand), procesId: MAAND_PROCES, bestuur, jaar, maand,
+    nieuweMedewerkers: null, aangeleverd: null, verwerkt: null, bron: '', toelichting: '',
+    dossiers: [], stappen: PR24_STAPPEN.map(legeStap), aangemaakt: tijd, gewijzigd: null,
+  };
+  maandStaat.maandmetingen.push(m);
+  maandStaat.maandmetingen.sort((a, b) => a.jaar - b.jaar || a.maand - b.maand || vergelijkTekst(a.bestuur, b.bestuur));
+  return m;
+}
+
+function verwijderMaandmeting(id) {
+  maandStaat.maandmetingen = maandStaat.maandmetingen.filter((m) => m.id !== id);
+}
+
+/** Voorstel voor een nieuw dossier-ID, bijv. LEV-2026-08-D01. */
+function voorgesteldDossierId(m) {
+  const prefix = `${m.bestuur}-${m.jaar}-${String(m.maand).padStart(2, '0')}-D`;
+  const nummers = m.dossiers.map((d) => (d.dossierId.startsWith(prefix) && /^\d+$/.test(d.dossierId.slice(prefix.length)) ? Number(d.dossierId.slice(prefix.length)) : 0));
+  return prefix + String(Math.max(0, ...nummers) + 1).padStart(2, '0');
+}
+
+// ---------- Validatie ----------
+
+const isGeheelOfLeeg = (v) => v === null || (Number.isInteger(v) && v >= 0);
+
+/** Controleert de maandgegevens: geheel ≥ 0 en verwerkt ≤ aangeleverd ≤ nieuwe medewerkers. */
+function valideerMaandgegevens(g) {
+  const fouten = [];
+  for (const [veld, label] of [['nieuweMedewerkers', 'Het aantal nieuwe medewerkers'], ['aangeleverd', 'Het aantal aangeleverde diensttijdopgaven'], ['verwerkt', 'Het aantal verwerkte diensttijdopgaven']]) {
+    if (Number.isNaN(g[veld])) fouten.push(`${label} is geen geldig getal.`);
+    else if (!isGeheelOfLeeg(g[veld])) fouten.push(`${label} moet een geheel getal van 0 of hoger zijn.`);
+  }
+  if (!fouten.length) {
+    if (isGetal(g.aangeleverd) && isGetal(g.nieuweMedewerkers) && g.aangeleverd > g.nieuweMedewerkers) fouten.push(`Er zijn meer diensttijdopgaven aangeleverd (${g.aangeleverd}) dan er nieuwe medewerkers zijn (${g.nieuweMedewerkers}).`);
+    if (isGetal(g.verwerkt) && isGetal(g.aangeleverd) && g.verwerkt > g.aangeleverd) fouten.push(`Er zijn meer diensttijdopgaven verwerkt (${g.verwerkt}) dan aangeleverd (${g.aangeleverd}).`);
+  }
+  return fouten;
+}
+
+function valideerDossier(d, m, index) {
+  const fouten = [];
+  const id = (d.dossierId || '').trim();
+  if (!id) fouten.push('Vul een dossier-ID in.');
+  else if (!ID_PATROON.test(id)) fouten.push(`Dossier-ID "${id}" mag alleen letters, cijfers, - en _ bevatten.`);
+  else if (m.dossiers.some((x, i) => i !== index && x.dossierId === id)) fouten.push(`Dossier-ID ${id} komt al voor in deze maandmeting.`);
+  for (const [veld, label] of [['perioderegels', 'ABP-periode-regels'], ['verwachteBlokken', 'Verwacht aantal diensttijdblokken'], ['vismaRegels', 'Werkelijk aantal regels in Visma']]) {
+    if (Number.isNaN(d[veld]) || !isGeheelOfLeeg(d[veld])) fouten.push(`${label}: vul een geheel getal van 0 of hoger in, of laat het veld leeg.`);
+  }
+  if (d.status && !DOSSIER_STATUSSEN.includes(d.status)) fouten.push('Kies een geldige verwerkingsstatus.');
+  return fouten;
+}
+
+function valideerStap(s) {
+  const fouten = [];
+  for (const [veld, label] of [['actief', 'Actieve tijd'], ['wacht', 'Wachttijd']]) {
+    if (Number.isNaN(s[veld]) || (s[veld] !== null && !(isGetal(s[veld]) && s[veld] >= 0))) fouten.push(`${s.stapId} – ${label}: vul een getal van 0 of hoger in, of laat het veld leeg.`);
+  }
+  if (Number.isNaN(s.waarnemingen) || !isGeheelOfLeeg(s.waarnemingen)) fouten.push(`${s.stapId} – Aantal waarnemingen: vul een geheel getal van 0 of hoger in.`);
+  if (!REKENEENHEDEN[s.eenheid]) fouten.push(`${s.stapId}: kies een rekeneenheid.`);
+  if (s.meetwijze && !MAAND_MEETWIJZEN.includes(s.meetwijze)) fouten.push(`${s.stapId}: kies een geldige meetwijze.`);
+  return fouten;
+}
+
+/** Een privacywaarschuwing voor dossier-ID's met een lange cijferreeks (lijkt op een echt nummer). */
+function lijktOpPersoonsnummer(id) {
+  return /\d{7,}/.test(id || '');
+}
+
+// ---------- Berekeningen ----------
+
+/** Resultaat van een berekening: { waarde, reden } met reden bij een ontbrekende waarde. */
+function percentage(teller, noemer) {
+  if (!isGetal(teller) || !isGetal(noemer)) return { waarde: null, reden: 'onvoldoende gegevens' };
+  if (noemer === 0) return { waarde: null, reden: 'niet te berekenen (deler is 0)' };
+  return { waarde: (teller / noemer) * 100 };
+}
+
+function reeksVan(dossiers, veld) {
+  const met = dossiers.filter((d) => isGetal(d[veld]));
+  const totaal = met.length ? som(met.map((d) => d[veld])) : null;
+  return { n: met.length, totaal, gemiddelde: met.length ? totaal / met.length : null, ids: met.map((d) => d.dossierId), ontbrekend: dossiers.filter((d) => !isGetal(d[veld])).map((d) => d.dossierId) };
+}
+
+/** Verwacht aantal nog in te voeren diensttijdblokken van één dossier, of null als dat niet vast te stellen is. */
+function resterendeBlokken(d) {
+  if (d.status === 'Volledig verwerkt') return 0;
+  if (!isGetal(d.verwachteBlokken)) return null;
+  if (isGetal(d.vismaRegels)) return Math.max(0, d.verwachteBlokken - d.vismaRegels);
+  if (d.status === 'Nog niet verwerkt') return d.verwachteBlokken;
+  return null;
+}
+
+const GESCHATTE_MEETWIJZEN = ['Geschat door onderzoeker', 'Geschat door medewerker'];
+
+/** Alle berekende uitkomsten van één maandmeting. Niets hiervan wordt opgeslagen. */
+function berekenMaand(m) {
+  const nieuwe = m.nieuweMedewerkers;
+  const aangeleverd = m.aangeleverd;
+  const verwerkt = m.verwerkt;
+  const verschil = (a, b) => (isGetal(a) && isGetal(b) ? a - b : null);
+  const frequentie = {
+    nieuwe, aangeleverd, verwerkt,
+    geenOpgave: verschil(nieuwe, aangeleverd),
+    nogTeVerwerken: verschil(aangeleverd, verwerkt),
+    aanleverPct: percentage(aangeleverd, nieuwe),
+    verwerkingsPct: percentage(verwerkt, aangeleverd),
+    verwerktVanNieuwePct: percentage(verwerkt, nieuwe),
+  };
+
+  const regels = reeksVan(m.dossiers, 'perioderegels');
+  const blokken = reeksVan(m.dossiers, 'verwachteBlokken');
+  const visma = reeksVan(m.dossiers, 'vismaRegels');
+  const rest = m.dossiers.map((d) => ({ d, r: resterendeBlokken(d) }));
+  const restBekend = rest.filter((x) => isGetal(x.r));
+  const dossiers = {
+    aantal: m.dossiers.length,
+    regels, blokken, visma,
+    resterend: {
+      totaal: restBekend.length ? som(restBekend.map((x) => x.r)) : null,
+      n: restBekend.length,
+      ids: restBekend.map((x) => x.d.dossierId),
+      onbekend: rest.filter((x) => !isGetal(x.r)).map((x) => x.d.dossierId),
+    },
+    statussen: DOSSIER_STATUSSEN.map((s) => ({ status: s, aantal: m.dossiers.filter((d) => (d.status || 'Status onbekend') === s).length })),
+    afwijking: isGetal(aangeleverd) && m.dossiers.length !== aangeleverd,
+  };
+
+  // Aantal eenheden per rekeneenheid: uitgevoerd en verwacht.
+  const eenheden = {
+    dossier: { uitgevoerd: verwerkt, verwacht: aangeleverd, uitgevoerdLabel: 'verwerkte diensttijdopgaven', verwachtLabel: 'aangeleverde diensttijdopgaven' },
+    blok: { uitgevoerd: visma.totaal, verwacht: blokken.totaal, uitgevoerdLabel: 'werkelijk ingevoerde Visma-regels', verwachtLabel: 'verwachte diensttijdblokken' },
+  };
+  const maal = (t, n) => (isGetal(t) && isGetal(n) ? t * n : null);
+  const stappen = m.stappen.map((s) => {
+    const e = eenheden[s.eenheid] || eenheden.dossier;
+    const uit = {};
+    for (const soort of ['actief', 'wacht']) {
+      const uitgevoerd = maal(s[soort], e.uitgevoerd);
+      const verwacht = maal(s[soort], e.verwacht);
+      uit[soort] = { uitgevoerd, verwacht, resterend: isGetal(uitgevoerd) && isGetal(verwacht) ? verwacht - uitgevoerd : null };
+    }
+    return { stap: s, eenheden: e, ...uit, schatting: (isGetal(s.actief) || isGetal(s.wacht)) && (!s.meetwijze || GESCHATTE_MEETWIJZEN.includes(s.meetwijze)) };
+  });
+  const totaalVan = (soort, deel) => {
+    const waarden = stappen.map((r) => r[soort][deel]);
+    const bekend = waarden.filter(isGetal);
+    return { waarde: bekend.length === waarden.length ? som(waarden) : null, deelsom: bekend.length ? som(bekend) : null, nBekend: bekend.length, n: waarden.length };
+  };
+  const tijd = {};
+  for (const soort of ['actief', 'wacht']) tijd[soort] = { uitgevoerd: totaalVan(soort, 'uitgevoerd'), resterend: totaalVan(soort, 'resterend'), verwacht: totaalVan(soort, 'verwacht') };
+  tijd.totaleBelasting = isGetal(tijd.actief.verwacht.waarde) && isGetal(tijd.wacht.verwacht.waarde) ? tijd.actief.verwacht.waarde + tijd.wacht.verwacht.waarde : null;
+
+  const waarschuwingen = [];
+  if (dossiers.afwijking) waarschuwingen.push(`Er zijn ${dossiers.aantal} dossiers ingevoerd, terwijl er ${aangeleverd} diensttijdopgaven zijn aangeleverd. De berekeningen per diensttijdblok gebruiken alleen de ingevoerde dossiers.`);
+  if (stappen.some((r) => isGetal(r.actief.resterend) && r.actief.resterend < 0)) waarschuwingen.push('Bij een of meer stappen is de reeds uitgevoerde tijd groter dan de verwachte tijd (negatieve resterende tijd). Controleer de aantallen.');
+  return {
+    meting: m, frequentie, dossiers, eenheden, stappen, tijd,
+    schatting: stappen.some((r) => r.schatting),
+    geschatteStappen: stappen.filter((r) => r.schatting).map((r) => r.stap.stapId),
+    waarschuwingen,
+  };
+}
+
+/** Bijv. "1 uur 3 min" (afgerond op hele minuten). */
+function fmtUrenMinuten(minuten) {
+  if (!isGetal(minuten)) return '';
+  const teken = minuten < 0 ? '-' : '';
+  const totaal = Math.round(Math.abs(minuten));
+  const u = Math.floor(totaal / 60);
+  const min = totaal % 60;
+  return `${teken}${u ? `${u} uur ` : ''}${min} min`;
+}
+
 // ===== xlsx.js =====
 // ---------- Excel-export (.xlsx) zonder externe bibliotheek ----------
 //
@@ -3323,6 +3668,7 @@ function toonTab(naam) {
   for (const b of $$('#tabs button')) b.classList.toggle('actief', b.dataset.tab === naam);
   if (naam === 'resultaten') renderResultaten();
   if (naam === 'steekproeven') renderSteekproeven();
+  if (naam === 'maand') renderMaand();
   if (naam === 'overzicht') renderOverzicht();
   if (naam === 'importexport') renderImportExport();
   try { sessionStorage.setItem('meettool-tab', naam); } catch (e) { /* niet kritiek */ }
@@ -3499,6 +3845,7 @@ function renderAlles() {
   vulFrequentieProcesKeuze();
   renderFrequentieRecent();
   if (actieveTab === 'steekproeven') renderSteekproeven();
+  if (actieveTab === 'maand') renderMaand();
   if (actieveTab === 'overzicht') renderOverzicht();
   if (actieveTab === 'resultaten') renderResultaten();
   if (actieveTab === 'importexport') renderImportExport();
@@ -4115,6 +4462,559 @@ function initKoppelDialoog() {
     const gebruikt = $$('#koppelTabel tbody tr').filter((r) => $('[data-koppel]', r).checked).map((r) => leesGetal($('[data-volgnummer]', r).value).waarde).filter(isGetal);
     veld.value = String(Math.max(0, ...gebruikt) + 1);
   });
+}
+
+// ===== ui-maand.js =====
+// ---------- Maanddashboard PR24 (versie 1.8) ----------
+//
+// Eén dynamisch dashboard: de selectie (bestuur, maand, jaar) bepaalt welke maandmeting wordt getoond.
+// Wijzigingen worden direct in de eigen localStorage-sleutel opgeslagen; ongeldige invoer niet.
+
+let maandKeuze = { bestuur: 'LEV', jaar: new Date().getFullYear(), maand: new Date().getMonth() + 1 };
+let maandSubtab = 'dashboard';
+let maandSortering = 'volgorde';
+
+const ONVOLDOENDE = 'onvoldoende gegevens';
+const nietIngevuldHtml = () => '<span class="onbekend">niet ingevuld</span>';
+const onvoldoendeHtml = (reden = ONVOLDOENDE) => `<span class="onbekend">${esc(reden)}</span>`;
+
+function formuleIcoon(tekst) {
+  return `<span class="uitleg-i" tabindex="0" role="img" title="${esc(tekst)}" aria-label="${esc('Formule: ' + tekst)}">i</span>`;
+}
+
+function initMaand() {
+  try {
+    const k = JSON.parse(sessionStorage.getItem('meettool-maandkeuze') || 'null');
+    if (k && BESTUREN.includes(k.bestuur) && Number.isInteger(k.jaar) && k.maand >= 1 && k.maand <= 12) maandKeuze = k;
+  } catch (e) { /* niet kritiek */ }
+  vulSelect($('#mmBestuur'), BESTUREN, maandKeuze.bestuur);
+  vulSelect($('#mmMaand'), MAANDNAMEN.map((n, i) => ({ waarde: String(i + 1), label: n })), String(maandKeuze.maand));
+  for (const id of ['#mmBestuur', '#mmMaand', '#mmJaar']) {
+    $(id).addEventListener('change', () => {
+      maandKeuze = { bestuur: $('#mmBestuur').value, maand: Number($('#mmMaand').value), jaar: Number($('#mmJaar').value) };
+      try { sessionStorage.setItem('meettool-maandkeuze', JSON.stringify(maandKeuze)); } catch (e) { /* niet kritiek */ }
+      maandSubtab = 'dashboard';
+      renderMaand();
+    });
+  }
+  $('#maandSubtabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-maandtab]');
+    if (b) toonMaandSubtab(b.dataset.maandtab);
+  });
+  $('#maandInhoud').addEventListener('input', verwerkMaandInvoer);
+  $('#maandInhoud').addEventListener('change', (e) => {
+    if (e.target.id === 'mmSortering') { maandSortering = e.target.value; renderMaand(); }
+  });
+  $('#maandInhoud').addEventListener('change', verwerkMaandInvoer);
+}
+
+function huidigeMaandmeting() {
+  return zoekMaandmeting(maandKeuze.bestuur, maandKeuze.jaar, maandKeuze.maand);
+}
+
+function toonMaandSubtab(naam) {
+  maandSubtab = naam;
+  renderMaand();
+  window.scrollTo(0, 0);
+}
+
+function werkMaandOpslagStatusBij() {
+  const el = $('#mmOpslagStatus');
+  if (maandOpslagGeblokkeerd) {
+    el.textContent = 'Opslaan uitgeschakeld: de opgeslagen maandgegevens in deze browser zijn onleesbaar. Ze zijn niet gewist; importeer zo nodig een back-up.';
+    el.classList.add('fout');
+    return;
+  }
+  el.classList.remove('fout');
+  if (!maandOpgeslagenOp) { el.textContent = 'Nog niets opgeslagen.'; return; }
+  const d = new Date(maandOpgeslagenOp);
+  const p = (x) => String(x).padStart(2, '0');
+  el.textContent = `Laatst opgeslagen: ${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} om ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} (lokaal in deze browser)`;
+}
+
+/** Slaat op en meldt een mislukking. */
+function slaMaandOp() {
+  const ok = bewaarMaandmetingen();
+  werkMaandOpslagStatusBij();
+  if (!ok) toonMelding('De maandgegevens konden niet lokaal worden opgeslagen. Download een back-up.', true);
+  return ok;
+}
+
+function renderMaand() {
+  const jaren = uniek([...Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 2 + i), maandKeuze.jaar, ...maandStaat.maandmetingen.map((m) => m.jaar)]).sort();
+  vulSelect($('#mmJaar'), jaren.map(String), String(maandKeuze.jaar));
+  $('#mmBestuur').value = maandKeuze.bestuur;
+  $('#mmMaand').value = String(maandKeuze.maand);
+  const naam = procesNaam(MAAND_PROCES);
+  vulSelect($('#mmProces'), [{ waarde: MAAND_PROCES, label: `${MAAND_PROCES}${naam ? ' – ' + naam : ''}` }], MAAND_PROCES);
+  const m = huidigeMaandmeting();
+  $('#mmLabel').textContent = maandLabel({ ...maandKeuze, procesId: MAAND_PROCES });
+  $('#mmStatus').innerHTML = m ? `Aangemaakt ${esc(fmtTijdstip(m.aangemaakt))}${m.gewijzigd ? ` · laatst gewijzigd ${esc(fmtTijdstip(m.gewijzigd))}` : ''}` : '<span class="zacht">Nog geen maandmeting voor deze combinatie.</span>';
+  $('#tab-maand [data-actie="maand-verwijderen"]').disabled = !m;
+  $('#tab-maand [data-actie="maand-opslaan"]').disabled = !m;
+  for (const b of $$('#maandSubtabs button')) b.classList.toggle('actief', b.dataset.maandtab === maandSubtab);
+  $('#maandSubtabs').hidden = !m;
+  werkMaandOpslagStatusBij();
+  const houder = $('#maandInhoud');
+  if (!m) { houder.innerHTML = legeMaandHtml(); return; }
+  const b = berekenMaand(m);
+  if (maandSubtab === 'gegevens') houder.innerHTML = maandGegevensHtml(m, b);
+  else if (maandSubtab === 'dossiers') houder.innerHTML = maandDossiersHtml(m, b);
+  else if (maandSubtab === 'stappen') houder.innerHTML = maandStappenHtml(m, b);
+  else houder.innerHTML = maandDashboardHtml(b);
+}
+
+function legeMaandHtml() {
+  return `<div class="kaart"><p>Er is nog geen maandmeting voor <strong>${esc(maandLabel({ ...maandKeuze, procesId: MAAND_PROCES }))}</strong>.</p>
+    <div class="knoppen"><button type="button" class="primair" data-actie="maand-nieuw">Nieuwe maandmeting aanmaken</button></div></div>
+    ${maandOverzichtHtml()}`;
+}
+
+/** Alle maandmetingen, om snel van selectie te wisselen. */
+function maandOverzichtHtml() {
+  if (!maandStaat.maandmetingen.length) return '';
+  return `<div class="kaart"><h3>Alle maandmetingen</h3><div class="tabelhouder"><table class="klein maandtabel">
+    <thead><tr><th>Maandmeting</th><th class="getal">Nieuwe medewerkers</th><th class="getal">Aangeleverd</th><th class="getal">Verwerkt</th><th class="getal">Dossiers</th><th>Laatst gewijzigd</th><th></th></tr></thead>
+    <tbody>${maandStaat.maandmetingen.map((m) => `<tr><td>${esc(maandLabel(m))}</td><td class="getal">${htmlAantalOfLeeg(m.nieuweMedewerkers)}</td><td class="getal">${htmlAantalOfLeeg(m.aangeleverd)}</td><td class="getal">${htmlAantalOfLeeg(m.verwerkt)}</td>
+      <td class="getal">${m.dossiers.length}</td><td>${esc(fmtTijdstip(m.gewijzigd || m.aangemaakt))}</td><td class="acties"><button type="button" class="klein" data-actie="maand-openen" data-id="${esc(m.id)}">Openen</button></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function htmlAantalOfLeeg(n) {
+  return isGetal(n) ? esc(fmtAantal(n)) : nietIngevuldHtml();
+}
+
+const terugKnop = () => '<div class="knoppen" style="margin-top:0"><button type="button" data-actie="maand-dashboard">← Terug naar dashboard</button></div>';
+
+// ---------- Onderdeel 1: maandgegevens ----------
+
+function maandGegevensHtml(m, b) {
+  const veld = (id, veldnaam, label, hint) => `<div class="veld"><label for="${id}">${label}</label>
+    <input type="text" id="${id}" data-mveld="${veldnaam}" inputmode="numeric" value="${esc(naarInvoer(m[veldnaam]))}" placeholder="niet ingevuld"><span class="hint">${hint}</span></div>`;
+  return `${terugKnop()}
+    <div class="kaart ruw-kader"><span class="etiket ruw">Invoer</span><h3>Maandgegevens – ${esc(maandLabel(m))}</h3>
+      <div class="velden">
+        ${veld('mmNieuwe', 'nieuweMedewerkers', 'Aantal nieuwe medewerkers', 'Geheel getal; leeg = niet ingevuld (geen 0).')}
+        ${veld('mmAangeleverd', 'aangeleverd', 'Aantal aangeleverde diensttijdopgaven', 'Niet meer dan het aantal nieuwe medewerkers.')}
+        ${veld('mmVerwerkt', 'verwerkt', 'Aantal verwerkte diensttijdopgaven', 'Niet meer dan het aantal aangeleverde opgaven.')}
+        <div class="veld"><label for="mmBron">Bron van de aantallen</label><input type="text" id="mmBron" data-mveld="bron" maxlength="200" value="${esc(m.bron || '')}" placeholder="bijv. maandrapportage HR"></div>
+        <div class="veld breed"><label for="mmToelichting">Toelichting</label><textarea id="mmToelichting" data-mveld="toelichting" placeholder="Optioneel">${esc(m.toelichting || '')}</textarea></div>
+      </div>
+      <div id="mmGegevensFouten"></div>
+    </div>
+    <div class="berekend-kader" id="mmGegevensBerekend">${frequentieKaartenHtml(b)}</div>`;
+}
+
+function leesMaandgegevens() {
+  const getal = (id) => {
+    const r = leesGetal($(id).value);
+    const w = r.fout ? NaN : r.waarde;
+    return w;
+  };
+  return { nieuweMedewerkers: getal('#mmNieuwe'), aangeleverd: getal('#mmAangeleverd'), verwerkt: getal('#mmVerwerkt'), bron: $('#mmBron').value.trim(), toelichting: $('#mmToelichting').value.trim() };
+}
+
+// ---------- Onderdeel 2: dossiers ----------
+
+function maandDossiersHtml(m, b) {
+  const opties = (gekozen) => DOSSIER_STATUSSEN.map((s) => `<option ${s === (gekozen || 'Status onbekend') ? 'selected' : ''}>${esc(s)}</option>`).join('');
+  const getal = (d, veld, label) => `<input type="text" class="tijd" data-dveld="${veld}" inputmode="numeric" value="${esc(naarInvoer(d[veld]))}" placeholder="–" aria-label="${label} ${esc(d.dossierId)}">`;
+  const rijen = m.dossiers.map((d, i) => `<tr data-dossier="${i}">
+      <td><input type="text" data-dveld="dossierId" value="${esc(d.dossierId)}" maxlength="40" aria-label="Dossier-ID" style="min-width:150px"></td>
+      <td>${getal(d, 'perioderegels', 'ABP-periode-regels')}</td>
+      <td>${getal(d, 'verwachteBlokken', 'Verwacht aantal diensttijdblokken')}</td>
+      <td><select data-dveld="status" aria-label="Verwerkingsstatus ${esc(d.dossierId)}">${opties(d.status)}</select></td>
+      <td>${getal(d, 'vismaRegels', 'Werkelijk aantal regels in Visma')}</td>
+      <td><input type="text" data-dveld="bijzonderheden" value="${esc(d.bijzonderheden || '')}" maxlength="300" placeholder="Optioneel" aria-label="Bijzonderheden ${esc(d.dossierId)}"></td>
+      <td><input type="text" data-dveld="bron" value="${esc(d.bron || '')}" maxlength="120" list="mmBronnen" placeholder="Optioneel" aria-label="Bron of meetwijze ${esc(d.dossierId)}"></td>
+      <td class="acties"><button type="button" class="klein gevaar" data-actie="dossier-verwijderen" data-index="${i}">Verwijderen</button></td>
+    </tr>`).join('');
+  return `${terugKnop()}
+    <div class="melding info">Gebruik uitsluitend <strong>geanonimiseerde dossiercodes</strong> (bijv. ${esc(voorgesteldDossierId(m))}). Nooit namen, personeelsnummers, BSN's of andere persoonsgegevens.</div>
+    <div class="kaart ruw-kader"><span class="etiket ruw">Invoer</span><h3>Dossiers – ${esc(maandLabel(m))}</h3>
+      <div class="tabelhouder"><table class="stappen maandtabel" id="mmDossiers">
+        <thead><tr><th>Dossier-ID</th><th>ABP-periode-regels</th><th>Verwacht aantal diensttijdblokken</th><th>Verwerkingsstatus</th><th>Werkelijk aantal regels in Visma</th><th>Bijzonderheden</th><th>Bron of meetwijze</th><th></th></tr></thead>
+        <tbody>${rijen || '<tr class="leeg"><td colspan="8">Nog geen dossiers ingevoerd.</td></tr>'}</tbody></table></div>
+      <datalist id="mmBronnen"><option value="Telling in e-dossier"><option value="Visma (systeemregistratie)"><option value="Geschat door onderzoeker"><option value="Geschat door medewerker"></datalist>
+      <p class="klein zacht">Laat een getal leeg als het (nog) niet bekend is: lege velden tellen niet mee als nul. Gemiddelden gebruiken alleen dossiers met een ingevulde waarde.</p>
+      <div class="knoppen"><button type="button" class="primair" data-actie="dossier-toevoegen">Dossier toevoegen</button></div>
+      <div id="mmDossierFouten"></div>
+    </div>
+    <div class="berekend-kader" id="mmDossierBerekend">${dossierKaartenHtml(b)}</div>`;
+}
+
+function leesDossierRij(rij, bestaand) {
+  const getal = (veld) => { const r = leesGetal($(`[data-dveld="${veld}"]`, rij).value); return r.fout ? NaN : r.waarde; };
+  return {
+    ...bestaand,
+    dossierId: $('[data-dveld="dossierId"]', rij).value.trim(),
+    perioderegels: getal('perioderegels'),
+    verwachteBlokken: getal('verwachteBlokken'),
+    status: $('[data-dveld="status"]', rij).value,
+    vismaRegels: getal('vismaRegels'),
+    bijzonderheden: $('[data-dveld="bijzonderheden"]', rij).value.trim(),
+    bron: $('[data-dveld="bron"]', rij).value.trim(),
+  };
+}
+
+// ---------- Onderdeel 3: processtappen ----------
+
+function maandStappenHtml(m, b) {
+  const rijen = m.stappen.map((s) => `<tr data-stapid="${esc(s.stapId)}">
+      <td class="mono">${esc(s.stapId)}</td><td style="min-width:180px">${esc(s.naam)}</td>
+      <td><input type="text" class="tijd" data-sveld="actief" inputmode="decimal" value="${esc(naarInvoer(s.actief))}" placeholder="–" aria-label="Actieve tijd per eenheid ${esc(s.stapId)}"></td>
+      <td><input type="text" class="tijd" data-sveld="wacht" inputmode="decimal" value="${esc(naarInvoer(s.wacht))}" placeholder="–" aria-label="Wachttijd per eenheid ${esc(s.stapId)}"></td>
+      <td><select data-sveld="eenheid" aria-label="Rekeneenheid ${esc(s.stapId)}">${Object.entries(REKENEENHEDEN).map(([k, l]) => `<option value="${k}" ${s.eenheid === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></td>
+      <td><select data-sveld="meetwijze" aria-label="Meetwijze ${esc(s.stapId)}"><option value="">— Kies —</option>${MAAND_MEETWIJZEN.map((w) => `<option ${s.meetwijze === w ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select></td>
+      <td><input type="text" class="tijd" data-sveld="waarnemingen" inputmode="numeric" value="${esc(naarInvoer(s.waarnemingen))}" placeholder="–" aria-label="Aantal waarnemingen ${esc(s.stapId)}"></td>
+      <td><select data-sveld="knelpunt" aria-label="Knelpunt ${esc(s.stapId)}"><option value="">–</option><option value="nee" ${s.knelpunt === false ? 'selected' : ''}>Nee</option><option value="ja" ${s.knelpunt === true ? 'selected' : ''}>Ja</option></select></td>
+    </tr>
+    <tr class="stapdetail"><td></td><td colspan="7"><div class="stapdetailvelden">
+      <label>Toelichting knelpunt <input type="text" data-sveld="knelpuntToelichting" value="${esc(s.knelpuntToelichting || '')}" maxlength="300" placeholder="Optioneel" aria-label="Toelichting knelpunt ${esc(s.stapId)}"></label>
+      <label>Overige opmerkingen <input type="text" data-sveld="opmerking" value="${esc(s.opmerking || '')}" maxlength="300" placeholder="Optioneel" aria-label="Overige opmerkingen ${esc(s.stapId)}"></label>
+    </div></td></tr>`).join('');
+  return `${terugKnop()}
+    <div class="kaart ruw-kader"><span class="etiket ruw">Invoer</span><h3>Processtappen – ${esc(maandLabel(m))}</h3>
+      <p class="klein zacht">Tijden in minuten <strong>per eenheid</strong>: per dossier of per diensttijdblok (rekeneenheid). Decimalen met komma of punt. Leeg = niet ingevuld; een lege tijd wordt nooit als 0 gerekend.</p>
+      <div class="tabelhouder"><table class="stappen maandtabel" id="mmStappen">
+        <thead><tr><th>Stap-ID</th><th>Processtap</th><th>Actieve tijd per eenheid (min)</th><th>Wachttijd per eenheid (min)</th><th>Rekeneenheid</th><th>Meetwijze</th><th>Aantal waarnemingen</th><th>Knelpunt</th></tr></thead>
+        <tbody>${rijen}</tbody></table></div>
+      <div class="knoppen"><button type="button" data-actie="maand-stappen-overnemen">Tijden overnemen uit een andere maandmeting…</button></div>
+      <div id="mmStapFouten"></div>
+    </div>
+    <div class="berekend-kader" id="mmStapBerekend">${tijdKaartenHtml(b)}</div>`;
+}
+
+function leesStapRij(rij, bestaand) {
+  const getal = (veld) => { const r = leesGetal($(`[data-sveld="${veld}"]`, rij).value); return r.fout ? NaN : r.waarde; };
+  const detail = rij.nextElementSibling;
+  const k = $('[data-sveld="knelpunt"]', rij).value;
+  return {
+    ...bestaand,
+    actief: getal('actief'),
+    wacht: getal('wacht'),
+    eenheid: $('[data-sveld="eenheid"]', rij).value,
+    meetwijze: $('[data-sveld="meetwijze"]', rij).value,
+    waarnemingen: getal('waarnemingen'),
+    knelpunt: k === 'ja' ? true : k === 'nee' ? false : null,
+    knelpuntToelichting: $('[data-sveld="knelpuntToelichting"]', detail).value.trim(),
+    opmerking: $('[data-sveld="opmerking"]', detail).value.trim(),
+  };
+}
+
+// ---------- Invoer verwerken (automatisch opslaan; ongeldige invoer niet) ----------
+
+const zelfde = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function verwerkMaandInvoer(e) {
+  const m = huidigeMaandmeting();
+  if (!m || !e.target.matches('[data-mveld], [data-dveld], [data-sveld]')) return;
+  const tijd = nuIso();
+  let gewijzigd = false;
+  if (e.target.matches('[data-mveld]')) {
+    const g = leesMaandgegevens();
+    const fouten = valideerMaandgegevens(g);
+    const markeer = {
+      '#mmNieuwe': !isGeheelOfLeeg(g.nieuweMedewerkers),
+      '#mmAangeleverd': !isGeheelOfLeeg(g.aangeleverd) || fouten.some((f) => f.startsWith('Er zijn meer diensttijdopgaven aangeleverd')),
+      '#mmVerwerkt': !isGeheelOfLeeg(g.verwerkt) || fouten.some((f) => f.startsWith('Er zijn meer diensttijdopgaven verwerkt')),
+    };
+    for (const [id, fout] of Object.entries(markeer)) $(id).classList.toggle('ongeldig', fout);
+    $('#mmGegevensFouten').innerHTML = foutenHtml(fouten, 'Ongeldige invoer – deze wijziging is niet opgeslagen:');
+    if (!fouten.length) {
+      const nieuw = { ...m, ...g };
+      if (!zelfde(nieuw, m)) { Object.assign(m, g); gewijzigd = true; }
+    }
+  } else if (e.target.matches('[data-dveld]')) {
+    const fouten = [];
+    const waarschuwingen = [];
+    for (const rij of $$('#mmDossiers tr[data-dossier]')) {
+      const i = Number(rij.dataset.dossier);
+      const d = leesDossierRij(rij, m.dossiers[i]);
+      const f = valideerDossier(d, m, i);
+      for (const el of $$('[data-dveld]', rij)) el.classList.remove('ongeldig');
+      if (f.length) {
+        fouten.push(...f.map((x) => `${d.dossierId || `Rij ${i + 1}`}: ${x}`));
+        for (const veld of ['perioderegels', 'verwachteBlokken', 'vismaRegels']) if (!isGeheelOfLeeg(d[veld])) $(`[data-dveld="${veld}"]`, rij).classList.add('ongeldig');
+        if (f.some((x) => /dossier-ID|Dossier-ID/.test(x))) $('[data-dveld="dossierId"]', rij).classList.add('ongeldig');
+        continue;
+      }
+      if (lijktOpPersoonsnummer(d.dossierId)) waarschuwingen.push(`Dossier-ID "${d.dossierId}" bevat een lange cijferreeks en lijkt op een echt nummer. Gebruik een geanonimiseerde code.`);
+      if (!zelfde(d, m.dossiers[i])) { m.dossiers[i] = { ...d, gewijzigd: tijd }; gewijzigd = true; }
+    }
+    $('#mmDossierFouten').innerHTML = foutenHtml(fouten, 'Ongeldige invoer – deze wijziging is niet opgeslagen:') + waarschuwingen.map((w) => `<div class="melding waarschuwing">${esc(w)}</div>`).join('');
+  } else {
+    const fouten = [];
+    for (const rij of $$('#mmStappen tr[data-stapid]')) {
+      const i = m.stappen.findIndex((s) => s.stapId === rij.dataset.stapid);
+      const s = leesStapRij(rij, m.stappen[i]);
+      const f = valideerStap(s);
+      for (const veld of ['actief', 'wacht', 'waarnemingen']) $(`[data-sveld="${veld}"]`, rij).classList.toggle('ongeldig', f.some((x) => x.includes(veld === 'actief' ? 'Actieve tijd' : veld === 'wacht' ? 'Wachttijd' : 'waarnemingen')));
+      if (f.length) { fouten.push(...f); continue; }
+      if (!zelfde(s, m.stappen[i])) { m.stappen[i] = { ...s, gewijzigd: tijd }; gewijzigd = true; }
+    }
+    $('#mmStapFouten').innerHTML = foutenHtml(fouten, 'Ongeldige invoer – deze wijziging is niet opgeslagen:');
+  }
+  if (!gewijzigd) return;
+  m.gewijzigd = tijd;
+  slaMaandOp();
+  $('#mmStatus').innerHTML = `Aangemaakt ${esc(fmtTijdstip(m.aangemaakt))} · laatst gewijzigd ${esc(fmtTijdstip(m.gewijzigd))}`;
+  const b = berekenMaand(m);
+  if ($('#mmGegevensBerekend')) $('#mmGegevensBerekend').innerHTML = frequentieKaartenHtml(b);
+  if ($('#mmDossierBerekend')) $('#mmDossierBerekend').innerHTML = dossierKaartenHtml(b);
+  if ($('#mmStapBerekend')) $('#mmStapBerekend').innerHTML = tijdKaartenHtml(b);
+}
+
+// ---------- Kaarten met berekende uitkomsten ----------
+
+function statKaart(label, waardeHtml, formule, sub = '') {
+  return `<div class="statkaart"><div class="statlabel">${esc(label)} ${formule ? formuleIcoon(formule) : ''}</div><div class="statwaarde">${waardeHtml}</div>${sub ? `<div class="statsub">${sub}</div>` : ''}</div>`;
+}
+
+function pctHtml(p) {
+  return isGetal(p.waarde) ? esc(`${fmtGetal(p.waarde, 1)}%`) : onvoldoendeHtml(p.reden);
+}
+
+function berekendAantalHtml(n) {
+  return isGetal(n) ? esc(fmtAantal(n)) : onvoldoendeHtml();
+}
+
+function minutenHtml(min) {
+  if (!isGetal(min)) return onvoldoendeHtml();
+  return `${esc(fmtGetal(min))} min`;
+}
+
+function urenSub(min) {
+  return isGetal(min) ? `${esc(fmtUrenMinuten(min))} · ${esc(fmtGetal(min / 60))} uur` : '';
+}
+
+/** Totaal over de stappen: alleen als alle stappen voldoende gegevens hebben; anders de deelsom als toelichting. */
+function totaalKaart(label, t, formule) {
+  const sub = isGetal(t.waarde) ? urenSub(t.waarde)
+    : t.nBekend ? `Deelsom van ${t.nBekend} van ${t.n} stappen: ${esc(fmtGetal(t.deelsom))} min (onvolledig)` : `Geen enkele stap heeft voldoende gegevens.`;
+  return statKaart(label, minutenHtml(t.waarde), formule, sub);
+}
+
+function frequentieKaartenHtml(b) {
+  const f = b.frequentie;
+  return `<span class="etiket berekend">Frequentie</span>
+    <div class="statgrid">
+      ${statKaart('Nieuwe medewerkers', htmlAantalOfLeeg(f.nieuwe), 'Ingevoerd bij de maandgegevens.')}
+      ${statKaart('Diensttijdopgaven aangeleverd', htmlAantalOfLeeg(f.aangeleverd), 'Ingevoerd bij de maandgegevens.')}
+      ${statKaart('Geen diensttijdopgave', berekendAantalHtml(f.geenOpgave), 'Nieuwe medewerkers − aangeleverde diensttijdopgaven')}
+      ${statKaart('Volledig verwerkt', htmlAantalOfLeeg(f.verwerkt), 'Aantal verwerkte diensttijdopgaven (maandgegevens).')}
+      ${statKaart('Nog te verwerken', berekendAantalHtml(f.nogTeVerwerken), 'Aangeleverde − verwerkte diensttijdopgaven')}
+      ${statKaart('Aanleverpercentage', pctHtml(f.aanleverPct), 'Aangeleverd ÷ nieuwe medewerkers × 100%, afgerond op één decimaal')}
+      ${statKaart('Verwerkingspercentage', pctHtml(f.verwerkingsPct), 'Verwerkt ÷ aangeleverd × 100%, afgerond op één decimaal')}
+      ${statKaart('Verwerkt t.o.v. alle nieuwe medewerkers', pctHtml(f.verwerktVanNieuwePct), 'Verwerkt ÷ nieuwe medewerkers × 100%, afgerond op één decimaal')}
+    </div>`;
+}
+
+function dossierKaartenHtml(b) {
+  const d = b.dossiers;
+  const n = (r) => `gebaseerd op ${r.n} van ${d.aantal} dossiers`;
+  return `<span class="etiket berekend">Documentvolume en complexiteit</span>
+    ${d.afwijking ? `<div class="melding waarschuwing">Er zijn ${d.aantal} dossiers ingevoerd, maar ${esc(fmtAantal(b.frequentie.aangeleverd))} diensttijdopgaven aangeleverd. Dit blokkeert niets; de gegevensverzameling kan nog onvolledig zijn.</div>` : ''}
+    <div class="statgrid">
+      ${statKaart('Geregistreerde dossiers', esc(String(d.aantal)), 'Aantal ingevoerde dossiers in deze maandmeting.')}
+      ${statKaart('Totaal ABP-periode-regels', berekendAantalHtml(d.regels.totaal), 'Som van de ABP-periode-regels van de afzonderlijke dossiers (niet gemiddelde × aantal).', n(d.regels))}
+      ${statKaart('Gemiddeld aantal ABP-periode-regels', isGetal(d.regels.gemiddelde) ? esc(fmtGetal(d.regels.gemiddelde)) : onvoldoendeHtml(), 'Totaal ABP-periode-regels ÷ aantal dossiers met een ingevulde waarde', n(d.regels))}
+      ${statKaart('Dossiers onder het gemiddelde', esc(String(d.regels.n)), 'Aantal dossiers met een ingevuld aantal ABP-periode-regels.', d.regels.ontbrekend.length ? `niet ingevuld bij ${esc(d.regels.ontbrekend.join(', '))}` : '')}
+      ${statKaart('Totaal verwachte diensttijdblokken', berekendAantalHtml(d.blokken.totaal), 'Som van het verwachte aantal diensttijdblokken van de afzonderlijke dossiers.', n(d.blokken))}
+      ${statKaart('Gemiddeld verwachte diensttijdblokken', isGetal(d.blokken.gemiddelde) ? esc(fmtGetal(d.blokken.gemiddelde)) : onvoldoendeHtml(), 'Totaal verwachte blokken ÷ aantal dossiers met een ingevulde waarde', n(d.blokken))}
+      ${statKaart('Werkelijk ingevoerde Visma-regels', berekendAantalHtml(d.visma.totaal), 'Som van het werkelijke aantal regels in Visma van de afzonderlijke dossiers.', n(d.visma))}
+      ${statKaart('Verwacht resterend aantal blokken', berekendAantalHtml(d.resterend.totaal), 'Per dossier: volledig verwerkt = 0; anders verwachte blokken − Visma-regels (minimaal 0); nog niet verwerkt zonder Visma-regels = verwachte blokken. Dossiers zonder voldoende gegevens tellen niet mee.',
+        d.resterend.onbekend.length ? `onvolledig: onvoldoende gegevens bij ${esc(d.resterend.onbekend.join(', '))}` : `gebaseerd op ${d.resterend.n} dossiers`)}
+    </div>`;
+}
+
+function tijdKaartenHtml(b) {
+  const t = b.tijd;
+  const formule = (deel) => (deel === 'uitgevoerd'
+    ? 'Som over de stappen van: per dossier → tijd per dossier × verwerkte diensttijdopgaven; per diensttijdblok → tijd per blok × werkelijk ingevoerde Visma-regels'
+    : deel === 'verwacht' ? 'Som over de stappen van: per dossier → tijd per dossier × aangeleverde diensttijdopgaven; per diensttijdblok → tijd per blok × totaal verwachte diensttijdblokken'
+      : 'Verwachte totale maandbelasting − reeds uitgevoerde belasting');
+  return `<span class="etiket berekend">Tijd ${b.schatting ? '<span class="schattinglabel">schatting</span>' : ''}</span>
+    ${b.schatting ? `<div class="melding waarschuwing klein">De uitkomsten zijn (deels) een <strong>schatting</strong>: bij ${esc(b.geschatteStappen.join(', '))} is de tijd geschat of is de meetwijze niet ingevuld.</div>` : ''}
+    <div class="statgrid">
+      ${totaalKaart('Reeds uitgevoerde actieve tijd', t.actief.uitgevoerd, formule('uitgevoerd'))}
+      ${totaalKaart('Resterende actieve tijd', t.actief.resterend, formule('resterend'))}
+      ${totaalKaart('Totale verwachte actieve tijd', t.actief.verwacht, formule('verwacht'))}
+      ${totaalKaart('Reeds opgetreden wachttijd', t.wacht.uitgevoerd, formule('uitgevoerd').replace(/tijd per/g, 'wachttijd per'))}
+      ${totaalKaart('Resterende wachttijd', t.wacht.resterend, formule('resterend'))}
+      ${totaalKaart('Totale verwachte wachttijd', t.wacht.verwacht, formule('verwacht').replace(/tijd per/g, 'wachttijd per'))}
+      ${statKaart('Totale verwachte tijdsbelasting', minutenHtml(t.totaleBelasting), 'Totale verwachte actieve tijd + totale verwachte wachttijd', isGetal(t.totaleBelasting) ? `${urenSub(t.totaleBelasting)} · actief + wacht` : 'actief + wacht; onvoldoende gegevens bij een of meer stappen')}
+    </div>
+    ${b.waarschuwingen.filter((w) => w.includes('negatieve')).map((w) => `<div class="melding waarschuwing klein">${esc(w)}</div>`).join('')}`;
+}
+
+// ---------- Dashboard ----------
+
+function maandDashboardHtml(b) {
+  const m = b.meting;
+  const rijen = [...b.stappen];
+  if (maandSortering === 'tijd') rijen.sort((x, y) => (isGetal(y.actief.verwacht) ? y.actief.verwacht : -1) - (isGetal(x.actief.verwacht) ? x.actief.verwacht : -1) || x.stap.volgorde - y.stap.volgorde);
+  const max = Math.max(0, ...b.stappen.map((r) => r.actief.verwacht).filter(isGetal));
+  const stapRij = (r) => {
+    const s = r.stap;
+    const balk = isGetal(r.actief.verwacht) && max > 0 ? `<div class="balk" title="${esc(fmtGetal(r.actief.verwacht))} min"><span style="width:${((r.actief.verwacht / max) * 100).toFixed(1)}%"></span></div>` : '';
+    return `<tr><td class="mono">${esc(s.stapId)}</td><td>${esc(s.naam)}</td><td>${esc(REKENEENHEDEN[s.eenheid] || '')}</td>
+      <td class="getal">${isGetal(s.actief) ? esc(fmtGetal(s.actief)) : nietIngevuldHtml()}</td>
+      <td class="getal berekend">${minutenHtml(r.actief.verwacht)}${balk}<div class="klein zacht">uitgevoerd ${isGetal(r.actief.uitgevoerd) ? esc(fmtGetal(r.actief.uitgevoerd)) : '–'} · resterend ${isGetal(r.actief.resterend) ? esc(fmtGetal(r.actief.resterend)) : '–'}</div></td>
+      <td class="getal">${isGetal(s.wacht) ? esc(fmtGetal(s.wacht)) : nietIngevuldHtml()}<div class="klein zacht">verwacht ${isGetal(r.wacht.verwacht) ? esc(fmtGetal(r.wacht.verwacht)) + ' min' : '–'}</div></td>
+      <td>${s.knelpunt === true ? `<strong>Ja</strong>${s.knelpuntToelichting ? `<div class="klein">${esc(s.knelpuntToelichting)}</div>` : ''}` : s.knelpunt === false ? 'Nee' : nietIngevuldHtml()}</td>
+      <td>${s.meetwijze ? `${r.schatting ? '<span class="schatting">' : ''}${esc(s.meetwijze)}${r.schatting ? '</span>' : ''}` : nietIngevuldHtml()}</td>
+      <td class="getal">${htmlAantalOfLeeg(s.waarnemingen)}</td></tr>`;
+  };
+  return `<div class="maandkop"><h3 style="margin:0">${esc(maandLabel(m))}</h3>
+      <div class="knoppen" style="margin:0"><button type="button" class="klein" data-actie="maand-subtab" data-tab="gegevens">Maandgegevens invullen</button>
+      <button type="button" class="klein" data-actie="maand-subtab" data-tab="dossiers">Dossiers (${m.dossiers.length})</button>
+      <button type="button" class="klein" data-actie="maand-subtab" data-tab="stappen">Processtappen</button></div></div>
+    <div class="berekend-kader" id="mmDashFrequentie">${frequentieKaartenHtml(b)}</div>
+    <div class="berekend-kader mt" id="mmDashDossiers">${dossierKaartenHtml(b)}</div>
+    <div class="berekend-kader mt" id="mmDashTijd">${tijdKaartenHtml(b)}</div>
+    <div class="kaart mt"><div class="maandkop"><h3 style="margin:0">Processtappen ${formuleIcoon('Berekende totale actieve tijd = actieve tijd per eenheid × aantal eenheden (per dossier: aangeleverde diensttijdopgaven; per diensttijdblok: totaal verwachte diensttijdblokken).')}</h3>
+      <label class="klein">Sorteren op <select id="mmSortering"><option value="volgorde" ${maandSortering === 'volgorde' ? 'selected' : ''}>stapvolgorde</option><option value="tijd" ${maandSortering === 'tijd' ? 'selected' : ''}>berekende actieve tijd (hoogste eerst)</option></select></label></div>
+      <div class="tabelhouder mt"><table class="maandtabel" id="mmDashStappen"><thead><tr><th>Stap-ID</th><th>Processtap</th><th>Rekeneenheid</th><th class="getal">Actief per<br>eenheid (min)</th><th class="getal">Berekende totale<br>actieve tijd (verwacht)</th><th class="getal">Wacht per<br>eenheid (min)</th><th>Knelpunt</th><th>Meetwijze</th><th class="getal">Waar-<br>nemingen</th></tr></thead>
+      <tbody>${rijen.map(stapRij).join('')}</tbody></table></div></div>
+    ${herleidingHtml(b)}
+    ${maandOverzichtHtml()}`;
+}
+
+/** Herleidbaarheid: alle onderliggende gegevens van deze maandmeting. */
+function herleidingHtml(b) {
+  const m = b.meting;
+  return `<details class="kaart mt herleiding"><summary><strong>Herleiding: onderliggende gegevens</strong> <span class="klein zacht">(bestuur, maand, dossiers, stapmetingen, meetwijze, waarnemingen en wijzigingsdata)</span></summary>
+    <dl class="gegevens mt">
+      <dt>Maandmeting</dt><dd class="mono">${esc(m.id)}</dd>
+      <dt>Proces / bestuur</dt><dd>${esc(m.procesId)} / ${esc(m.bestuur)}</dd>
+      <dt>Maand en jaar</dt><dd>${esc(MAANDNAMEN[m.maand - 1])} ${esc(String(m.jaar))}</dd>
+      <dt>Bron van de aantallen</dt><dd>${m.bron ? esc(m.bron) : nietIngevuldHtml()}</dd>
+      <dt>Toelichting</dt><dd>${m.toelichting ? esc(m.toelichting) : nietIngevuldHtml()}</dd>
+      <dt>Aangemaakt / laatst gewijzigd</dt><dd>${esc(fmtTijdstip(m.aangemaakt))} / ${m.gewijzigd ? esc(fmtTijdstip(m.gewijzigd)) : 'niet gewijzigd'}</dd>
+    </dl>
+    <h4>Dossiers (${m.dossiers.length})</h4>
+    ${m.dossiers.length ? `<div class="tabelhouder"><table class="klein maandtabel"><thead><tr><th>Dossier-ID</th><th class="getal">ABP-regels</th><th class="getal">Verwachte blokken</th><th>Status</th><th class="getal">Visma-regels</th><th class="getal">Resterende blokken</th><th>Bron</th><th>Bijzonderheden</th><th>Laatst gewijzigd</th></tr></thead>
+      <tbody>${m.dossiers.map((d) => `<tr><td class="mono">${esc(d.dossierId)}</td><td class="getal">${htmlAantalOfLeeg(d.perioderegels)}</td><td class="getal">${htmlAantalOfLeeg(d.verwachteBlokken)}</td><td>${esc(d.status || 'Status onbekend')}</td><td class="getal">${htmlAantalOfLeeg(d.vismaRegels)}</td>
+        <td class="getal berekend">${berekendAantalHtml(resterendeBlokken(d))}</td><td>${esc(d.bron || '')}</td><td>${esc(d.bijzonderheden || '')}</td><td>${esc(fmtTijdstip(d.gewijzigd || d.aangemaakt))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="zacht klein">Nog geen dossiers.</p>'}
+    <h4>Stapmetingen</h4>
+    <div class="tabelhouder"><table class="klein maandtabel"><thead><tr><th>Stap-ID</th><th>Rekeneenheid</th><th class="getal">Actief per eenheid</th><th class="getal">Wacht per eenheid</th><th>Meetwijze</th><th class="getal">Waarnemingen</th><th>Berekening actieve tijd (verwacht)</th><th>Laatst gewijzigd</th></tr></thead>
+      <tbody>${b.stappen.map((r) => `<tr><td class="mono">${esc(r.stap.stapId)}</td><td>${esc(REKENEENHEDEN[r.stap.eenheid])}</td><td class="getal">${htmlAantalOfLeeg(r.stap.actief)}</td><td class="getal">${htmlAantalOfLeeg(r.stap.wacht)}</td>
+        <td>${r.stap.meetwijze ? esc(r.stap.meetwijze) : nietIngevuldHtml()}</td><td class="getal">${htmlAantalOfLeeg(r.stap.waarnemingen)}</td><td class="klein">${esc(stapFormuleTekst(r, 'actief', 'verwacht'))}</td><td>${r.stap.gewijzigd ? esc(fmtTijdstip(r.stap.gewijzigd)) : '–'}</td></tr>`).join('')}</tbody></table></div>
+  </details>`;
+}
+
+/** Bijv. "2,00 min × 14 aangeleverde diensttijdopgaven = 28,00 min". */
+function stapFormuleTekst(r, soort, deel) {
+  const t = r.stap[soort];
+  const n = r.eenheden[deel];
+  const label = r.eenheden[`${deel}Label`];
+  const uitkomst = r[soort][deel];
+  if (!isGetal(t) || !isGetal(n)) return `${isGetal(t) ? fmtGetal(t) + ' min' : 'tijd niet ingevuld'} × ${isGetal(n) ? fmtAantal(n) : '?'} ${label} = ${ONVOLDOENDE}`;
+  return `${fmtGetal(t)} min × ${fmtAantal(n)} ${label} = ${fmtGetal(uitkomst)} min`;
+}
+
+// ---------- Acties ----------
+
+function maandNieuw() {
+  const bestaand = huidigeMaandmeting();
+  if (bestaand) { toonMelding(`De maandmeting ${maandLabel(bestaand)} bestaat al en is geopend.`); maandSubtab = 'dashboard'; renderMaand(); return; }
+  if (maandOpslagGeblokkeerd) { toonMelding('Opslaan is uitgeschakeld omdat de bestaande maandgegevens onleesbaar zijn.', true); return; }
+  const m = nieuweMaandmeting(maandKeuze.bestuur, maandKeuze.jaar, maandKeuze.maand);
+  slaMaandOp();
+  maandSubtab = 'gegevens';
+  renderMaand();
+  toonMelding(`Maandmeting ${maandLabel(m)} is aangemaakt.`);
+}
+
+function maandOpslaan() {
+  if (!huidigeMaandmeting()) return;
+  const ongeldig = $$('#maandInhoud .ongeldig').length;
+  if (slaMaandOp()) toonMelding(ongeldig ? 'Opgeslagen. Let op: ongeldige invoer (rood gemarkeerd) is niet opgeslagen.' : 'Alle wijzigingen zijn opgeslagen.', !!ongeldig);
+}
+
+async function maandVerwijderen() {
+  const m = huidigeMaandmeting();
+  if (!m) return;
+  const ok = await bevestig('Maandmeting verwijderen', `<p>De maandmeting <strong>${esc(maandLabel(m))}</strong> wordt verwijderd, met ${m.dossiers.length} dossier(s) en alle stapgegevens van deze maand.</p>
+    <div class="melding waarschuwing">Dit kan niet ongedaan worden gemaakt. Download eerst een back-up als u de gegevens wilt bewaren. Andere maanden en besturen blijven ongewijzigd.</div>`, 'Maandmeting verwijderen', true);
+  if (!ok) return;
+  verwijderMaandmeting(m.id);
+  slaMaandOp();
+  renderMaand();
+  toonMelding(`Maandmeting ${maandLabel(m)} is verwijderd.`);
+}
+
+async function dossierToevoegen() {
+  const m = huidigeMaandmeting();
+  if (!m) return;
+  const tijd = nuIso();
+  m.dossiers.push({ dossierId: voorgesteldDossierId(m), perioderegels: null, verwachteBlokken: null, status: 'Status onbekend', vismaRegels: null, bijzonderheden: '', bron: '', aangemaakt: tijd, gewijzigd: null });
+  m.gewijzigd = tijd;
+  slaMaandOp();
+  renderMaand();
+  const rijen = $$('#mmDossiers tr[data-dossier]');
+  const laatste = rijen[rijen.length - 1];
+  if (laatste) $('[data-dveld="perioderegels"]', laatste).focus();
+}
+
+async function dossierVerwijderen(index) {
+  const m = huidigeMaandmeting();
+  const d = m && m.dossiers[index];
+  if (!d) return;
+  const ok = await bevestig('Dossier verwijderen', `<p>Dossier <strong>${esc(d.dossierId)}</strong> wordt verwijderd uit ${esc(maandLabel(m))}.</p>`, 'Dossier verwijderen', true);
+  if (!ok) return;
+  m.dossiers.splice(index, 1);
+  m.gewijzigd = nuIso();
+  slaMaandOp();
+  renderMaand();
+}
+
+/** Neemt tijden, rekeneenheid, meetwijze en aantal waarnemingen over uit een andere maandmeting (na bevestiging). */
+async function stappenOvernemen() {
+  const m = huidigeMaandmeting();
+  if (!m) return;
+  const bronnen = maandStaat.maandmetingen.filter((x) => x.id !== m.id && x.stappen.some((s) => isGetal(s.actief) || isGetal(s.wacht)));
+  if (!bronnen.length) { await informeer('Tijden overnemen', '<p>Er is nog geen andere maandmeting met ingevulde tijden per processtap.</p>'); return; }
+  let bronId = null;
+  const antwoord = await dialoog({
+    titel: 'Tijden overnemen uit een andere maandmeting',
+    inhoud: `<p>Actieve tijd, wachttijd, rekeneenheid, meetwijze en aantal waarnemingen worden overgenomen voor alle stappen. Knelpunten en opmerkingen van deze maand blijven staan. Bij iedere stap wordt de herkomst in de opmerking vastgelegd.</p>
+      <div class="veld"><label for="mmOvernameBron">Overnemen uit</label><select id="mmOvernameBron">${bronnen.map((x) => `<option value="${esc(x.id)}">${esc(maandLabel(x))}</option>`).join('')}</select></div>`,
+    knoppen: [{ label: 'Annuleren', waarde: null }, { label: 'Tijden overnemen', waarde: 'ok', soort: 'primair', controle: () => { bronId = $('#mmOvernameBron').value; return true; } }],
+  });
+  if (antwoord !== 'ok') return;
+  const bron = maandStaat.maandmetingen.find((x) => x.id === bronId);
+  const tijd = nuIso();
+  for (const s of m.stappen) {
+    const b = bron.stappen.find((x) => x.stapId === s.stapId);
+    if (!b) continue;
+    Object.assign(s, { actief: b.actief, wacht: b.wacht, eenheid: b.eenheid, meetwijze: b.meetwijze, waarnemingen: b.waarnemingen, gewijzigd: tijd });
+    s.opmerking = [s.opmerking, `Tijden overgenomen uit ${maandLabel(bron)} op ${fmtTijdstip(tijd)}.`].filter(Boolean).join(' ');
+  }
+  m.gewijzigd = tijd;
+  slaMaandOp();
+  renderMaand();
+  toonMelding(`Tijden overgenomen uit ${maandLabel(bron)}.`);
+}
+
+async function maandExportDialoog() {
+  const actie = await dialoog({
+    titel: 'Maandmetingen exporteren',
+    inhoud: `<p>Alle exports bevatten proces, bestuur, maand en jaar, datum en tijd van export, bron en meetwijze, aantal waarnemingen en opmerkingen. De Excel-export bevat alle maandmetingen; de volledige JSON-back-up bevat ook alle overige gegevens van de tool en kan later opnieuw worden geïmporteerd.</p>`,
+    knoppen: [
+      { label: 'Annuleren', waarde: null },
+      { label: 'CSV processtappen', waarde: 'csv-stappen' },
+      { label: 'CSV dossiers', waarde: 'csv-dossiers' },
+      { label: 'CSV maandmetingen', waarde: 'csv-maand' },
+      { label: 'JSON-back-up (volledig)', waarde: 'json' },
+      { label: 'Excel (alle maandmetingen)', waarde: 'excel', soort: 'primair' },
+    ],
+  });
+  if (actie === 'excel') exporteerMaandExcel();
+  else if (actie === 'csv-maand') exporteerCsv('maandmetingen');
+  else if (actie === 'csv-dossiers') exporteerCsv('maanddossiers');
+  else if (actie === 'csv-stappen') exporteerCsv('maandstappen');
+  else if (actie === 'json') downloadBackup();
 }
 
 // ===== ui-meting.js =====
@@ -6146,6 +7046,7 @@ function renderImportExport() {
       <dt>Processen</dt><dd>${staat.processen.length} (${staat.processtappen.length} processtappen)</dd>
       <dt>Procesmetingen</dt><dd>${staat.procesmetingen.length} (${staat.stapmetingen.length} stapmetingen)</dd>
       <dt>Frequentiemetingen</dt><dd>${staat.frequentiemetingen.length}</dd>
+      <dt>PR24-maandmetingen</dt><dd>${maandStaat.maandmetingen.length} (${som(maandStaat.maandmetingen.map((m) => m.dossiers.length))} dossiers; eigen localStorage-sleutel)</dd>
       <dt>Steekproeven</dt><dd>${staat.steekproeven.length} (${staat.procesmetingen.filter((m) => m.steekproefId).length} gekoppelde procesmetingen)</dd>
       <dt>Demogegevens aanwezig</dt><dd>${bevatDemo() ? 'Ja' : 'Nee'}</dd>
       <dt>Toolversie</dt><dd>${esc(VERSIE)}</dd>
@@ -6336,6 +7237,180 @@ const KOLOMMEN_FREQUENTIE = [
   ...KALENDER_KOLOMMEN((f) => f.meetdatum),
 ];
 
+// ---------- PR24-maandmetingen (versie 1.8) ----------
+
+const exportTijdstip = () => fmtTijdstip(nuIso());
+const MAAND_BASIS = (m) => m;
+const MAAND_SLEUTELKOLOMMEN = (get) => [
+  ['Proces', (r) => get(r).procesId],
+  ['Bestuur', (r) => get(r).bestuur],
+  ['Maand', (r) => MAANDNAMEN[get(r).maand - 1]],
+  ['Maandnummer', (r) => get(r).maand],
+  ['Jaar', (r) => get(r).jaar],
+  ['Maandmeting', (r) => get(r).id],
+];
+const leegNull = (v) => (isGetal(v) ? v : null);
+
+const KOLOMMEN_MAANDMETINGEN = [
+  ...MAAND_SLEUTELKOLOMMEN(MAAND_BASIS),
+  ['Aantal nieuwe medewerkers', (m) => leegNull(m.nieuweMedewerkers)],
+  ['Aantal aangeleverde diensttijdopgaven', (m) => leegNull(m.aangeleverd)],
+  ['Aantal verwerkte diensttijdopgaven', (m) => leegNull(m.verwerkt)],
+  ['Bron van de aantallen', (m) => m.bron || ''],
+  ['Toelichting', (m) => m.toelichting || ''],
+  ['Aantal ingevoerde dossiers', (m) => m.dossiers.length],
+  ['Aangemaakt', (m) => fmtTijdstip(m.aangemaakt)],
+  ['Laatst gewijzigd', (m) => (m.gewijzigd ? fmtTijdstip(m.gewijzigd) : '')],
+  ['Exportdatum en -tijd', () => exportTijdstip()],
+];
+
+const KOLOMMEN_MAANDDOSSIERS = [
+  ...MAAND_SLEUTELKOLOMMEN((r) => r.m),
+  ['Dossier-ID', ({ d }) => d.dossierId],
+  ['ABP-periode-regels', ({ d }) => leegNull(d.perioderegels)],
+  ['Verwacht aantal diensttijdblokken', ({ d }) => leegNull(d.verwachteBlokken)],
+  ['Verwerkingsstatus', ({ d }) => d.status || 'Status onbekend'],
+  ['Werkelijk aantal regels in Visma', ({ d }) => leegNull(d.vismaRegels)],
+  ['Bijzonderheden', ({ d }) => d.bijzonderheden || ''],
+  ['Bron of meetwijze', ({ d }) => d.bron || ''],
+  ['Aangemaakt', ({ d }) => fmtTijdstip(d.aangemaakt)],
+  ['Laatst gewijzigd', ({ d }) => (d.gewijzigd ? fmtTijdstip(d.gewijzigd) : '')],
+  ['Exportdatum en -tijd', () => exportTijdstip()],
+];
+
+const KOLOMMEN_MAANDSTAPPEN = [
+  ...MAAND_SLEUTELKOLOMMEN((r) => r.m),
+  ['Stap-ID', ({ s }) => s.stapId],
+  ['Volgorde', ({ s }) => s.volgorde],
+  ['Processtap', ({ s }) => s.naam],
+  ['Rekeneenheid', ({ s }) => REKENEENHEDEN[s.eenheid] || ''],
+  ['Actieve tijd per eenheid (min)', ({ s }) => leegNull(s.actief)],
+  ['Wachttijd per eenheid (min)', ({ s }) => leegNull(s.wacht)],
+  ['Meetwijze', ({ s }) => s.meetwijze || ''],
+  ['Aantal waarnemingen', ({ s }) => leegNull(s.waarnemingen)],
+  ['Knelpunt', ({ s }) => jaNeeTekst(s.knelpunt)],
+  ['Toelichting knelpunt', ({ s }) => s.knelpuntToelichting || ''],
+  ['Overige opmerkingen', ({ s }) => s.opmerking || ''],
+  ['Laatst gewijzigd', ({ s }) => (s.gewijzigd ? fmtTijdstip(s.gewijzigd) : '')],
+  ['Exportdatum en -tijd', () => exportTijdstip()],
+];
+
+const maandDossierRijen = () => maandStaat.maandmetingen.flatMap((m) => m.dossiers.map((d) => ({ m, d })));
+const maandStapRijen = () => maandStaat.maandmetingen.flatMap((m) => m.stappen.map((s) => ({ m, s })));
+
+/** Tabblad 'PR24 Dashboard': de dashboarduitkomsten van iedere maandmeting op één rij. */
+function maandDashboardBlad() {
+  const rijen = [[{ v: 'PR24-maanddashboard – automatisch berekend uit de maandgegevens, dossiers en processtappen', s: 'titel' }]];
+  rijen.push(['Exportdatum en -tijd', exportTijdstip()]);
+  rijen.push(['Toolversie', VERSIE]);
+  rijen.push(['Let op', '"onvoldoende gegevens" = niet te berekenen omdat een benodigde waarde ontbreekt; ontbrekende waarden worden nooit als 0 gerekend. Formules: zie het tabblad PR24 Berekeningen.']);
+  rijen.push([]);
+  const koppen = ['Proces', 'Bestuur', 'Maand', 'Jaar', 'Maandmeting', 'Nieuwe medewerkers', 'Diensttijdopgaven aangeleverd', 'Geen diensttijdopgave', 'Volledig verwerkt', 'Nog te verwerken',
+    'Aanleverpercentage (%)', 'Verwerkingspercentage (%)', 'Verwerkt t.o.v. nieuwe medewerkers (%)', 'Geregistreerde dossiers', 'Totaal ABP-periode-regels', 'Gemiddeld ABP-periode-regels', 'Dossiers onder gemiddelde',
+    'Totaal verwachte diensttijdblokken', 'Gemiddeld verwachte diensttijdblokken', 'Werkelijk ingevoerde Visma-regels', 'Verwacht resterend aantal blokken',
+    'Reeds uitgevoerde actieve tijd (min)', 'Resterende actieve tijd (min)', 'Totale verwachte actieve tijd (min)', 'Reeds opgetreden wachttijd (min)', 'Resterende wachttijd (min)', 'Totale verwachte wachttijd (min)',
+    'Totale verwachte tijdsbelasting (min, actief + wacht)', 'Totale verwachte tijdsbelasting (uur)', 'Schatting', 'Meetwijzen processtappen', 'Totaal aantal waarnemingen', 'Bron van de aantallen', 'Toelichting', 'Laatst gewijzigd', 'Waarschuwingen'];
+  rijen.push(koppen.map(kop));
+  const kopRij = rijen.length;
+  const w = (v) => (isGetal(v) ? v : 'onvoldoende gegevens');
+  const p = (x) => (isGetal(x.waarde) ? Math.round(x.waarde * 10) / 10 : x.reden);
+  for (const m of maandStaat.maandmetingen) {
+    const b = berekenMaand(m);
+    const f = b.frequentie;
+    const d = b.dossiers;
+    const t = b.tijd;
+    rijen.push([m.procesId, m.bestuur, MAANDNAMEN[m.maand - 1], m.jaar, maandLabel(m), leegNull(f.nieuwe) ?? 'niet ingevuld', leegNull(f.aangeleverd) ?? 'niet ingevuld', w(f.geenOpgave), leegNull(f.verwerkt) ?? 'niet ingevuld', w(f.nogTeVerwerken),
+      p(f.aanleverPct), p(f.verwerkingsPct), p(f.verwerktVanNieuwePct), d.aantal, w(d.regels.totaal), w(d.regels.gemiddelde), d.regels.n, w(d.blokken.totaal), w(d.blokken.gemiddelde), w(d.visma.totaal), w(d.resterend.totaal),
+      w(t.actief.uitgevoerd.waarde), w(t.actief.resterend.waarde), w(t.actief.verwacht.waarde), w(t.wacht.uitgevoerd.waarde), w(t.wacht.resterend.waarde), w(t.wacht.verwacht.waarde),
+      w(t.totaleBelasting), isGetal(t.totaleBelasting) ? t.totaleBelasting / 60 : 'onvoldoende gegevens', b.schatting ? `Ja (${b.geschatteStappen.join(', ')})` : 'Nee',
+      uniek(m.stappen.map((s) => s.meetwijze).filter(Boolean)).join('; '), som(m.stappen.map((s) => s.waarnemingen).filter(isGetal)), m.bron || '', m.toelichting || '', fmtTijdstip(m.gewijzigd || m.aangemaakt), b.waarschuwingen.join(' ')]);
+  }
+  if (!maandStaat.maandmetingen.length) rijen.push(['Er zijn nog geen maandmetingen.']);
+  return { naam: 'PR24 Dashboard', rijen, kolombreedtes: [8, 10, 11, 7, 28, ...Array(30).fill(14), 60], kopRij };
+}
+
+/** Tabblad 'PR24 Berekeningen': per uitkomst de formule met de gebruikte getallen. */
+function maandBerekeningenBlad() {
+  const rijen = [[{ v: 'PR24-maandmetingen – berekeningen en gebruikte formules', s: 'titel' }]];
+  rijen.push(['Exportdatum en -tijd', exportTijdstip()]);
+  rijen.push([]);
+  rijen.push([{ v: 'Formules', s: 'titel' }]);
+  for (const [n, f] of [
+    ['Geen diensttijdopgave', 'nieuwe medewerkers − aangeleverde diensttijdopgaven'],
+    ['Nog te verwerken', 'aangeleverde − verwerkte diensttijdopgaven'],
+    ['Aanleverpercentage', 'aangeleverd ÷ nieuwe medewerkers × 100% (één decimaal; deler 0 = niet te berekenen)'],
+    ['Verwerkingspercentage', 'verwerkt ÷ aangeleverd × 100%'],
+    ['Verwerkt t.o.v. nieuwe medewerkers', 'verwerkt ÷ nieuwe medewerkers × 100%'],
+    ['Totaal ABP-periode-regels / blokken / Visma-regels', 'som van de afzonderlijke dossierwaarden (alleen ingevulde waarden; nooit gemiddelde × aantal)'],
+    ['Gemiddelde per dossier', 'totaal ÷ aantal dossiers met een ingevulde waarde'],
+    ['Verwacht resterend aantal blokken', 'per dossier: volledig verwerkt = 0; anders verwachte blokken − Visma-regels (minimaal 0); nog niet verwerkt zonder Visma-regels = verwachte blokken; overige dossiers tellen niet mee'],
+    ['Reeds uitgevoerde belasting', 'per dossier: tijd per dossier × verwerkte diensttijdopgaven; per diensttijdblok: tijd per blok × werkelijk ingevoerde Visma-regels'],
+    ['Verwachte totale maandbelasting', 'per dossier: tijd per dossier × aangeleverde diensttijdopgaven; per diensttijdblok: tijd per blok × totaal verwachte diensttijdblokken'],
+    ['Resterende belasting', 'verwachte totale maandbelasting − reeds uitgevoerde belasting'],
+    ['Totaal over de stappen', 'som over alle negen stappen; ontbreekt bij één stap een gegeven, dan is het totaal "onvoldoende gegevens"'],
+    ['Totale verwachte tijdsbelasting', 'totale verwachte actieve tijd + totale verwachte wachttijd'],
+    ['Schatting', 'een uitkomst is een schatting als een gebruikte staptijd is geschat (door onderzoeker of medewerker) of de meetwijze niet is ingevuld'],
+  ]) rijen.push([n, f]);
+  rijen.push([]);
+  rijen.push(['Maandmeting', 'Bestuur', 'Maand', 'Jaar', 'Onderdeel', 'Uitkomst', 'Waarde', 'Eenheid', 'Berekening (met gebruikte getallen)', 'Gebaseerd op', 'Meetwijze', 'Aantal waarnemingen', 'Schatting'].map(kop));
+  const kopRij = rijen.length;
+  const w = (v) => (isGetal(v) ? v : 'onvoldoende gegevens');
+  const g = (v) => (isGetal(v) ? fmtAantal(v) : 'niet ingevuld');
+  for (const m of maandStaat.maandmetingen) {
+    const b = berekenMaand(m);
+    const f = b.frequentie;
+    const sleutel = [maandLabel(m), m.bestuur, MAANDNAMEN[m.maand - 1], m.jaar];
+    const r = (onderdeel, uitkomst, waarde, eenheid, berekening, basis = '', meetwijze = '', n = null, schatting = '') => rijen.push([...sleutel, onderdeel, uitkomst, waarde, eenheid, berekening, basis, meetwijze, n, schatting]);
+    const pct = (x) => (isGetal(x.waarde) ? Math.round(x.waarde * 10) / 10 : x.reden);
+    r('Frequentie', 'Geen diensttijdopgave', w(f.geenOpgave), 'medewerkers', `${g(f.nieuwe)} − ${g(f.aangeleverd)}`, 'maandgegevens', m.bron || '');
+    r('Frequentie', 'Nog te verwerken', w(f.nogTeVerwerken), 'diensttijdopgaven', `${g(f.aangeleverd)} − ${g(f.verwerkt)}`, 'maandgegevens', m.bron || '');
+    r('Frequentie', 'Aanleverpercentage', pct(f.aanleverPct), '%', `${g(f.aangeleverd)} ÷ ${g(f.nieuwe)} × 100%`, 'maandgegevens', m.bron || '');
+    r('Frequentie', 'Verwerkingspercentage', pct(f.verwerkingsPct), '%', `${g(f.verwerkt)} ÷ ${g(f.aangeleverd)} × 100%`, 'maandgegevens', m.bron || '');
+    r('Frequentie', 'Verwerkt t.o.v. nieuwe medewerkers', pct(f.verwerktVanNieuwePct), '%', `${g(f.verwerkt)} ÷ ${g(f.nieuwe)} × 100%`, 'maandgegevens', m.bron || '');
+    for (const [naam, reeks, veld] of [['ABP-periode-regels', b.dossiers.regels, 'perioderegels'], ['verwachte diensttijdblokken', b.dossiers.blokken, 'verwachteBlokken'], ['Visma-regels', b.dossiers.visma, 'vismaRegels']]) {
+      const delen = m.dossiers.filter((d) => isGetal(d[veld])).map((d) => `${d.dossierId}: ${d[veld]}`).join(' + ');
+      r('Dossiers', `Totaal ${naam}`, w(reeks.totaal), naam, reeks.n ? `${delen} = ${fmtAantal(reeks.totaal)}` : 'geen dossiers met een ingevulde waarde', `${reeks.n} van ${b.dossiers.aantal} dossiers${reeks.ontbrekend.length ? ` (niet ingevuld: ${reeks.ontbrekend.join(', ')})` : ''}`);
+      r('Dossiers', `Gemiddeld ${naam}`, w(reeks.gemiddelde), `${naam} per dossier`, reeks.n ? `${fmtAantal(reeks.totaal)} ÷ ${reeks.n}` : 'onvoldoende gegevens', reeks.ids.join(', '));
+    }
+    r('Dossiers', 'Verwacht resterend aantal blokken', w(b.dossiers.resterend.totaal), 'diensttijdblokken', m.dossiers.map((d) => `${d.dossierId}: ${isGetal(resterendeBlokken(d)) ? resterendeBlokken(d) : '?'}`).join('; ') || 'geen dossiers',
+      b.dossiers.resterend.onbekend.length ? `onvolledig; onvoldoende gegevens bij ${b.dossiers.resterend.onbekend.join(', ')}` : `${b.dossiers.resterend.n} dossiers`);
+    for (const rij of b.stappen) {
+      const s = rij.stap;
+      for (const soort of ['actief', 'wacht']) {
+        for (const deel of ['uitgevoerd', 'verwacht']) {
+          r(`Processtap ${s.stapId} (${REKENEENHEDEN[s.eenheid]})`, `${soort === 'actief' ? 'Actieve tijd' : 'Wachttijd'} – ${deel === 'uitgevoerd' ? 'reeds uitgevoerd' : 'verwachte totale maandbelasting'}`, w(rij[soort][deel]), 'min',
+            stapFormuleTekst({ ...rij, stap: { ...s, actief: s.actief, wacht: s.wacht } }, soort, deel), s.naam, s.meetwijze || 'niet ingevuld', leegNull(s.waarnemingen), rij.schatting ? 'Ja' : 'Nee');
+        }
+        r(`Processtap ${s.stapId} (${REKENEENHEDEN[s.eenheid]})`, `${soort === 'actief' ? 'Actieve tijd' : 'Wachttijd'} – resterend`, w(rij[soort].resterend), 'min',
+          isGetal(rij[soort].resterend) ? `${fmtGetal(rij[soort].verwacht)} − ${fmtGetal(rij[soort].uitgevoerd)}` : 'onvoldoende gegevens', s.naam, s.meetwijze || 'niet ingevuld', leegNull(s.waarnemingen), rij.schatting ? 'Ja' : 'Nee');
+      }
+    }
+    for (const soort of ['actief', 'wacht']) {
+      for (const deel of ['uitgevoerd', 'resterend', 'verwacht']) {
+        const x = b.tijd[soort][deel];
+        r('Totaal proces', `${soort === 'actief' ? 'Actieve tijd' : 'Wachttijd'} – ${deel}`, w(x.waarde), 'min', isGetal(x.waarde) ? `som van ${x.n} stappen` : `${x.nBekend} van ${x.n} stappen met voldoende gegevens${x.nBekend ? `; deelsom ${fmtGetal(x.deelsom)} min (onvolledig)` : ''}`, '', '', null, b.schatting ? 'Ja' : 'Nee');
+      }
+    }
+    r('Totaal proces', 'Totale verwachte tijdsbelasting (actief + wacht)', w(b.tijd.totaleBelasting), 'min', isGetal(b.tijd.totaleBelasting) ? `${fmtGetal(b.tijd.actief.verwacht.waarde)} + ${fmtGetal(b.tijd.wacht.verwacht.waarde)}` : 'onvoldoende gegevens', '', '', null, b.schatting ? 'Ja' : 'Nee');
+  }
+  return { naam: 'PR24 Berekeningen', rijen, kolombreedtes: [28, 10, 11, 7, 30, 44, 14, 18, 70, 40, 26, 12, 10], kopRij };
+}
+
+function maandBladen() {
+  return [
+    maandDashboardBlad(),
+    ruwBlad('PR24 Maandmetingen', KOLOMMEN_MAANDMETINGEN, maandStaat.maandmetingen, [8, 10, 11, 8, 7, 22, 14, 14, 14, 30, 40, 12, 18, 18, 18]),
+    ruwBlad('PR24 Dossiers', KOLOMMEN_MAANDDOSSIERS, maandDossierRijen(), [8, 10, 11, 8, 7, 22, 20, 12, 14, 22, 14, 40, 26, 18, 18, 18]),
+    ruwBlad('PR24 Processtappen', KOLOMMEN_MAANDSTAPPEN, maandStapRijen(), [8, 10, 11, 8, 7, 22, 11, 9, 50, 18, 14, 14, 26, 12, 9, 34, 34, 18, 18]),
+    maandBerekeningenBlad(),
+  ];
+}
+
+async function exporteerMaandExcel() {
+  downloadBlob(maakXlsx(maandBladen()), `Meettool_PR24_maandmetingen_${bestandsdatum()}.xlsx`);
+  toonMelding('Excel-bestand met de PR24-maandmetingen is aangemaakt.');
+}
+
 function gesorteerdeProcesmetingen() {
   return [...staat.procesmetingen].sort((a, b) => vergelijkTekst(a.metingId, b.metingId));
 }
@@ -6355,6 +7430,9 @@ async function exporteerCsv(soort) {
     stapmetingen: [KOLOMMEN_STAPMETINGEN, gesorteerdeStapmetingen(), 'Meettool_stapmetingen'],
     frequentie: [KOLOMMEN_FREQUENTIE, gesorteerdeFrequenties(), 'Meettool_frequentiemetingen'],
     knelpunten: [KOLOMMEN_KNELPUNTEN, alleKnelpuntRijenExport(), 'Meettool_knelpunten'],
+    maandmetingen: [KOLOMMEN_MAANDMETINGEN, maandStaat.maandmetingen, 'Meettool_PR24_maandmetingen'],
+    maanddossiers: [KOLOMMEN_MAANDDOSSIERS, maandDossierRijen(), 'Meettool_PR24_dossiers'],
+    maandstappen: [KOLOMMEN_MAANDSTAPPEN, maandStapRijen(), 'Meettool_PR24_processtappen'],
     steekproeven: [KOLOMMEN_STEEKPROEVEN, [...staat.steekproeven].sort((a, b) => vergelijkTekst(a.steekproefId, b.steekproefId)), 'Meettool_steekproeven'],
   }[soort];
   const [kolommen, records, naam] = def;
@@ -6767,6 +7845,7 @@ async function exporteerExcel() {
   if (!(await bevestigExportMetDemo())) return;
   const filters = resultaatFilters();
   const blob = maakXlsx([
+    ...maandBladen(),
     resultatenBlad(filters),
     totaalBlad(filters),
     medewerkerBlad(filters),
@@ -6804,6 +7883,8 @@ function maakBackup() {
     stapmetingen: staat.stapmetingen,
     frequentiemetingen: staat.frequentiemetingen,
     steekproeven: staat.steekproeven,
+    // Sinds versie 1.8: PR24-maandmetingen (in de tool opgeslagen onder een eigen localStorage-sleutel).
+    maandmetingen: maandStaat.maandmetingen,
     volgnummers: staat.volgnummers,
     instellingen: { volgnummers: staat.volgnummers },
     medewerkerIds: uniek([...staat.procesmetingen, ...staat.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst),
@@ -6955,6 +8036,14 @@ function controleerBackup(json) {
   dubbel(json.stapmetingen, (s) => `${s.metingId}/${s.stapId}`, 'Stapmeting');
   dubbel(json.frequentiemetingen, (f) => f.frequentieId, 'FrequentieID');
   dubbel(steekproeven, (s) => s.steekproefId, 'SteekproefID');
+  let maandmetingen = null;
+  if (json.maandmetingen !== undefined) {
+    if (!Array.isArray(json.maandmetingen)) fouten.push('Het onderdeel "maandmetingen" is geen lijst.');
+    else {
+      fouten.push(...controleerMaandmetingen(json.maandmetingen));
+      maandmetingen = json.maandmetingen.map(normaliseerMaandmeting);
+    }
+  }
 
   const normaliseerGetal = (v) => (isGetal(v) ? v : null);
   const gegevens = normaliseerStaat(json);
@@ -6968,7 +8057,37 @@ function controleerBackup(json) {
   gegevens.stapmetingen = gegevens.stapmetingen.map((s) => ({ ...s, actieveTijd: normaliseerGetal(s.actieveTijd), wachttijd: normaliseerGetal(s.wachttijd) }));
   gegevens.frequentiemetingen = gegevens.frequentiemetingen.map((f) => ({ ...f, aantalUitvoeringen: normaliseerGetal(f.aantalUitvoeringen), totaalVolume: normaliseerGetal(f.totaalVolume) }));
   gegevens.steekproeven = gegevens.steekproeven.map((s) => ({ ...s, populatiegrootte: normaliseerGetal(s.populatiegrootte), steekproefgrootte: normaliseerGetal(s.steekproefgrootte) }));
-  return { fouten, gegevens };
+  return { fouten, gegevens, maandmetingen };
+}
+
+/** Controleert PR24-maandmetingen uit een back-up met dezelfde regels als bij de invoer. */
+function controleerMaandmetingen(lijst) {
+  const fouten = [];
+  const gezien = new Set();
+  lijst.forEach((m, i) => {
+    const l = `Maandmeting ${m && m.bestuur ? `${m.bestuur} ${m.maand}-${m.jaar}` : i + 1}`;
+    if (!m || typeof m !== 'object') { fouten.push(`${l}: ongeldig.`); return; }
+    if (!BESTUREN.includes(m.bestuur)) fouten.push(`${l}: bestuur ontbreekt of is ongeldig.`);
+    if (!Number.isInteger(m.jaar) || m.jaar < 2000 || m.jaar > 2100) fouten.push(`${l}: jaar is ongeldig.`);
+    if (!Number.isInteger(m.maand) || m.maand < 1 || m.maand > 12) fouten.push(`${l}: maand is ongeldig.`);
+    const sleutel = `${m.bestuur}-${m.jaar}-${m.maand}`;
+    if (gezien.has(sleutel)) fouten.push(`${l}: komt meer dan één keer voor.`);
+    gezien.add(sleutel);
+    for (const v of ['nieuweMedewerkers', 'aangeleverd', 'verwerkt']) if (m[v] === undefined) m[v] = null;
+    fouten.push(...valideerMaandgegevens(m).map((f) => `${l}: ${f}`));
+    if (!Array.isArray(m.dossiers) || !Array.isArray(m.stappen)) { fouten.push(`${l}: dossiers of processtappen ontbreken.`); return; }
+    m.dossiers.forEach((d, j) => {
+      const dd = { ...d };
+      for (const v of ['perioderegels', 'verwachteBlokken', 'vismaRegels']) if (dd[v] === undefined) dd[v] = null;
+      fouten.push(...valideerDossier(dd, m, j).map((f) => `${l}, dossier ${d.dossierId || j + 1}: ${f}`));
+    });
+    m.stappen.forEach((s) => {
+      const ss = { ...s };
+      for (const v of ['actief', 'wacht', 'waarnemingen']) if (ss[v] === undefined) ss[v] = null;
+      fouten.push(...valideerStap(ss).map((f) => `${l}: ${f}`));
+    });
+  });
+  return fouten;
 }
 
 const vergelijkbaar = (r) => JSON.stringify(r, Object.keys(r).filter((k) => !['aangemaakt', 'gewijzigd'].includes(k)).sort());
@@ -7049,6 +8168,32 @@ function voegSamen(nieuw, uitvoeren) {
   return verslag;
 }
 
+/** Voegt maandmetingen samen: bestaande worden nooit overschreven. */
+function voegMaandSamen(nieuw, uitvoeren, verslag) {
+  verslag.toegevoegd.maandmetingen = 0;
+  if (!nieuw) return;
+  for (const m of nieuw) {
+    const bestaand = zoekMaandmeting(m.bestuur, m.jaar, m.maand);
+    if (bestaand) {
+      if (vergelijkbaar(bestaand) === vergelijkbaar(m)) verslag.gelijk.push(`Maandmeting ${maandLabel(m)}`);
+      else verslag.conflicten.push(`Maandmeting ${maandLabel(m)}: bestaat al met andere gegevens; de huidige versie blijft behouden.`);
+      continue;
+    }
+    if (uitvoeren) maandStaat.maandmetingen.push(m);
+    verslag.toegevoegd.maandmetingen++;
+  }
+  if (uitvoeren) maandStaat.maandmetingen.sort((a, b) => a.jaar - b.jaar || a.maand - b.maand || vergelijkTekst(a.bestuur, b.bestuur));
+}
+
+/** Bewaart de maandmetingen na een import; een onleesbare oude versie wordt eerst apart bewaard. */
+function bewaarMaandNaImport() {
+  if (maandOpslagGeblokkeerd) {
+    try { localStorage.setItem(`${MAAND_SLEUTEL}-onleesbaar-${bestandsdatum()}`, localStorage.getItem(MAAND_SLEUTEL) || ''); } catch (e) { return false; }
+    maandOpslagGeblokkeerd = false;
+  }
+  return bewaarMaandmetingen();
+}
+
 async function importeerBackup(bestand) {
   let json;
   try {
@@ -7057,13 +8202,14 @@ async function importeerBackup(bestand) {
     await informeer('Import niet mogelijk', '<div class="melding fout">Het bestand kon niet worden gelezen als JSON. Kies een back-upbestand dat met deze tool is gemaakt.</div>');
     return;
   }
-  const { fouten, gegevens } = controleerBackup(json);
+  const { fouten, gegevens, maandmetingen } = controleerBackup(json);
   if (fouten.length) {
     await informeer('Import niet mogelijk', foutenHtml(fouten.slice(0, 30), 'De back-up is niet geïmporteerd, omdat het bestand fouten bevat:') +
       (fouten.length > 30 ? `<p>… en nog ${fouten.length - 30} andere fouten.</p>` : ''));
     return;
   }
   const proef = voegSamen(gegevens, false);
+  voegMaandSamen(maandmetingen, false, proef);
   const keuze = await dialoog({
     titel: 'Back-up importeren',
     inhoud: `
@@ -7071,7 +8217,7 @@ async function importeerBackup(bestand) {
         <dt>Bestand</dt><dd>${esc(bestand.name)}</dd>
         <dt>Toolversie back-up</dt><dd>${esc(json.toolversie || ONBEKEND)}${json.toolversie && json.toolversie !== VERSIE ? ` (huidige versie: ${esc(VERSIE)})` : ''}</dd>
         <dt>Exportdatum</dt><dd>${esc(fmtTijdstip(json.exportdatum))}</dd>
-        <dt>Inhoud</dt><dd>${gegevens.processen.length} processen, ${gegevens.processtappen.length} processtappen, ${gegevens.steekproeven.length} steekproeven, ${gegevens.procesmetingen.length} procesmetingen, ${gegevens.stapmetingen.length} stapmetingen, ${gegevens.frequentiemetingen.length} frequentiemetingen</dd>
+        <dt>Inhoud</dt><dd>${maandmetingen ? `${maandmetingen.length} PR24-maandmetingen, ` : ''}${gegevens.processen.length} processen, ${gegevens.processtappen.length} processtappen, ${gegevens.steekproeven.length} steekproeven, ${gegevens.procesmetingen.length} procesmetingen, ${gegevens.stapmetingen.length} stapmetingen, ${gegevens.frequentiemetingen.length} frequentiemetingen</dd>
         <dt>Demogegevens</dt><dd>${json.bevatDemogegevens ? '<strong>Ja</strong>' : 'Nee'}</dd>
         <dt>Test/fictief</dt><dd>${gegevens.procesmetingen.filter(isTestmeting).length} procesmeting(en), ${gegevens.frequentiemetingen.filter(isTestmeting).length} frequentiemeting(en)</dd>
         <dt>Medewerker-ID's</dt><dd>${esc(uniek([...gegevens.procesmetingen, ...gegevens.frequentiemetingen].map((r) => r.medewerkerId).filter(Boolean)).sort(vergelijkTekst).join(', ') || '—')}</dd>
@@ -7080,10 +8226,10 @@ async function importeerBackup(bestand) {
       <div class="melding info mt">Het bestand is gecontroleerd: het formaat klopt, verplichte velden zijn aanwezig en alle identificatiecodes zijn uniek.</div>
       <h4>Kies hoe u wilt importeren</h4>
       <p><strong>Samenvoegen:</strong> nieuwe gegevens worden toegevoegd; bestaande gegevens worden nooit overschreven.
-      Resultaat: ${proef.toegevoegd.processen} processen, ${proef.toegevoegd.steekproeven} steekproeven, ${proef.toegevoegd.procesmetingen} procesmetingen en ${proef.toegevoegd.frequentiemetingen} frequentiemetingen erbij;
+      Resultaat: ${proef.toegevoegd.maandmetingen} PR24-maandmetingen, ${proef.toegevoegd.processen} processen, ${proef.toegevoegd.steekproeven} steekproeven, ${proef.toegevoegd.procesmetingen} procesmetingen en ${proef.toegevoegd.frequentiemetingen} frequentiemetingen erbij;
       ${proef.gelijk.length} al aanwezig (identiek); ${proef.conflicten.length} conflicten (niet geïmporteerd).</p>
       ${proef.conflicten.length ? `<div class="melding waarschuwing"><ul>${proef.conflicten.slice(0, 15).map((c) => `<li>${esc(c)}</li>`).join('')}</ul>${proef.conflicten.length > 15 ? `… en nog ${proef.conflicten.length - 15}` : ''}</div>` : ''}
-      <p><strong>Huidige gegevens vervangen:</strong> alle huidige gegevens (${staat.procesmetingen.length} procesmetingen, ${staat.frequentiemetingen.length} frequentiemetingen, ${staat.processen.length} processen) worden gewist en vervangen door de inhoud van de back-up.</p>`,
+      <p><strong>Huidige gegevens vervangen:</strong> alle huidige gegevens (${staat.procesmetingen.length} procesmetingen, ${staat.frequentiemetingen.length} frequentiemetingen, ${staat.processen.length} processen${maandmetingen ? `, ${maandStaat.maandmetingen.length} PR24-maandmetingen` : ''}) worden gewist en vervangen door de inhoud van de back-up.${maandmetingen ? '' : ' De back-up bevat geen PR24-maandmetingen; de huidige maandmetingen blijven behouden.'}</p>`,
     knoppen: [
       { label: 'Import annuleren', waarde: 'annuleren' },
       { label: 'Huidige gegevens vervangen', waarde: 'vervangen', soort: 'gevaar' },
@@ -7092,14 +8238,20 @@ async function importeerBackup(bestand) {
   });
   if (keuze === 'samenvoegen') {
     const verslag = voegSamen(gegevens, true);
+    voegMaandSamen(maandmetingen, true, verslag);
+    if (maandmetingen && !bewaarMaandNaImport()) toonMelding('De PR24-maandmetingen konden niet lokaal worden opgeslagen.', true);
     await naWijziging('Back-up samengevoegd.');
-    await informeer('Samenvoegen voltooid', `<p>Toegevoegd: ${verslag.toegevoegd.processen} processen, ${verslag.toegevoegd.steekproeven} steekproeven, ${verslag.toegevoegd.procesmetingen} procesmetingen, ${verslag.toegevoegd.frequentiemetingen} frequentiemetingen.</p>
+    await informeer('Samenvoegen voltooid', `<p>Toegevoegd: ${verslag.toegevoegd.maandmetingen} PR24-maandmetingen, ${verslag.toegevoegd.processen} processen, ${verslag.toegevoegd.steekproeven} steekproeven, ${verslag.toegevoegd.procesmetingen} procesmetingen, ${verslag.toegevoegd.frequentiemetingen} frequentiemetingen.</p>
       ${verslag.conflicten.length ? `<div class="melding waarschuwing"><strong>Niet geïmporteerd (conflict):</strong><ul>${verslag.conflicten.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}`);
   } else if (keuze === 'vervangen') {
     const ok = await bevestig('Huidige gegevens vervangen', '<div class="melding waarschuwing">Alle huidige gegevens worden gewist en vervangen door de back-up.</div><p>Vóór het vervangen wordt automatisch een <strong>veiligheidsback-up</strong> van de huidige gegevens gedownload (en lokaal bewaard). Weet u het zeker?</p>', 'Ja, vervangen', true);
     if (!ok) return;
     maakVeiligheidsbackup();
     staat = gegevens;
+    if (maandmetingen) {
+      maandStaat.maandmetingen = maandmetingen;
+      if (!bewaarMaandNaImport()) toonMelding('De PR24-maandmetingen konden niet lokaal worden opgeslagen.', true);
+    }
     metingBewerkId = null;
     sluitSteekproefEditor();
     frequentieBewerkId = null;
@@ -7115,7 +8267,7 @@ async function importeerBackup(bestand) {
 
 async function wisAlleGegevens() {
   const stap1 = await bevestig('Alle gegevens wissen (stap 1 van 2)',
-    `<div class="melding waarschuwing">Hiermee worden <strong>alle</strong> processen, metingen en frequenties van dit apparaat verwijderd (${staat.procesmetingen.length} procesmetingen, ${staat.frequentiemetingen.length} frequentiemetingen, ${staat.processen.length} processen).</div>
+    `<div class="melding waarschuwing">Hiermee worden <strong>alle</strong> processen, metingen, frequenties en PR24-maandmetingen van dit apparaat verwijderd (${staat.procesmetingen.length} procesmetingen, ${staat.frequentiemetingen.length} frequentiemetingen, ${staat.processen.length} processen, ${maandStaat.maandmetingen.length} maandmetingen).</div>
      <p>Download eerst een back-up als u de gegevens wilt bewaren. Wilt u doorgaan?</p>`, 'Doorgaan', true);
   if (!stap1) return;
   const stap2 = await dialoog({
@@ -7136,6 +8288,7 @@ async function wisAlleGegevens() {
   });
   if (stap2 !== true) return;
   staat = legeStaat();
+  if (!maandOpslagGeblokkeerd) { maandStaat.maandmetingen = []; bewaarMaandmetingen(); }
   procesBewerking = null;
   sluitSteekproefEditor();
   renderProcesEditor();
@@ -7223,6 +8376,26 @@ const ACTIES = {
   'csv-frequentie': () => exporteerCsv('frequentie'),
   'csv-knelpunten': () => exporteerCsv('knelpunten'),
   'csv-steekproeven': () => exporteerCsv('steekproeven'),
+  'csv-maandmetingen': () => exporteerCsv('maandmetingen'),
+  'csv-maanddossiers': () => exporteerCsv('maanddossiers'),
+  'csv-maandstappen': () => exporteerCsv('maandstappen'),
+  'maand-nieuw': () => maandNieuw(),
+  'maand-opslaan': () => maandOpslaan(),
+  'maand-verwijderen': () => maandVerwijderen(),
+  'maand-exporteren': () => maandExportDialoog(),
+  'maand-importeren': () => $('#backupBestand').click(),
+  'maand-dashboard': () => toonMaandSubtab('dashboard'),
+  'maand-subtab': (el) => toonMaandSubtab(el.dataset.tab),
+  'maand-openen': (el) => {
+    const m = maandStaat.maandmetingen.find((x) => x.id === el.dataset.id);
+    if (!m) return;
+    maandKeuze = { bestuur: m.bestuur, jaar: m.jaar, maand: m.maand };
+    try { sessionStorage.setItem('meettool-maandkeuze', JSON.stringify(maandKeuze)); } catch (e) { /* niet kritiek */ }
+    toonMaandSubtab('dashboard');
+  },
+  'dossier-toevoegen': () => dossierToevoegen(),
+  'dossier-verwijderen': (el) => dossierVerwijderen(Number(el.dataset.index)),
+  'maand-stappen-overnemen': () => stappenOvernemen(),
   'steekproef-nieuw': () => startSteekproefBewerking(null),
   'steekproef-bewerken': (el) => startSteekproefBewerking(el.dataset.id),
   'steekproef-annuleren': () => sluitSteekproefEditor(),
@@ -7282,6 +8455,9 @@ async function start() {
     toonMelding('De opgeslagen gegevens konden niet worden gelezen. Importeer zo nodig een back-up.', true);
   }
 
+  // PR24-maandmetingen staan in een eigen localStorage-sleutel (los van de bestaande gegevens).
+  if (!laadMaandmetingen()) toonMelding('De opgeslagen PR24-maandgegevens konden niet worden gelezen. Ze zijn niet gewist; opslaan van maandgegevens is uitgeschakeld tot u een back-up importeert.', true);
+  initMaand();
   initSteekproeven();
   initKoppelDialoog();
   initMetingFormulier();
@@ -7302,7 +8478,7 @@ async function start() {
   window.addEventListener('pagehide', bewaarOpenConcepten);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') bewaarOpenConcepten(); });
 
-  let starttab = staat.processen.length ? 'meting' : 'processen';
+  let starttab = 'maand';
   try { starttab = sessionStorage.getItem('meettool-tab') || starttab; } catch (e) { /* niet kritiek */ }
   if (herstelMeting) starttab = 'meting';
   else if (herstelFrequentie) starttab = 'frequentie';
@@ -7328,6 +8504,8 @@ async function start() {
     blokkenAnalyse,
     knelpuntAnalyse,
     steekproefAnalyse,
+    berekenMaand,
+    maandStaat: () => maandStaat,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,

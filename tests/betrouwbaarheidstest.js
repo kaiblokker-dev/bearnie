@@ -251,7 +251,7 @@ function ok(stap, tekst) { resultaten.push(`✔ ${stap}: ${tekst}`); console.log
   await tab('importexport');
   const xl = await download(page, () => page.click('[data-actie="excel-export"]'), 'export_v14.xlsx');
   const x = JSON.parse(execFileSync('python3', [path.join(__dirname, 'controleer_xlsx_v14.py'), xl.pad]).toString());
-  assert.deepStrictEqual(x.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(x.bladen, ['PR24 Dashboard', 'PR24 Maandmetingen', 'PR24 Dossiers', 'PR24 Processtappen', 'PR24 Berekeningen', 'Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
   assert.deepStrictEqual(x.pm001, ['2026-10-05', 2026, 41, '2026-10-05', '2026-10-11', 'Nee', 'dossier', 'diensttijdregistratie']);
   assert.strictEqual(x.pm003_test, 'Ja');
   assert.strictEqual(x.stap003_test, 'Ja');

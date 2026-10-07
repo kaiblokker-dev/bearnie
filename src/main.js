@@ -51,6 +51,26 @@ const ACTIES = {
   'csv-frequentie': () => exporteerCsv('frequentie'),
   'csv-knelpunten': () => exporteerCsv('knelpunten'),
   'csv-steekproeven': () => exporteerCsv('steekproeven'),
+  'csv-maandmetingen': () => exporteerCsv('maandmetingen'),
+  'csv-maanddossiers': () => exporteerCsv('maanddossiers'),
+  'csv-maandstappen': () => exporteerCsv('maandstappen'),
+  'maand-nieuw': () => maandNieuw(),
+  'maand-opslaan': () => maandOpslaan(),
+  'maand-verwijderen': () => maandVerwijderen(),
+  'maand-exporteren': () => maandExportDialoog(),
+  'maand-importeren': () => $('#backupBestand').click(),
+  'maand-dashboard': () => toonMaandSubtab('dashboard'),
+  'maand-subtab': (el) => toonMaandSubtab(el.dataset.tab),
+  'maand-openen': (el) => {
+    const m = maandStaat.maandmetingen.find((x) => x.id === el.dataset.id);
+    if (!m) return;
+    maandKeuze = { bestuur: m.bestuur, jaar: m.jaar, maand: m.maand };
+    try { sessionStorage.setItem('meettool-maandkeuze', JSON.stringify(maandKeuze)); } catch (e) { /* niet kritiek */ }
+    toonMaandSubtab('dashboard');
+  },
+  'dossier-toevoegen': () => dossierToevoegen(),
+  'dossier-verwijderen': (el) => dossierVerwijderen(Number(el.dataset.index)),
+  'maand-stappen-overnemen': () => stappenOvernemen(),
   'steekproef-nieuw': () => startSteekproefBewerking(null),
   'steekproef-bewerken': (el) => startSteekproefBewerking(el.dataset.id),
   'steekproef-annuleren': () => sluitSteekproefEditor(),
@@ -110,6 +130,9 @@ async function start() {
     toonMelding('De opgeslagen gegevens konden niet worden gelezen. Importeer zo nodig een back-up.', true);
   }
 
+  // PR24-maandmetingen staan in een eigen localStorage-sleutel (los van de bestaande gegevens).
+  if (!laadMaandmetingen()) toonMelding('De opgeslagen PR24-maandgegevens konden niet worden gelezen. Ze zijn niet gewist; opslaan van maandgegevens is uitgeschakeld tot u een back-up importeert.', true);
+  initMaand();
   initSteekproeven();
   initKoppelDialoog();
   initMetingFormulier();
@@ -130,7 +153,7 @@ async function start() {
   window.addEventListener('pagehide', bewaarOpenConcepten);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') bewaarOpenConcepten(); });
 
-  let starttab = staat.processen.length ? 'meting' : 'processen';
+  let starttab = 'maand';
   try { starttab = sessionStorage.getItem('meettool-tab') || starttab; } catch (e) { /* niet kritiek */ }
   if (herstelMeting) starttab = 'meting';
   else if (herstelFrequentie) starttab = 'frequentie';
@@ -156,6 +179,8 @@ async function start() {
     blokkenAnalyse,
     knelpuntAnalyse,
     steekproefAnalyse,
+    berekenMaand,
+    maandStaat: () => maandStaat,
     berekenMeting,
     berekenTijdsbelasting,
     kiesFrequentie,

@@ -331,3 +331,35 @@ tr.knelpuntrij > td { background: #fbf8ef; border-bottom: 1px solid #efe3c4; pad
 .voortgang span { display: block; height: 100%; background: var(--groen-donker); }
 .kerncijfers > div { min-width: 0; }
 .steekproeflabel { display: block; font-size: 11px; color: var(--tekst-zacht); font-family: inherit; }
+
+/* Maanddashboard PR24 (versie 1.8) */
+.statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 8px; }
+.statkaart { background: var(--wit); border: 1px solid var(--rand); border-radius: var(--radius); padding: 10px 12px; min-width: 0; overflow-wrap: anywhere; }
+.statlabel { font-size: 13px; color: var(--tekst-zacht); }
+.statwaarde { font-size: 22px; font-weight: 700; margin-top: 2px; color: var(--berekend-tekst); }
+.statwaarde .onbekend { font-size: 14px; font-weight: 400; }
+.statsub { font-size: 12px; color: var(--tekst-zacht); margin-top: 2px; }
+.maandkop { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.maandlabel { display: block; font-size: 17px; margin-top: 4px; }
+.maandtabel td { overflow-wrap: anywhere; }
+.maandtabel input[type="text"]:not(.tijd) { min-width: 120px; }
+.schattinglabel { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 6px; text-transform: none; }
+.balk { height: 6px; background: var(--rand); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+.balk span { display: block; height: 100%; background: var(--berekend-rand); }
+details.herleiding summary { cursor: pointer; }
+#mmDashStappen td:nth-child(2) { min-width: 220px; }
+#mmDashStappen th { white-space: normal; }
+#mmDashStappen td:nth-child(5) { min-width: 170px; }
+#mmStappen select[data-sveld="meetwijze"] { min-width: 210px; }
+#mmStappen select[data-sveld="eenheid"] { min-width: 160px; }
+#mmStappen td:nth-child(2) { min-width: 200px; }
+#mmStappen tr[data-stapid] td { border-bottom: none; padding-bottom: 2px; }
+#mmStappen tr.stapdetail td { padding-top: 0; }
+.stapdetailvelden { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; color: var(--tekst-zacht); }
+.stapdetailvelden input { width: 100%; margin-top: 2px; }
+#mmDossiers input.tijd { width: 80px; }
+#mmDossiers th, #mmStappen th { white-space: normal; }
+#mmDossiers input.tijd, #mmStappen input.tijd { width: 72px; }
+#mmDossiers select[data-dveld="status"] { min-width: 190px; }
+#mmDossiers input[data-dveld="bijzonderheden"], #mmDossiers input[data-dveld="bron"] { min-width: 140px; width: 100%; }
+#mmStappen select[data-sveld="meetwijze"] { min-width: 200px; }
