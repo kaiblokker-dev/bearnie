@@ -10,17 +10,48 @@
 </div>
 
 <nav class="tabs" id="tabs">
-  <button type="button" data-tab="processen"><span class="nr">1</span>Processen beheren</button>
-  <button type="button" data-tab="steekproeven"><span class="nr">2</span>Steekproeven</button>
-  <button type="button" data-tab="meting"><span class="nr">3</span>Nieuwe procesmeting</button>
-  <button type="button" data-tab="frequentie"><span class="nr">4</span>Frequentie registreren</button>
-  <button type="button" data-tab="overzicht"><span class="nr">5</span>Metingen bekijken</button>
-  <button type="button" data-tab="resultaten"><span class="nr">6</span>Resultaten</button>
-  <button type="button" data-tab="importexport"><span class="nr">7</span>Importeren en exporteren</button>
+  <button type="button" data-tab="maand"><span class="nr">1</span>Maanddashboard PR24</button>
+  <button type="button" data-tab="processen"><span class="nr">2</span>Processen</button>
+  <button type="button" data-tab="steekproeven"><span class="nr">3</span>Steekproeven</button>
+  <button type="button" data-tab="meting"><span class="nr">4</span>Nieuwe procesmeting</button>
+  <button type="button" data-tab="frequentie"><span class="nr">5</span>Frequentie</button>
+  <button type="button" data-tab="overzicht"><span class="nr">6</span>Metingen bekijken</button>
+  <button type="button" data-tab="resultaten"><span class="nr">7</span>Resultaten</button>
+  <button type="button" data-tab="importexport"><span class="nr">8</span>Import en export</button>
 </nav>
 
 <main>
-  <!-- 1. Processen beheren -->
+  <!-- 1. Maanddashboard PR24 -->
+  <section class="tab" id="tab-maand" hidden>
+    <h2>Maanddashboard PR24</h2>
+    <p class="uitleg">Eén maandmeting per bestuur en maand: aantallen nieuwe medewerkers en diensttijdopgaven, geanonimiseerde dossiers en de tijd per processtap. Kies hieronder de maandmeting; het dashboard toont dan de gegevens van die combinatie. Wijzigingen worden direct lokaal opgeslagen.</p>
+    <div class="kaart maandselectie">
+      <div class="filterbalk">
+        <div class="veld" style="width:240px"><label for="mmProces">Proces</label><select id="mmProces"></select></div>
+        <div class="veld" style="width:150px"><label for="mmBestuur">Bestuur</label><select id="mmBestuur"></select></div>
+        <div class="veld" style="width:150px"><label for="mmMaand">Kalendermaand</label><select id="mmMaand"></select></div>
+        <div class="veld" style="width:110px"><label for="mmJaar">Kalenderjaar</label><select id="mmJaar"></select></div>
+        <div class="veld" style="width:auto"><span class="label">Maandmeting</span><strong id="mmLabel" class="maandlabel"></strong><span class="hint" id="mmStatus"></span></div>
+      </div>
+      <div class="knoppen">
+        <button type="button" class="primair" data-actie="maand-nieuw">Nieuwe maandmeting</button>
+        <button type="button" data-actie="maand-opslaan">Opslaan</button>
+        <button type="button" class="gevaar" data-actie="maand-verwijderen">Verwijderen</button>
+        <button type="button" data-actie="maand-exporteren">Exporteren</button>
+        <button type="button" data-actie="maand-importeren">Importeren</button>
+        <span class="conceptstatus" id="mmOpslagStatus" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="subtabs" id="maandSubtabs">
+      <button type="button" data-maandtab="dashboard" class="actief">Dashboard</button>
+      <button type="button" data-maandtab="gegevens">1. Maandgegevens</button>
+      <button type="button" data-maandtab="dossiers">2. Dossiers</button>
+      <button type="button" data-maandtab="stappen">3. Processtappen</button>
+    </div>
+    <div id="maandInhoud"></div>
+  </section>
+
+  <!-- 2. Processen beheren -->
   <section class="tab" id="tab-processen" hidden>
     <h2>Processen beheren</h2>
     <p class="uitleg">Leg hier de processen en processtappen vast die u wilt meten. Bestaande metingen bewaren hun eigen kopie van de proces- en stapnamen, zodat ze leesbaar blijven als een proces later wordt aangepast of verwijderd.</p>
@@ -39,7 +70,7 @@
     </div>
   </section>
 
-  <!-- 2. Steekproeven -->
+  <!-- 3. Steekproeven -->
   <section class="tab" id="tab-steekproeven" hidden>
     <h2>Steekproeven</h2>
     <p class="uitleg">Een steekproef is een afgebakende set dossiers uit een populatie, die u met procesmetingen onderzoekt. Leg hier de steekproef vast en koppel er procesmetingen aan (ook bestaande). Per steekproef ziet u de voortgang en de resultaten.</p>
@@ -129,7 +160,7 @@
     </div>
   </section>
 
-  <!-- 3. Nieuwe procesmeting -->
+  <!-- 4. Nieuwe procesmeting -->
   <section class="tab" id="tab-meting" hidden>
     <h2 id="metingTitel">Nieuwe procesmeting</h2>
     <p class="uitleg">Vul eerst de algemene gegevens in en daarna per processtap de tijden in minuten. Decimalen mogen met een komma of een punt (bijvoorbeeld 1,5). Laat een veld leeg als de waarde onbekend is: lege velden worden niet als nul geteld.</p>
@@ -309,7 +340,7 @@
     </form>
   </section>
 
-  <!-- 4. Frequentie registreren -->
+  <!-- 5. Frequentie registreren -->
   <section class="tab" id="tab-frequentie" hidden>
     <h2 id="frequentieTitel">Frequentie registreren</h2>
     <p class="uitleg">Een frequentiemeting hoort bij een proces als geheel (niet bij een processtap). Leg vast hoe vaak het proces in een meetperiode is uitgevoerd en welk volume daarbij is verwerkt.</p>
@@ -398,7 +429,7 @@
     </div>
   </section>
 
-  <!-- 5. Metingen bekijken -->
+  <!-- 6. Metingen bekijken -->
   <section class="tab" id="tab-overzicht" hidden>
     <h2>Metingen bekijken</h2>
     <p class="uitleg">Alle opgeslagen invoer. Kolommen met een blauwgrijze achtergrond zijn <strong>automatisch berekend</strong>; alle overige kolommen tonen de <strong>ruwe invoer</strong>.</p>
@@ -425,7 +456,7 @@
     </div>
   </section>
 
-  <!-- 6. Resultaten -->
+  <!-- 7. Resultaten -->
   <section class="tab" id="tab-resultaten" hidden>
     <h2>Resultaten</h2>
     <p class="uitleg">Alle waarden op deze pagina zijn <strong>automatisch berekend</strong> uit de opgeslagen metingen. De mediaan is de belangrijkste uitkomst. Normale gevallen en uitzonderingen worden altijd afzonderlijk berekend.</p>
@@ -442,7 +473,7 @@
     <div id="resultatenInhoud"></div>
   </section>
 
-  <!-- 7. Importeren en exporteren -->
+  <!-- 8. Importeren en exporteren -->
   <section class="tab" id="tab-importexport" hidden>
     <h2>Importeren en exporteren</h2>
     <p class="uitleg">Alle gegevens staan uitsluitend lokaal in deze browser op dit apparaat. Maak regelmatig een JSON-back-up: als de browsergegevens worden gewist, zijn de metingen anders verloren.</p>
@@ -450,7 +481,7 @@
     <div class="twee-kolommen">
       <div class="kaart">
         <h3>Excel-export</h3>
-        <p class="klein zacht">Werkmap met de tabbladen Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Steekproefresultaten, Steekproeven, Procesmetingen, Stapmetingen, Knelpunten, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers. Steekproefresultaten volgen de keuzes op het tabblad Steekproeven (meetwijze en testmetingen).</p>
+        <p class="klein zacht">Werkmap met de tabbladen PR24 Dashboard, PR24 Maandmetingen, PR24 Dossiers, PR24 Processtappen, PR24 Berekeningen, Resultaten, Totaaloverzicht, Per medewerker, Knelpuntenanalyse, Steekproefresultaten, Steekproeven, Procesmetingen, Stapmetingen, Knelpunten, Frequentie en Methode. De resultaten worden berekend met de filters die nu op de pagina Resultaten zijn ingesteld (meetwijze, medewerker en datum); het tabblad Per medewerker toont altijd alle medewerkers. Steekproefresultaten volgen de keuzes op het tabblad Steekproeven (meetwijze en testmetingen).</p>
         <div id="exportFilterInfo" class="klein"></div>
         <div class="knoppen"><button type="button" class="primair" data-actie="excel-export">Excel-bestand downloaden</button></div>
       </div>
@@ -463,11 +494,14 @@
           <button type="button" data-actie="csv-frequentie">Frequentiemetingen (CSV)</button>
           <button type="button" data-actie="csv-knelpunten">Knelpunten (CSV)</button>
           <button type="button" data-actie="csv-steekproeven">Steekproeven (CSV)</button>
+          <button type="button" data-actie="csv-maandmetingen">PR24-maandmetingen (CSV)</button>
+          <button type="button" data-actie="csv-maanddossiers">PR24-dossiers (CSV)</button>
+          <button type="button" data-actie="csv-maandstappen">PR24-processtappen (CSV)</button>
         </div>
       </div>
       <div class="kaart">
         <h3>Volledige back-up (JSON)</h3>
-        <p class="klein zacht">De volledige back-up bevat alle processen, processtappen, steekproeven, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
+        <p class="klein zacht">De volledige back-up bevat alle PR24-maandmetingen (met dossiers en processtappen), processen, processtappen, steekproeven, procesmetingen, stapmetingen en frequentiemetingen, met medewerker-ID's, instellingen (nummering), koppelingen tussen metingen, teststatussen, schemaversie, toolversie en het tijdstip van de back-up. Bij herstellen wordt het bestand eerst gecontroleerd; vóór vervangen wordt automatisch een veiligheidsback-up gemaakt.</p>
         <div class="knoppen">
           <button type="button" class="primair" data-actie="backup-download">Volledige back-up downloaden</button>
           <button type="button" data-actie="backup-import">Back-up herstellen</button>

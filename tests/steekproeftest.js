@@ -345,7 +345,7 @@ for i, r in enumerate(rijen):
         secties[r[0][:2]] = tabel("Steekproefresultaten", "SteekproefID", i)[0]
 uit["secties"] = secties
 print(json.dumps(uit, default=str))`]).toString());
-  assert.deepStrictEqual(x.bladen, ['Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
+  assert.deepStrictEqual(x.bladen, ['PR24 Dashboard', 'PR24 Maandmetingen', 'PR24 Dossiers', 'PR24 Processtappen', 'PR24 Berekeningen', 'Resultaten', 'Totaaloverzicht', 'Per medewerker', 'Knelpuntenanalyse', 'Steekproefresultaten', 'Steekproeven', 'Procesmetingen', 'Stapmetingen', 'Knelpunten', 'Frequentie', 'Methode']);
   const xsp = x.sp[0];
   assert.deepStrictEqual([xsp.SteekproefID, xsp['Totale populatiegrootte'], xsp['Beoogde steekproefgrootte'], xsp.Selectiemethode, xsp.Status, xsp['Gekoppelde procesmetingen (aantal)']], ['SP-PR24-001', 400, 20, 'Willekeurig', 'Bezig', 5]);
   const xm = (id) => x.pm.find((r) => r.MetingID === id);

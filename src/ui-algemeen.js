@@ -11,6 +11,7 @@ function toonTab(naam) {
   for (const b of $$('#tabs button')) b.classList.toggle('actief', b.dataset.tab === naam);
   if (naam === 'resultaten') renderResultaten();
   if (naam === 'steekproeven') renderSteekproeven();
+  if (naam === 'maand') renderMaand();
   if (naam === 'overzicht') renderOverzicht();
   if (naam === 'importexport') renderImportExport();
   try { sessionStorage.setItem('meettool-tab', naam); } catch (e) { /* niet kritiek */ }
@@ -187,6 +188,7 @@ function renderAlles() {
   vulFrequentieProcesKeuze();
   renderFrequentieRecent();
   if (actieveTab === 'steekproeven') renderSteekproeven();
+  if (actieveTab === 'maand') renderMaand();
   if (actieveTab === 'overzicht') renderOverzicht();
   if (actieveTab === 'resultaten') renderResultaten();
   if (actieveTab === 'importexport') renderImportExport();
