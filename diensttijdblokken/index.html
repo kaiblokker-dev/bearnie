@@ -48,6 +48,9 @@
   #regelTabel td { padding: 3px 4px; }
   tr.r-fout td { background: var(--fout-licht); }
   tr.r-uit td { background: #f1f2f4; color: var(--uit); }
+  tr.r-waarsch td { background: var(--waarsch-licht); }
+  td.bron { font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap; min-width: 220px; }
+  #abpVoorbeeld input, #abpVoorbeeld select { padding: 2px 4px; max-width: 160px; }
   tr.r-uit input, tr.r-uit select { color: var(--uit); }
   input.ongeldig { border-color: var(--fout); background: var(--fout-licht); }
   td.acties { white-space: nowrap; }
@@ -167,13 +170,19 @@
     </label>
 
     <details id="plakDetails" style="margin-top:12px">
-      <summary>Meerdere regels plakken (tabgescheiden tekst, bijv. uit Excel)</summary>
-      <p class="hint">Standaard kolomvolgorde: <b>Vereniging · AV-ID · Soort · Begindatum · Einddatum · Deeltijdfactor · Meetelwaarde · Opmerking</b>.
-        Een kopregel met herkenbare kolomnamen (bijv. ‘Vereniging’, ‘Begindatum’, ‘Einddatum’, ‘Periode’) wordt automatisch herkend.
-        Een kolom ‘Periode’ met twee datums (bijv. <code>23-06-2003 tot 25-06-2003</code>) wordt gesplitst. Geplakte regels worden pas toegevoegd nadat u ze hebt gecontroleerd.</p>
-      <textarea id="plakveld" placeholder="A&#9;AV1&#9;Arbeidsverhouding&#9;01-08-2003&#9;01-08-2004&#9;0,5&#9;0,5000"></textarea>
-      <div class="balk"><button id="btnPlakControle">Controleren</button><button id="btnPlakLeeg">Plakveld leegmaken</button></div>
+      <summary>Regels plakken of importeren (tekst uit ABP-diensttijdoverzicht of tabgescheiden tabel)</summary>
+      <p class="hint"><b>Tekst uit een ABP-diensttijdoverzicht:</b> kopieer het overzicht en plak het hier. Regels als
+        <code>ArbeidsVerhouding 07-10-2004 23-02-2005 Stichting Valete</code> geven vereniging en een automatisch AV-ID (AV1, AV2, …);
+        de perioderegels eronder (<code>07-10-2004 tot 09-10-2004 1.25 100 %</code>) worden daaraan gekoppeld. Kopregels, paginanummers en voetteksten worden genegeerd en vastgelegd in het importlogboek.<br>
+        <b>Tabgescheiden tabel</b> (bijv. uit Excel): kolomvolgorde Vereniging · AV-ID · Soort · Begindatum · Einddatum · Deeltijdfactor · Meetelwaarde · Opmerking, of een herkenbare kopregel.<br>
+        Geplakte regels worden pas toegevoegd nadat u ze in de controletabel hebt gecontroleerd en bevestigd.</p>
+      <textarea id="plakveld" placeholder="ArbeidsVerhouding 07-10-2004 23-02-2005 Stichting Valete&#10;Periode Deeltijdfactor Meetelwaarde&#10;07-10-2004 tot 09-10-2004 1.25 100 %"></textarea>
+      <div class="balk"><button id="btnPlakControle">Controleren</button><button id="btnPlakLeeg">Plakveld leegmaken</button><button id="btnPlakVoorbeeld" class="klein">Voorbeeldtekst invullen</button></div>
       <div id="plakVoorbeeld"></div>
+    </details>
+    <details id="importlogVak" class="verborgen" style="margin-top:8px">
+      <summary>Importlogboek laatste ABP-tekstimport</summary>
+      <ol class="logboek" id="importlogLijst"></ol>
     </details>
   </section>
 
@@ -307,7 +316,7 @@ function abpEindNaarVisma(abpEind) {
   return abpEind === null ? null : abpEind + TELREGELS.vismaEindVerschuiving;
 }
 
-const isGetal = (s) => /^-?\d+([.,]\d+)?$/.test(String(s).trim());
+const isGetal = (s) => /^-?\d+([.,]\d+)?\s*%?$/.test(String(s).trim());
 const lijstNrs = (nrs) => {
   const a = [...nrs];
   return a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' en ' + a[a.length - 1];
@@ -696,6 +705,279 @@ function parsePlaktekst(tekst) {
 }
 
 /* =====================================================================
+   4b. ABP-TEKSTPARSER – platte tekst uit een ABP-diensttijdoverzicht (state machine)
+   ===================================================================== */
+
+// Strikte datum dd-mm-jjjj (geen 1-2-2005, geen 0.8). Kalendercontrole gebeurt daarna met parseDatum().
+const ABP_DATUM_BRON = '\\b(?:0[1-9]|[12]\\d|3[01])-(?:0[1-9]|1[0-2])-\\d{4}\\b';
+const ABP_VERHOUDING_RE = /^(arbeidsverhouding|werkloosheidsverhouding)\b\s*(.*)$/i;
+const ABP_PERIODE_START_RE = new RegExp('^(' + ABP_DATUM_BRON + ')');
+const ABP_KOPREGEL_RE = /^periode\s+deeltijdfactor\s+meetelwaarde$/i;
+// Te negeren tekst: [patroon, omschrijving]
+const ABP_NEGEER = [
+  [/^(pagina|blad)?\s*\d{1,3}(\s*(van|\/)\s*\d{1,3})?$/i, 'paginanummer'],
+  [/\bAPG\b/, 'tekst over APG'],
+  [/handelsregister/i, 'tekst over het handelsregister'],
+  [/kamer\s+van\s+koophandel|\bKvK\b/i, 'tekst over de Kamer van Koophandel'],
+  [/pensioenfonds\s+ABP|\bABP\b/i, 'ABP-voettekst'],
+];
+const NIET_HERKEND = 'Niet herkend als relevante gegevensregel';
+
+/** Alle strikte datums in een tekst, met positie: [{tekst, start, eind}]. */
+function zoekAbpDatums(tekst) {
+  return [...String(tekst).matchAll(new RegExp(ABP_DATUM_BRON, 'g'))].map((m) => ({ tekst: m[0], start: m.index, eind: m.index + m[0].length }));
+}
+
+/** Maakt een tekstregel uit een PDF/website schoon: harde spaties en meervoudige spaties/tabs → één spatie. */
+function normaliseerAbpRegel(regel) {
+  return String(regel).replace(/[   \t]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Lijkt de geplakte tekst op een ABP-diensttijdoverzicht (in plaats van een tabgescheiden tabel)? */
+function isAbpTekst(tekst) {
+  return String(tekst).split(/\r?\n/).map(normaliseerAbpRegel)
+    .some((r) => ABP_VERHOUDING_RE.test(r) || new RegExp('^' + ABP_DATUM_BRON + ' tot\\b', 'i').test(r));
+}
+
+/**
+ * Leest een regel ‘ArbeidsVerhouding 07-10-2004 23-02-2005 Stichting Valete’.
+ * Eerste datum = begin, tweede = einde (optioneel), tekst na de laatste datum = vereniging.
+ */
+function parseAbpVerhoudingsregel(regel) {
+  const m = ABP_VERHOUDING_RE.exec(regel);
+  if (!m) return null;
+  const soort = /^werkloos/i.test(m[1]) ? 'Werkloosheidsverhouding' : 'Arbeidsverhouding';
+  const rest = m[2], datums = zoekAbpDatums(rest), meldingen = [];
+  const gebruikt = datums.slice(0, 2);
+  const vereniging = (gebruikt.length ? rest.slice(gebruikt[gebruikt.length - 1].eind) : rest).trim();
+  if (!gebruikt.length) meldingen.push('geen geldige begindatum van de verhouding gevonden');
+  else if (rest.slice(0, gebruikt[0].start).trim()) meldingen.push(`onverwachte tekst vóór de begindatum: ‘${rest.slice(0, gebruikt[0].start).trim()}’`);
+  if (gebruikt.length === 2 && rest.slice(gebruikt[0].eind, gebruikt[1].start).trim()) meldingen.push('onverwachte tekst tussen begin- en einddatum');
+  if (datums.length > 2) meldingen.push(`meer dan twee datums gevonden; alleen de eerste twee zijn gebruikt en de rest hoort bij de naam`);
+  if (!vereniging) meldingen.push('naam van de vereniging/stichting ontbreekt');
+  for (const d of gebruikt) { const p = parseDatum(d.tekst); if (p.fout) meldingen.push(p.fout); }
+  return { soort, begin: gebruikt[0]?.tekst || '', eind: gebruikt[1]?.tekst || '', vereniging, meldingen };
+}
+
+/**
+ * Leest een perioderegel. Ondersteunde vormen:
+ *   ‘07-10-2004 tot 09-10-2004 1.25 100 %’  (normaal)
+ *   ‘01-08-2017 tot 01-09-2017 0 %’         (geen deeltijdfactor)
+ *   ‘01-01-2026 tot 0.8 100 %’              (open einddatum)
+ * Retourneert {begin, eind, deeltijd, meetelwaarde, leesfouten[]}; leesfouten ≠ [] betekent: niet volledig gelezen.
+ */
+function parseAbpPerioderegel(regel) {
+  const uit = { begin: '', eind: '', deeltijd: '', meetelwaarde: '', leesfouten: [] };
+  const start = ABP_PERIODE_START_RE.exec(regel);
+  if (!start) { uit.leesfouten.push('regel begint niet met een datum dd-mm-jjjj'); return uit; }
+  uit.begin = start[1];
+  let rest = regel.slice(start[0].length).trim();
+  const tot = /^tot\b\s*/i.exec(rest);
+  if (!tot) { uit.leesfouten.push('het woord ‘tot’ na de begindatum ontbreekt'); return uit; }
+  rest = rest.slice(tot[0].length);
+  const eind = ABP_PERIODE_START_RE.exec(rest);
+  if (eind) { uit.eind = eind[1]; rest = rest.slice(eind[0].length).trim(); }
+  // Na de (eventuele) einddatum: optioneel een deeltijdfactor, dan een percentage.
+  const getallen = /^(?:(\d+(?:[.,]\d+)?)\s+)?(\d+(?:[.,]\d+)?)\s*%$/.exec(rest);
+  if (getallen) {
+    uit.deeltijd = getallen[1] ?? '';
+    uit.meetelwaarde = getallen[2] + '%';
+  } else if (zoekAbpDatums(rest).length || /\d{1,2}[-./]\d{1,2}[-./]\d{2,4}/.test(rest)) {
+    uit.leesfouten.push(`na ‘tot’ staat geen leesbare einddatum dd-mm-jjjj (‘${rest}’)`);
+  } else {
+    uit.leesfouten.push(rest ? `deeltijdfactor/meetelwaarde niet te lezen: ‘${rest}’` : 'deeltijdfactor en meetelwaarde ontbreken');
+  }
+  for (const veld of ['begin', 'eind']) { const p = parseDatum(uit[veld]); if (p.fout) uit.leesfouten.push(p.fout); }
+  return uit;
+}
+
+/** Bepaalt het soort tekstregel (zonder context). */
+function classificeerAbpRegel(regel) {
+  if (!regel) return { type: 'leeg' };
+  if (ABP_VERHOUDING_RE.test(regel)) return { type: 'verhouding' };
+  if (ABP_KOPREGEL_RE.test(regel)) return { type: 'negeren', reden: 'kopregel ‘Periode Deeltijdfactor Meetelwaarde’' };
+  if (ABP_PERIODE_START_RE.test(regel)) return { type: 'periode' };
+  for (const [re, reden] of ABP_NEGEER) if (re.test(regel)) return { type: 'negeren', reden };
+  return { type: 'onbekend' };
+}
+
+/**
+ * Controleert een voorgestelde importrij (na parsen of na handmatige aanpassing) en zet status en importkeuze.
+ * Een niet volledig gelezen regel kan pas worden geïmporteerd na handmatige correctie.
+ */
+function controleerAbpImportrij(rij) {
+  if (!rij.regel) return rij;
+  const fouten = valideerRegel(rij.regel).fouten;
+  const leesfoutOpen = rij.leesfouten.length > 0 && !rij.handmatig;
+  rij.fouten = fouten;
+  rij.importeerbaar = !fouten.length && !leesfoutOpen;
+  if (!rij.importeerbaar) rij.importeren = false;
+  rij.status = (!rij.importeerbaar || rij.meldingen.length || rij.leesfouten.length || rij.handmatig) ? 'Waarschuwing' : 'Correct herkend';
+  return rij;
+}
+
+/**
+ * State machine: verwerkt de tekst regel voor regel.
+ * Toestand = de actieve (werkloosheids)verhouding; perioderegels erven daarvan vereniging, AV-ID en soort.
+ * Retourneert {rijen, log, verhoudingen}. Er wordt niets aan het dossier toegevoegd.
+ */
+function parseAbpTekst(tekst) {
+  const rijen = [], log = [];
+  let actief = null, avTeller = 0, leeg = 0;
+  String(tekst).split(/\r?\n/).forEach((ruw, i) => {
+    const nr = i + 1, regel = normaliseerAbpRegel(ruw);
+    const k = classificeerAbpRegel(regel);
+    if (k.type === 'leeg') { leeg++; return; }
+    const rij = { nr, bron: ruw.trim(), context: actief ? { ...actief } : null, verhoudingNr: null, type: k.type, meldingen: [], notities: [], leesfouten: [], fouten: [], regel: null, importeren: false, importeerbaar: false, handmatig: false };
+
+    if (k.type === 'verhouding') {
+      const v = parseAbpVerhoudingsregel(regel);
+      avTeller++;
+      actief = { ...v, avId: 'AV' + avTeller, regelNr: nr, aantal: 0 };
+      Object.assign(rij, { typeLabel: v.soort, vereniging: v.vereniging, avId: actief.avId, begin: v.begin, eind: v.eind, meldingen: v.meldingen });
+      rij.status = v.meldingen.length ? 'Waarschuwing' : 'Correct herkend';
+      log.push(`Regel ${nr}: ${v.soort} herkend – ${v.vereniging || '(naam ontbreekt)'}, ${v.begin || '?'} tot ${v.eind || 'open'}, ID ${actief.avId}.${v.meldingen.length ? ' Let op: ' + v.meldingen.join('; ') + '.' : ''}`);
+    } else if (k.type === 'periode') {
+      const p = parseAbpPerioderegel(regel);
+      rij.typeLabel = 'Perioderegel';
+      rij.verhoudingNr = actief?.regelNr ?? null;
+      rij.leesfouten = p.leesfouten;
+      if (!actief) rij.meldingen.push('geen voorafgaande ArbeidsVerhouding-regel: vereniging en AV-ID zelf invullen');
+      rij.regel = nieuweRegel({
+        vereniging: actief?.vereniging || '', avId: actief?.avId || '', soort: actief?.soort || 'Arbeidsverhouding',
+        begin: p.begin, eind: p.eind, deeltijd: p.deeltijd, meetelwaarde: p.meetelwaarde,
+      });
+      if (!p.leesfouten.length && actief) {
+        // Controle of de periode binnen de verhouding valt (alleen waarschuwing).
+        const pb = parseDatum(p.begin).dag, pe = p.eind ? parseDatum(p.eind).dag : null;
+        const vb = parseDatum(actief.begin).dag, ve = actief.eind ? parseDatum(actief.eind).dag : null;
+        if (vb !== undefined && pb < vb) rij.meldingen.push(`begint vóór de verhouding (${actief.begin})`);
+        if (ve !== null && ve !== undefined && (pe === null || pe > ve)) rij.meldingen.push(`loopt door na het einde van de verhouding (${actief.eind})`);
+      }
+      if (!p.leesfouten.length && !p.deeltijd) rij.notities.push('deeltijdfactor ontbreekt (geen invloed op de telling)');
+      rij.importeren = true;
+      controleerAbpImportrij(rij);
+      if (actief) actief.aantal++;
+      log.push(p.leesfouten.length
+        ? `Regel ${nr}: begint met een datum maar is niet volledig gelezen (${p.leesfouten.join('; ')}). Niet automatisch geïmporteerd; handmatige correctie nodig.`
+        : `Regel ${nr}: perioderegel ${p.begin} tot ${p.eind || '(open)'}, deeltijdfactor ${p.deeltijd || '(leeg)'}, meetelwaarde ${p.meetelwaarde} → gekoppeld aan ${actief ? `${actief.avId} (${actief.vereniging})` : 'GEEN verhouding'}.`);
+    } else {
+      rij.typeLabel = k.type === 'negeren' ? 'Genegeerd' : 'Onbekend';
+      rij.status = 'Niet herkend';
+      log.push(`Regel ${nr}: genegeerd – ${NIET_HERKEND}${k.reden ? ` (${k.reden})` : ''}: ‘${rij.bron}’`);
+    }
+    rijen.push(rij);
+  });
+  if (leeg) log.push(`${leeg} lege regel(s) genegeerd.`);
+  const per = rijen.filter((r) => r.regel);
+  log.push(`Samenvatting: ${avTeller} verhouding(en), ${per.length} perioderegel(s), waarvan ${per.filter((r) => r.importeren).length} voorgesteld voor import; ${rijen.filter((r) => r.status === 'Niet herkend').length} regel(s) niet herkend.`);
+  return { rijen, log, verhoudingen: avTeller };
+}
+
+/**
+ * Aangeleverde voorbeeldtekst uit een ABP-diensttijdoverzicht (regressietest voor de parser en de telling).
+ * Wordt ook gebruikt door de knop ‘Voorbeeldtekst invullen’.
+ */
+const VOORBEELD_ABP_TEKST = [
+  '  ArbeidsVerhouding 07-10-2004 23-02-2005 Stichting Valete',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '07-10-2004 tot 09-10-2004 1.25 100 %',
+  '15-11-2004 tot 16-11-2004 1.25 100 %',
+  '22-02-2005 tot 23-02-2005 1.25 100 %',
+  'ArbeidsVerhouding 07-03-2005 31-03-2005 Stichting Valete',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '07-03-2005 tot 31-03-2005 1.0874 100 %',
+  'ArbeidsVerhouding 31-03-2005 23-07-2005 Stichting Valete',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '31-03-2005 tot 01-04-2005 1.25 100 %',
+  '01-04-2005 tot 01-07-2005 1.0 100 %',
+  '01-07-2005 tot 23-07-2005 1.0406 100 %',
+  'ArbeidsVerhouding 01-08-2005 01-01-2007 Stichting Valete',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-08-2005 tot 01-01-2006 1.0 100 %',
+  '01-01-2006 tot 01-01-2007 1.0 100 %',
+  'ArbeidsVerhouding 01-01-2007 01-08-2010 Stichting Blosse',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-01-2007 tot 01-01-2008 1.0 100 %',
+  '01-01-2008 tot 01-05-2008 1.0 100 %',
+  '01-05-2008 tot 01-06-2008 1.0877 100 %',
+  '01-06-2008 tot 01-01-2009 1.0 100 %',
+  '01-01-2009 tot 01-01-2010 1.0 100 %',
+  '01-01-2010 tot 01-04-2010 1.0 100 %',
+  '01-04-2010 tot 01-06-2010 1.1064 100 %',
+  '01-06-2010 tot 01-08-2010 1.0 100 %',
+  'ArbeidsVerhouding 01-08-2010 01-01-2013 Stichting Openbaar Basisonderwijs Hilversum',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-08-2010 tot 01-01-2011 1.0 100 %',
+  '01-01-2011 tot 01-08-2011 1.0 100 %',
+  '01-08-2011 tot 01-01-2012 0.87 100 %',
+  '01-01-2012 tot 01-01-2013 0.87 100 %',
+  'ArbeidsVerhouding 01-01-2013 01-09-2017 Stichting Openbaar Basisonderwijs Hilversum',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-01-2013 tot 01-07-2013 0.87 100 %',
+  '01-07-2013 tot 01-08-2013 0.8981 100 %',
+  '01-08-2013 tot 01-09-2013 0.9149 100 %',
+  '01-09-2013 tot 01-10-2013 0.87 100 %',
+  '01-10-2013 tot 01-11-2013 0.895 100 %',
+  '01-11-2013 tot 01-01-2014 0.87 100 %',
+  '01-01-2014 tot 01-06-2014 0.87 100 %',
+  '01-06-2014 tot 01-07-2014 0.888 100 %',
+  '01-07-2014 tot 01-08-2014 0.87 100 %',
+  '01-08-2014 tot 01-01-2015 0.8 100 %',
+  '01-01-2015 tot 01-01-2016 0.8 100 %',
+  '01-01-2016 tot 01-02-2016 0.8 100 %',
+  '01-02-2016 tot 01-03-2016 0.8379 100 %',
+  '01-03-2016 tot 01-01-2017 0.85 100 %',
+  '01-01-2017 tot 01-09-2017 0.85 100 %',
+  'ArbeidsVerhouding 01-08-2017 01-06-2019 Stichting Katholiek Onderwijs Flevoland Veluwe',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-08-2017 tot 01-09-2017 0 %',
+  '01-09-2017 tot 01-01-2018 0.85 100 %',
+  '01-01-2018 tot 01-01-2019 0.6 100 %',
+  '01-01-2019 tot 01-06-2019 0.6 100 %',
+  'ArbeidsVerhouding 01-06-2019 01-08-2020 Stichting Proceon',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-06-2019 tot 01-01-2020 0.6 100 %',
+  '01-01-2020 tot 01-08-2020 0.6 100 %',
+  'ArbeidsVerhouding 01-08-2020 Stichting Tabijn',
+  'Periode Deeltijdfactor Meetelwaarde',
+  '01-08-2020 tot 01-01-2021 0.6 100 %',
+  '01-01-2021 tot 01-01-2022 0.6 100 %',
+  '01-01-2022 tot 01-01-2023 0.6 100 %',
+  '01-01-2023 tot 01-07-2023 0.6 100 %',
+  '01-07-2023 tot 01-08-2023 0.649 100 %',
+  '01-08-2023 tot 01-09-2023 0.6 100 %',
+  '01-09-2023 tot 01-10-2023 0.72 100 %',
+  '01-10-2023 tot 01-11-2023 0.7431 100 %',
+  '01-11-2023 tot 01-01-2024 0.72 100 %',
+  '01-01-2024 tot 01-04-2024 0.72 100 %',
+  '01-04-2024 tot 01-05-2024 0.769 100 %',
+  '01-05-2024 tot 01-06-2024 0.8671 100 %',
+  '01-06-2024 tot 01-07-2024 0.9162 100 %',
+  '01-07-2024 tot 01-08-2024 0.8671 100 %',
+  '01-08-2024 tot 01-09-2024 0.6 100 %',
+  '01-09-2024 tot 01-10-2024 0.8615 100 %',
+  '01-10-2024 tot 01-01-2025 0.9725 100 %',
+  '01-01-2025 tot 01-04-2025 0.9725 100 %',
+  '01-04-2025 tot 01-05-2025 1.0071 100 %',
+  '01-05-2025 tot 01-07-2025 0.9725 100 %',
+  '01-07-2025 tot 01-08-2025 0.8122 100 %',
+  '01-08-2025 tot 01-01-2026 0.8 100 %',
+  '01-01-2026 tot 0.8 100 %'
+].join('\n');
+
+/** Steekproeven uit VOORBEELD_ABP_TEKST (volgnummer perioderegel → verwachte waarden), naast de controle van iedere regel. */
+const VOORBEELD_ABP_STEEKPROEVEN = [
+  [1, { vereniging: 'Stichting Valete', avId: 'AV1', begin: '07-10-2004', eind: '09-10-2004', deeltijd: '1.25', meetelwaarde: '100%' }],
+  [4, { vereniging: 'Stichting Valete', avId: 'AV2', begin: '07-03-2005', eind: '31-03-2005', deeltijd: '1.0874', meetelwaarde: '100%' }],
+  [10, { vereniging: 'Stichting Blosse', avId: 'AV5', begin: '01-01-2007', eind: '01-01-2008', deeltijd: '1.0', meetelwaarde: '100%' }],
+  [37, { vereniging: 'Stichting Katholiek Onderwijs Flevoland Veluwe', avId: 'AV8', begin: '01-08-2017', eind: '01-09-2017', deeltijd: '', meetelwaarde: '0%' }],
+  [65, { vereniging: 'Stichting Tabijn', avId: 'AV10', begin: '01-01-2026', eind: '', deeltijd: '0.8', meetelwaarde: '100%' }],
+];
+const VOORBEELD_ABP_AANTAL_PERIODEN = 65;
+const VOORBEELD_ABP_VERWACHT_BLOKKEN = 10;
+
+/* =====================================================================
    5. AUTOMATISCHE TESTS
    ===================================================================== */
 
@@ -784,6 +1066,73 @@ function voerTestsUit() {
       const r = p.rijen[0]?.regel;
       return [r && r.begin === '23-06-2003' && r.eind === '25-06-2003' && r.meetellen === 'nee', r ? `${r.begin} – ${r.eind}, meetellen=${r.meetellen}` : 'geen regel'];
     }],
+    ['ABP-tekst 1. Arbeidsverhouding met drie perioderegels wordt correct gekoppeld', () => {
+      const p = parseAbpTekst('ArbeidsVerhouding 07-10-2004 23-02-2005 Stichting Valete\nPeriode Deeltijdfactor Meetelwaarde\n07-10-2004 tot 09-10-2004 1.25 100 %\n09-10-2004 tot 01-01-2005 1 100 %\n01-01-2005 tot 23-02-2005 0.5 100 %');
+      const r = p.rijen.filter((x) => x.regel);
+      const ok = r.length === 3 && r.every((x) => x.regel.vereniging === 'Stichting Valete' && x.regel.avId === 'AV1' && x.importeren && x.status === 'Correct herkend')
+        && r[0].regel.begin === '07-10-2004' && r[0].regel.eind === '09-10-2004' && r[0].regel.deeltijd === '1.25' && r[0].regel.meetelwaarde === '100%' && r[2].regel.eind === '23-02-2005';
+      return [ok, r.map((x) => `${x.regel.avId} ${x.regel.begin}–${x.regel.eind}`).join('; ')];
+    }],
+    ['ABP-tekst 2. Arbeidsverhouding zonder einddatum wordt correct gelezen', () => {
+      const v = parseAbpVerhoudingsregel('ArbeidsVerhouding 01-08-2020 Stichting Tabijn');
+      return [v.soort === 'Arbeidsverhouding' && v.begin === '01-08-2020' && v.eind === '' && v.vereniging === 'Stichting Tabijn' && !v.meldingen.length, `${v.begin} – ${v.eind || 'open'}, ${v.vereniging}`];
+    }],
+    ['ABP-tekst 3. Perioderegel met ‘0 %’ zonder deeltijdfactor', () => {
+      const p = parseAbpPerioderegel('01-08-2017 tot 01-09-2017 0 %'), q = parseAbpPerioderegel('01-08-2017 tot 01-09-2017 0%');
+      return [p.begin === '01-08-2017' && p.eind === '01-09-2017' && p.deeltijd === '' && p.meetelwaarde === '0%' && !p.leesfouten.length && q.meetelwaarde === '0%',
+        `deeltijd=‘${p.deeltijd}’, meetelwaarde=${p.meetelwaarde}`];
+    }],
+    ['ABP-tekst 4. ‘01-01-2026 tot 0.8 100 %’ is een open periode', () => {
+      const p = parseAbpPerioderegel('01-01-2026 tot 0.8 100 %');
+      return [p.begin === '01-01-2026' && p.eind === '' && p.deeltijd === '0.8' && p.meetelwaarde === '100%' && !p.leesfouten.length, `eind=‘${p.eind}’, deeltijd=${p.deeltijd}, meetelwaarde=${p.meetelwaarde}`];
+    }],
+    ['ABP-tekst 5. ABP-voetteksten worden genegeerd', () => {
+      const p = parseAbpTekst('De uitvoering van de ABP-pensioenregeling wordt verzorgd door APG.\nStichting Pensioenfonds ABP is gevestigd te Heerlen en ingeschreven in het handelsregister van de Kamer van Koophandel.\nPagina 2 van 3\nPeriode Deeltijdfactor Meetelwaarde');
+      return [p.rijen.length === 4 && p.rijen.every((r) => r.type === 'negeren' && !r.regel && r.status === 'Niet herkend') && p.verhoudingen === 0, p.rijen.map((r) => r.type).join(', ')];
+    }],
+    ['ABP-tekst 6. Onbekende regel verschijnt in het importlogboek', () => {
+      const p = parseAbpTekst('Overzicht diensttijd deelnemer\nArbeidsVerhouding 01-08-2020 Stichting Tabijn');
+      const ok = p.log.some((l) => l.includes('Regel 1') && l.includes(NIET_HERKEND) && l.includes('Overzicht diensttijd deelnemer'));
+      return [ok && p.rijen[0].status === 'Niet herkend', ok ? 'gevonden in logboek' : 'niet in logboek'];
+    }],
+    ['ABP-tekst extra: regel met datum maar onleesbaar → waarschuwing, niet automatisch geïmporteerd', () => {
+      const p = parseAbpTekst('ArbeidsVerhouding 01-08-2020 Stichting Tabijn\n01-08-2020 01-09-2020 1 100 %\n01-09-2020 tot 1-10-2020 1 100 %');
+      const r = p.rijen.filter((x) => x.regel);
+      return [r.length === 2 && r.every((x) => x.status === 'Waarschuwing' && !x.importeren && !x.importeerbaar && x.leesfouten.length), r.map((x) => x.leesfouten[0]).join(' | ')];
+    }],
+    ['ABP-tekst extra: werkloosheidsverhouding → perioden standaard niet meetellen', () => {
+      const r = parseAbpTekst('WerkloosheidsVerhouding 01-08-2010 01-02-2011 Stichting Valete\n01-08-2010 tot 01-02-2011 0 100 %').rijen.find((x) => x.regel);
+      return [r.regel.soort === 'Werkloosheidsverhouding' && r.regel.meetellen === 'nee', `${r.regel.soort}, meetellen=${r.regel.meetellen}`];
+    }],
+    ['ABP-tekst 7. Volledige voorbeeldtekst zonder verschoven datums', () => {
+      // Onafhankelijke controle: per perioderegel de datums rechtstreeks uit de eigen tekstregel halen
+      // en vereniging/AV-ID uit de laatst voorafgaande verhoudingsregel.
+      const r = parseAbpTekst(VOORBEELD_ABP_TEKST).rijen.filter((x) => x.regel);
+      const fouten = [];
+      let ver = '', av = 0;
+      const verwacht = [];
+      VOORBEELD_ABP_TEKST.split('\n').map((l) => l.trim()).forEach((l) => {
+        const v = /^ArbeidsVerhouding \S+(?: \d\d-\d\d-\d{4})? (.+)$/i.exec(l);
+        if (v) { ver = v[1]; av++; return; }
+        const p = /^(\d\d-\d\d-\d{4}) tot (\d\d-\d\d-\d{4})?/.exec(l);
+        if (p) verwacht.push({ vereniging: ver, avId: 'AV' + av, begin: p[1], eind: p[2] || '' });
+      });
+      if (r.length !== VOORBEELD_ABP_AANTAL_PERIODEN || verwacht.length !== r.length) fouten.push(`${r.length} perioderegels gelezen, ${verwacht.length} in de tekst, verwacht ${VOORBEELD_ABP_AANTAL_PERIODEN}`);
+      verwacht.forEach((v, i) => {
+        const g = r[i]?.regel;
+        if (!g || Object.keys(v).some((k) => g[k] !== v[k]) || !r[i].importeren) fouten.push(`perioderegel ${i + 1} (tekstregel ${r[i]?.nr}): verwacht ${Object.values(v).join(' ')}, kreeg ${g ? [g.vereniging, g.avId, g.begin, g.eind].join(' ') : '–'}`);
+      });
+      VOORBEELD_ABP_STEEKPROEVEN.forEach(([n, v]) => {
+        const g = r[n - 1]?.regel;
+        if (!g || Object.keys(v).some((k) => g[k] !== v[k])) fouten.push(`steekproef perioderegel ${n} wijkt af`);
+      });
+      return [!fouten.length, fouten.length ? fouten.slice(0, 2).join(' | ') : `${r.length} perioderegels, alle datums gelijk aan de brontekst`];
+    }],
+    ['ABP-tekst 8. Volledige voorbeeldtekst → 10 verwachte Visma-regels (standaardinstellingen)', () => {
+      const regels = parseAbpTekst(VOORBEELD_ABP_TEKST).rijen.filter((x) => x.regel && x.importeren).map((x) => x.regel);
+      const u = bereken(regels, STANDAARD_INSTELLINGEN, []);
+      return [u.tellingen.blokken === VOORBEELD_ABP_VERWACHT_BLOKKEN && u.tellingen.fouten === 0, `blokken=${u.tellingen.blokken}, meegenomen=${u.tellingen.meegenomen}, uitgesloten=${u.tellingen.uitgesloten}`];
+    }],
   ];
   return tests.map(([naam, fn]) => {
     try { const [ok, detail] = fn(); return { naam, geslaagd: !!ok, detail }; }
@@ -805,6 +1154,7 @@ function legeStaat() {
     regels: [nieuweRegel()],
     correcties: [],
     blokOpmerkingen: {},
+    importlogboek: [],
   };
 }
 
@@ -834,6 +1184,7 @@ function normaliseerStaat(o) {
   s.regels = Array.isArray(o.regels) ? o.regels.map((r) => nieuweRegel({ ...r, uid: r.uid || uid() })) : [];
   s.correcties = Array.isArray(o.correcties) ? o.correcties : [];
   s.blokOpmerkingen = o.blokOpmerkingen && typeof o.blokOpmerkingen === 'object' ? o.blokOpmerkingen : {};
+  s.importlogboek = Array.isArray(o.importlogboek) ? o.importlogboek.map(String) : [];
   return s;
 }
 
@@ -854,7 +1205,7 @@ function renderRegels() {
   $('regelTabel').tBodies[0].innerHTML = staat.regels.map((r, i) => `
     <tr data-uid="${r.uid}">
       <td class="nr">${i + 1}</td>
-      <td><input data-veld="vereniging" value="${esc(r.vereniging)}" maxlength="20" style="min-width:50px"></td>
+      <td><input data-veld="vereniging" value="${esc(r.vereniging)}" maxlength="80" style="min-width:110px"></td>
       <td><input data-veld="avId" value="${esc(r.avId)}" maxlength="20"></td>
       <td><select data-veld="soort">${SOORTEN.map((s) => `<option${s === r.soort ? ' selected' : ''}>${s}</option>`).join('')}</select></td>
       <td><input class="datum" data-veld="begin" value="${esc(r.begin)}" placeholder="dd-mm-jjjj"></td>
@@ -997,7 +1348,7 @@ function renderDossier() {
   toonOpslagStatus();
 }
 
-function renderAlles() { renderDossier(); renderRegels(); herbereken(); }
+function renderAlles() { renderDossier(); renderRegels(); renderImportlog(); herbereken(); }
 
 /* ----- Correcties ----- */
 function voegCorrectieToe(c) {
@@ -1098,38 +1449,183 @@ document.querySelectorAll('[data-dossier]').forEach((el) => el.addEventListener(
   staat.dossier[el.dataset.dossier] = el.value; markeerGewijzigd();
 }));
 
-/* ----- Plakken ----- */
-$('btnPlakControle').addEventListener('click', () => {
-  plakResultaat = parsePlaktekst($('plakveld').value);
+/* ----- Plakken en importeren ----- */
+// Twee invoervormen: platte tekst uit een ABP-diensttijdoverzicht (parseAbpTekst) of een tabgescheiden tabel (parsePlaktekst).
+const STATUS_LABEL = { 'Correct herkend': 'ok', 'Waarschuwing': 'waarschuwing', 'Niet herkend': 'info' };
+
+function plakBevestigingHtml() {
+  return `<label class="balk"><input type="checkbox" id="plakGecontroleerd"> Ik heb de geïmporteerde regels gecontroleerd (<b id="plakAantal">${teImporteren().length}</b> perioderegel(s) worden geïmporteerd).</label>
+    <div class="balk"><button class="primair" id="btnPlakToevoegen" disabled>Toevoegen aan perioderegels</button>
+      <button id="btnPlakVervangen" disabled>Bestaande regels vervangen</button><button id="btnPlakAnnuleer">Annuleren</button></div>`;
+}
+const teImporteren = () => (plakResultaat?.rijen || []).filter((r) => r.regel && r.importeren);
+
+/** Controletabel voor de tabgescheiden invoer (ongewijzigd gedrag). */
+function renderTabVoorbeeld() {
   const { rijen, algemeen } = plakResultaat;
   const nFout = rijen.filter((r) => r.fouten.length).length;
   $('plakVoorbeeld').innerHTML = `
+    <div class="melding info">Herkend als <b>tabgescheiden tabel</b>.</div>
     ${algemeen.map((a) => `<div class="melding info">${esc(a)}</div>`).join('')}
     ${rijen.length ? `<div class="tabelvak"><table><thead><tr><th>#</th><th>Vereniging</th><th>AV-ID</th><th>Soort</th><th>Begin</th><th>Einde</th><th>Deeltijd</th><th>Meetelw.</th><th>Meetellen</th><th>Opmerking</th><th>Controle</th></tr></thead><tbody>
       ${rijen.map((x, i) => `<tr class="${x.fouten.length ? 'r-fout' : ''}"><td>${i + 1}</td><td>${esc(x.regel.vereniging)}</td><td>${esc(x.regel.avId)}</td><td>${esc(x.regel.soort)}</td><td>${esc(x.regel.begin)}</td><td>${esc(x.regel.eind) || '<i>loopt door</i>'}</td><td>${esc(x.regel.deeltijd)}</td><td>${esc(x.regel.meetelwaarde)}</td><td>${x.regel.meetellen}</td><td>${esc(x.regel.opmerking)}</td>
         <td>${x.fouten.map((f) => `<span class="label fout">fout</span>${esc(f)}`).join('<br>')}${x.meldingen.map((m) => `<span class="label waarschuwing">let op</span>${esc(m)}`).join('<br>')}${!x.fouten.length && !x.meldingen.length ? '<span class="label ok">ok</span>' : ''}</td></tr>`).join('')}
     </tbody></table></div>
     ${nFout ? `<div class="melding fout">${nFout} regel(s) bevatten een fout. U kunt ze toevoegen en daarna in de tabel corrigeren; ze worden niet berekend zolang de fout bestaat.</div>` : ''}
-    <label class="balk"><input type="checkbox" id="plakGecontroleerd"> Ik heb de ${rijen.length} geïmporteerde regel(s) gecontroleerd.</label>
-    <div class="balk"><button class="primair" id="btnPlakToevoegen" disabled>Toevoegen aan perioderegels</button>
-      <button id="btnPlakVervangen" disabled>Bestaande regels vervangen</button><button id="btnPlakAnnuleer">Annuleren</button></div>` : ''}`;
+    ${plakBevestigingHtml()}` : ''}`;
+}
+
+/** Statuscel van een ABP-importrij: label plus alle meldingen. */
+function abpStatusHtml(r) {
+  const regels = [
+    ...r.leesfouten.map((t) => [r.handmatig ? 'info' : 'fout', (r.handmatig ? '(handmatig gecorrigeerd) ' : '') + t]),
+    ...r.fouten.filter(() => r.regel).map((t) => ['fout', t]),
+    ...r.meldingen.map((t) => ['waarschuwing', t]),
+    ...(r.notities || []).map((t) => ['info', t]),
+  ];
+  if (r.handmatig) regels.push(['info', 'handmatig aangepast']);
+  return `<span class="label ${STATUS_LABEL[r.status]}">${esc(r.status)}</span>` +
+    (regels.length ? `<ul style="margin:2px 0 0;padding-left:16px">${regels.map(([n, t]) => `<li class="hint" style="color:${n === 'fout' ? 'var(--fout)' : ''}">${esc(t)}</li>`).join('')}</ul>` : '');
+}
+
+/** Controletabel voor platte ABP-tekst: oorspronkelijke regel, herkend type, velden, status, aanpassen en importeren. */
+function renderAbpVoorbeeld() {
+  const { rijen, log } = plakResultaat;
+  const per = rijen.filter((r) => r.regel);
+  const telStatus = (s) => rijen.filter((r) => r.status === s).length;
+  const veld = (r, naam, w = '') => r.bewerk
+    ? `<input data-abpveld="${naam}" value="${esc(r.regel[naam])}" ${w}>`
+    : esc(r.regel[naam]) || (naam === 'eind' ? '<i>open</i>' : '');
+  const rijHtml = (r, i) => {
+    const kleur = r.status === 'Niet herkend' ? 'r-uit' : r.status === 'Waarschuwing' ? 'r-waarsch' : '';
+    if (r.type === 'verhouding') {
+      return `<tr data-i="${i}" class="${kleur}" style="font-weight:600"><td>${r.nr}</td><td class="bron">${esc(r.bron)}</td><td>${esc(r.typeLabel)}</td>
+        <td>${r.bewerk ? `<input data-verhveld="vereniging" value="${esc(r.vereniging)}">` : esc(r.vereniging)}</td>
+        <td>${r.bewerk ? `<input data-verhveld="avId" value="${esc(r.avId)}" size="5">` : esc(r.avId)}</td>
+        <td>${esc(r.begin)}</td><td>${esc(r.eind) || '<i>open</i>'}</td><td></td><td></td>
+        <td class="status">${abpStatusHtml(r)}</td>
+        <td><button class="klein" data-abpactie="${r.bewerk ? 'klaar' : 'bewerk'}" title="Wijziging geldt voor alle perioderegels van deze verhouding">${r.bewerk ? 'Klaar' : 'Aanpassen'}</button></td><td class="hint">context</td></tr>`;
+    }
+    if (!r.regel) {
+      return `<tr data-i="${i}" class="${kleur}"><td>${r.nr}</td><td class="bron">${esc(r.bron)}</td><td>${esc(r.typeLabel)}</td><td colspan="6"></td>
+        <td class="status">${abpStatusHtml(r)}</td>
+        <td><button class="klein" data-abpactie="omzetten">Als perioderegel invullen</button></td><td class="hint">nee</td></tr>`;
+    }
+    return `<tr data-i="${i}" class="${kleur}"><td>${r.nr}</td><td class="bron">${esc(r.bron)}</td>
+      <td>${esc(r.typeLabel)}${r.bewerk ? `<br><select data-abpveld="soort">${SOORTEN.map((s) => `<option${s === r.regel.soort ? ' selected' : ''}>${s}</option>`).join('')}</select>` : r.regel.soort !== 'Arbeidsverhouding' ? `<br><span class="hint">${esc(r.regel.soort)}</span>` : ''}</td>
+      <td>${veld(r, 'vereniging')}</td><td>${veld(r, 'avId', 'size="5"')}</td>
+      <td>${veld(r, 'begin', 'size="10"')}</td><td>${veld(r, 'eind', 'size="10" placeholder="leeg = open"')}</td>
+      <td>${veld(r, 'deeltijd', 'size="5"')}</td><td>${veld(r, 'meetelwaarde', 'size="5"')}</td>
+      <td class="status">${abpStatusHtml(r)}</td>
+      <td><button class="klein" data-abpactie="${r.bewerk ? 'klaar' : 'bewerk'}">${r.bewerk ? 'Klaar' : 'Aanpassen'}</button></td>
+      <td style="text-align:center"><input type="checkbox" class="abpImport" aria-label="Regel ${r.nr} importeren"${r.importeren ? ' checked' : ''}${r.importeerbaar ? '' : ' disabled title="Eerst handmatig corrigeren"'}></td></tr>`;
+  };
+  $('plakVoorbeeld').innerHTML = `
+    <div class="melding info">Herkend als <b>tekst uit een ABP-diensttijdoverzicht</b>: ${plakResultaat.verhoudingen} verhouding(en), ${per.length} perioderegel(s).
+      Status: ${telStatus('Correct herkend')} correct herkend, ${telStatus('Waarschuwing')} met waarschuwing, ${telStatus('Niet herkend')} niet herkend.</div>
+    ${per.some((r) => !r.importeerbaar) ? `<div class="melding waarsch">Niet alle regels met een datum konden volledig worden gelezen. Deze staan op ‘Waarschuwing’ en worden pas geïmporteerd na handmatige correctie (knop <i>Aanpassen</i>).</div>` : ''}
+    <div class="tabelvak"><table id="abpVoorbeeld"><thead><tr><th>Regel</th><th>Oorspronkelijke tekstregel</th><th>Herkend type</th><th>Vereniging</th><th>AV-ID</th><th>Begindatum</th><th>Einddatum</th><th>Deeltijd&shy;factor</th><th>Meetel&shy;waarde</th><th>Status</th><th>Handmatig aanpassen</th><th>Importeren</th></tr></thead>
+      <tbody>${rijen.map(rijHtml).join('')}</tbody></table></div>
+    <details style="margin-top:8px"><summary>Importlogboek (${log.length} regels)</summary><ol class="logboek" id="abpImportlog">${log.map((l) => `<li>${esc(l)}</li>`).join('')}</ol></details>
+    ${per.length ? plakBevestigingHtml() : '<div class="melding waarsch">Er zijn geen perioderegels gevonden om te importeren.</div>'}`;
+}
+
+function renderPlakVoorbeeld() { (plakResultaat.modus === 'abp' ? renderAbpVoorbeeld : renderTabVoorbeeld)(); }
+
+$('btnPlakControle').addEventListener('click', () => {
+  const tekst = $('plakveld').value;
+  if (isAbpTekst(tekst)) plakResultaat = { modus: 'abp', ...parseAbpTekst(tekst) };
+  else {
+    plakResultaat = { modus: 'tab', ...parsePlaktekst(tekst) };
+    plakResultaat.rijen.forEach((r) => { r.importeren = true; });
+  }
+  renderPlakVoorbeeld();
+});
+$('btnPlakVoorbeeld').addEventListener('click', () => {
+  if ($('plakveld').value.trim() && !confirm('De huidige tekst in het plakveld vervangen door de voorbeeldtekst?')) return;
+  $('plakveld').value = VOORBEELD_ABP_TEKST; $('btnPlakControle').click();
+});
+
+/** Werkt na een handmatige wijziging alleen de status- en importcel bij (invoerveld behoudt focus). */
+function werkAbpRijBij(tr, r) {
+  controleerAbpImportrij(r);
+  tr.querySelector('td.status').innerHTML = abpStatusHtml(r);
+  const cb = tr.querySelector('input.abpImport');
+  if (cb) { cb.disabled = !r.importeerbaar; cb.checked = r.importeren; }
+  if ($('plakAantal')) $('plakAantal').textContent = teImporteren().length;
+}
+
+$('plakVoorbeeld').addEventListener('input', (e) => {
+  const tr = e.target.closest('tr[data-i]'); if (!tr) return;
+  const r = plakResultaat.rijen[+tr.dataset.i];
+  if (e.target.dataset.abpveld) {
+    const veld = e.target.dataset.abpveld;
+    r.regel[veld] = e.target.value.trim();
+    if (veld === 'soort' && !r.regel.meetellenHandmatig) r.regel.meetellen = TELREGELS.standaardMeetellen[r.regel.soort] ? 'ja' : 'nee';
+    const wasImporteerbaar = r.importeerbaar;
+    r.handmatig = true;
+    controleerAbpImportrij(r);
+    if (!wasImporteerbaar && r.importeerbaar) r.importeren = false; // na correctie bewust zelf aanvinken
+    werkAbpRijBij(tr, r);
+  } else if (e.target.dataset.verhveld) {
+    // Wijziging op een verhoudingsregel geldt voor alle perioderegels van die verhouding.
+    const veld = e.target.dataset.verhveld;
+    r[veld] = e.target.value.trim();
+    plakResultaat.rijen.filter((x) => x.regel && x.verhoudingNr === r.nr).forEach((x) => { x.regel[veld] = r[veld]; x.handmatig = true; controleerAbpImportrij(x); });
+    r.meldingen = r.meldingen.filter((m) => !/naam van de vereniging/.test(m) || !r.vereniging);
+  }
 });
 $('plakVoorbeeld').addEventListener('change', (e) => {
   if (e.target.id === 'plakGecontroleerd') $('btnPlakToevoegen').disabled = $('btnPlakVervangen').disabled = !e.target.checked;
+  if (e.target.classList.contains('abpImport')) {
+    plakResultaat.rijen[+e.target.closest('tr').dataset.i].importeren = e.target.checked;
+    $('plakAantal').textContent = teImporteren().length;
+  }
 });
 $('plakVoorbeeld').addEventListener('click', (e) => {
+  const actie = e.target.dataset.abpactie;
+  if (actie) {
+    const i = +e.target.closest('tr').dataset.i, r = plakResultaat.rijen[i];
+    if (actie === 'bewerk') r.bewerk = true;
+    if (actie === 'klaar') { r.bewerk = false; if (r.type === 'verhouding') r.status = r.meldingen.length ? 'Waarschuwing' : 'Correct herkend'; }
+    if (actie === 'omzetten') {
+      // Niet-herkende regel handmatig als perioderegel invullen (wordt pas geïmporteerd na correctie en aanvinken).
+      const c = r.context;
+      Object.assign(r, { type: 'periode', typeLabel: 'Perioderegel (handmatig)', bewerk: true, handmatig: false, importeren: false,
+        leesfouten: ['niet automatisch herkend; vul de velden handmatig in'], verhoudingNr: c?.regelNr ?? null,
+        regel: nieuweRegel({ vereniging: c?.vereniging || '', avId: c?.avId || '', soort: c?.soort || 'Arbeidsverhouding' }) });
+      controleerAbpImportrij(r);
+      plakResultaat.log.push(`Regel ${r.nr}: handmatig omgezet naar perioderegel.`);
+    }
+    renderPlakVoorbeeld();
+    return;
+  }
   if (e.target.id === 'btnPlakAnnuleer') { plakResultaat = null; $('plakVoorbeeld').innerHTML = ''; return; }
   const vervang = e.target.id === 'btnPlakVervangen';
   if (!vervang && e.target.id !== 'btnPlakToevoegen') return;
+  const nieuw = teImporteren().map((r) => ({ ...r.regel, uid: uid(), opmerking: r.regel.opmerking || (r.handmatig ? 'Bij import handmatig aangepast' : '') }));
+  if (!nieuw.length) return alert('Er zijn geen perioderegels aangevinkt om te importeren.');
   if (vervang && !confirm('Alle bestaande perioderegels en handmatige correcties vervangen door de geplakte regels?')) return;
-  const nieuw = plakResultaat.rijen.map((x) => x.regel);
   const leeg = (r) => !r.vereniging && !r.begin && !r.eind && !r.avId;
   if (vervang) { staat.regels = nieuw; staat.correcties = []; staat.blokOpmerkingen = {}; }
   else staat.regels = [...staat.regels.filter((r) => !leeg(r)), ...nieuw];
+  if (plakResultaat.modus === 'abp') {
+    const overgeslagen = plakResultaat.rijen.filter((r) => r.regel && !r.importeren).map((r) => r.nr);
+    staat.importlogboek = [`Import ${new Date().toLocaleString('nl-NL')} (${vervang ? 'vervangen' : 'toegevoegd'}): ${nieuw.length} perioderegel(s) geïmporteerd.`,
+      ...(overgeslagen.length ? [`Niet geïmporteerd (perioderegels): tekstregel ${overgeslagen.join(', ')}.`] : []), ...plakResultaat.log];
+    renderImportlog();
+  }
   plakResultaat = null; $('plakVoorbeeld').innerHTML = ''; $('plakveld').value = '';
   markeerGewijzigd(); renderRegels(); herbereken();
 });
-$('btnPlakLeeg').addEventListener('click', () => { $('plakveld').value = ''; $('plakVoorbeeld').innerHTML = ''; });
+$('btnPlakLeeg').addEventListener('click', () => { $('plakveld').value = ''; $('plakVoorbeeld').innerHTML = ''; plakResultaat = null; });
+
+/** Toont het importlogboek van de laatste ABP-tekstimport (wordt met het dossier opgeslagen en geëxporteerd). */
+function renderImportlog() {
+  const l = staat.importlogboek || [];
+  $('importlogVak').classList.toggle('verborgen', !l.length);
+  $('importlogLijst').innerHTML = l.map((t) => `<li>${esc(t)}</li>`).join('');
+}
 
 /* ----- Opslaan / openen / nieuw / wissen ----- */
 $('btnOpslaan').addEventListener('click', () => {
@@ -1209,6 +1705,7 @@ $('btnCsv').addEventListener('click', () => {
     ...blokkenExport().map((b) => rij(b.blok, b.vereniging, b.bronregels, b.vismaBegin, b.vismaEind, b.abpBegin, b.abpEind, b.reden, b.handmatig, b.uitgesloten, b.opmerking)), '',
     rij('WAARSCHUWINGEN'), rij('Niveau', 'Melding'), ...resultaat.waarschuwingen.map((w) => rij(w.niveau, w.tekst)), '',
     rij('BEREKENINGSLOGBOEK'), rij('Nr', 'Soort', 'Omschrijving'), ...resultaat.log.map((l, i) => rij(i + 1, l.soort, l.tekst)),
+    ...(staat.importlogboek.length ? ['', rij('IMPORTLOGBOEK'), ...staat.importlogboek.map((l, i) => rij(i + 1, l))] : []),
   ];
   download('﻿' + regels.join('\r\n'), bestandsnaam('csv'), 'text/csv;charset=utf-8');
 });
@@ -1218,7 +1715,7 @@ $('btnJson').addEventListener('click', () => {
   const uit = {
     formaat: 'diensttijdblokken-dossier', versie: 1, geexporteerd: new Date().toISOString(),
     dossier: staat.dossier, instellingen: staat.instellingen, telregels: resultaat.telregels,
-    regels: staat.regels, correcties: staat.correcties, blokOpmerkingen: staat.blokOpmerkingen,
+    regels: staat.regels, correcties: staat.correcties, blokOpmerkingen: staat.blokOpmerkingen, importlogboek: staat.importlogboek,
     resultaat: { tellingen: t, blokken: blokkenExport(), waarschuwingen: resultaat.waarschuwingen, logboek: resultaat.log },
   };
   download(JSON.stringify(uit, null, 2), bestandsnaam('json'), 'application/json');
