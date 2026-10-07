@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<!--
+  Meettool PR24 – diensttijdopgaven verwerken in Visma (eenvoudige versie)
+
+  Zelfstandig bestand: alle HTML, CSS en JavaScript staan in dit bestand. Er is geen installatie,
+  server, buildproces of internetverbinding nodig. Open het bestand door erop te dubbelklikken.
+  Gegevens worden uitsluitend lokaal in deze browser opgeslagen (localStorage, sleutel
+  'meettool-pr24-eenvoudig'). De brede meettool (Meettool.html) en haar gegevens worden niet gebruikt
+  of gewijzigd. Gebruik uitsluitend geanonimiseerde dossiercodes; nooit persoonsgegevens.
+-->
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Meettool PR24 – eenvoudig</title>
+<style>
+:root {
+  --groen: #7cc48e; --groen-licht: #e8f5ec; --groen-donker: #2e7347;
+  --tekst: #1f2a24; --tekst-zacht: #5a6660; --rand: #d5ddd8; --achtergrond: #f6f8f7; --wit: #ffffff;
+  --berekend: #eef2f8; --berekend-rand: #7b8fae; --berekend-tekst: #34466a;
+  --fout: #b3261e; --fout-licht: #fbeceb; --waarschuwing: #8a5a00; --waarschuwing-licht: #fff6e0;
+  --radius: 6px;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--achtergrond); color: var(--tekst); font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; font-size: 15px; line-height: 1.45; }
+header.kop { background: var(--wit); border-bottom: 1px solid var(--rand); padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+header.kop h1 { font-size: 18px; margin: 0; font-weight: 600; }
+header.kop h1 span { font-size: 13px; color: var(--tekst-zacht); font-weight: 400; margin-left: 8px; }
+.opslagstatus { font-size: 13px; color: var(--tekst-zacht); }
+.opslagstatus.fout { color: var(--fout); font-weight: 600; }
+nav.voortgang { background: var(--wit); border-bottom: 1px solid var(--rand); padding: 8px 24px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; position: sticky; top: 0; z-index: 5; }
+nav.voortgang button { border: 1px solid var(--rand); background: var(--wit); border-radius: 16px; padding: 4px 12px; font: inherit; font-size: 14px; color: var(--tekst-zacht); cursor: pointer; }
+nav.voortgang button .nr { display: inline-block; width: 20px; height: 20px; line-height: 20px; border-radius: 50%; background: var(--rand); color: var(--tekst); text-align: center; font-size: 12px; margin-right: 6px; }
+nav.voortgang button.actief { border-color: var(--groen-donker); color: var(--tekst); font-weight: 600; background: var(--groen-licht); }
+nav.voortgang button.actief .nr, nav.voortgang button.klaar .nr { background: var(--groen-donker); color: var(--wit); }
+nav.voortgang .meting { margin-left: auto; font-weight: 600; font-size: 14px; }
+main { max-width: 1180px; margin: 0 auto; padding: 18px 24px 40px; }
+h2 { font-size: 19px; margin: 0 0 10px; }
+h3 { font-size: 16px; margin: 0 0 8px; }
+.kaart { background: var(--wit); border: 1px solid var(--rand); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px; }
+div.berekend { background: var(--berekend); border: 1px solid #d6deea; border-left: 4px solid var(--berekend-rand); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
+.etiket { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--berekend-tekst); margin-bottom: 4px; }
+.velden { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 16px; }
+.veld { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.veld.breed { grid-column: 1 / -1; }
+label, .label { font-size: 13px; font-weight: 600; }
+.hint { font-size: 12px; color: var(--tekst-zacht); }
+input[type="text"], input[type="number"], select, textarea { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid #b9c4be; border-radius: 4px; background: var(--wit); color: var(--tekst); width: 100%; min-width: 0; }
+textarea { min-height: 56px; resize: vertical; }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--groen); outline-offset: 1px; }
+.ongeldig { border-color: var(--fout) !important; background: var(--fout-licht) !important; }
+button { white-space: nowrap; font: inherit; font-size: 14px; padding: 6px 14px; border: 1px solid #b9c4be; border-radius: 4px; background: var(--wit); color: var(--tekst); cursor: pointer; }
+button:hover:not(:disabled) { background: var(--groen-licht); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.primair { background: var(--groen-donker); border-color: var(--groen-donker); color: var(--wit); }
+button.primair:hover:not(:disabled) { background: #245c39; }
+button.gevaar { color: var(--fout); border-color: #e3b5b2; }
+button.klein { font-size: 13px; padding: 3px 9px; }
+.knoppen { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.navknoppen { display: flex; justify-content: space-between; margin-top: 18px; }
+button.info { width: 18px; height: 18px; padding: 0; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 16px; color: var(--berekend-tekst); border-color: var(--berekend-rand); background: var(--wit); vertical-align: middle; margin-left: 3px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 6px 7px; border-bottom: 1px solid #e5eae7; vertical-align: top; overflow-wrap: break-word; }
+th { font-size: 12.5px; font-weight: 600; color: var(--tekst-zacht); background: #fafbfa; }
+td.getal, th.getal { text-align: right; font-variant-numeric: tabular-nums; }
+td.berekend { background: var(--berekend); }
+.tabelhouder { overflow-x: auto; }
+table.invoer td { vertical-align: middle; }
+table.invoer input, table.invoer select { padding: 4px 6px; }
+input.getal { width: 76px; text-align: right; }
+.mono { font-family: Consolas, "Courier New", monospace; font-size: 13px; }
+.leeg { color: var(--tekst-zacht); font-style: italic; }
+.nvt { color: var(--tekst-zacht); }
+.melding { border-radius: var(--radius); padding: 8px 12px; margin: 8px 0; font-size: 14px; }
+.melding.fout { background: var(--fout-licht); border: 1px solid #efc2bf; color: #7a1a14; }
+.melding.waarschuwing { background: var(--waarschuwing-licht); border: 1px solid #f0d9a0; color: #5c3d00; }
+.melding.info { background: var(--groen-licht); border: 1px solid #bfe0c9; }
+.melding ul { margin: 4px 0 0 18px; padding: 0; }
+.kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 8px; margin-top: 6px; }
+.uitkomst { background: var(--wit); border: 1px solid var(--rand); border-radius: var(--radius); padding: 8px 10px; min-width: 0; overflow-wrap: break-word; }
+.uitkomst .l { font-size: 12.5px; color: var(--tekst-zacht); }
+.uitkomst .w { font-size: 20px; font-weight: 700; color: var(--berekend-tekst); }
+.uitkomst .w .leeg, .uitkomst .w .nvt { font-size: 13px; font-weight: 400; }
+.uitkomst .s { font-size: 12px; color: var(--tekst-zacht); }
+.twee { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .twee { grid-template-columns: 1fr; } }
+#resultaatStappen td.getal, #resultaatStappen th.getal { min-width: 84px; }
+#resultaatStappen td:nth-child(9) { min-width: 120px; }
+#resultaatStappen td:nth-child(4) { min-width: 115px; }
+#resultaatStappen td:nth-child(10) { min-width: 80px; }
+#resultaatStappen td:first-child { min-width: 200px; }
+#stapTabel th { white-space: nowrap; }
+.label-hoog { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border: 1px solid #f0d9a0; border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; font-weight: 600; }
+.label-schatting { display: inline-block; background: var(--waarschuwing-licht); color: var(--waarschuwing); border-radius: 3px; font-size: 11px; padding: 0 5px; margin-left: 4px; }
+tr.inbegrepen td { color: var(--tekst-zacht); }
+tr.klassen td { background: #fafbfa; }
+.klassenvelden { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 8px 12px; }
+.balk { height: 5px; background: var(--rand); border-radius: 3px; margin-top: 3px; overflow: hidden; }
+.balk span { display: block; height: 100%; background: var(--berekend-rand); }
+dialog { border: 1px solid var(--rand); border-radius: var(--radius); padding: 0; max-width: 620px; width: calc(100% - 32px); }
+dialog::backdrop { background: rgba(20, 30, 25, .35); }
+.dialoog-kop { font-weight: 600; padding: 12px 16px; border-bottom: 1px solid var(--rand); }
+.dialoog-inhoud { padding: 12px 16px; max-height: 60vh; overflow: auto; }
+.dialoog-knoppen { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--rand); flex-wrap: wrap; }
+#meldingen { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 20; }
+.toast { background: #23312a; color: var(--wit); padding: 9px 14px; border-radius: var(--radius); font-size: 14px; max-width: 380px; }
+.toast.fout { background: var(--fout); }
+</style>
+</head>
+<body>
+<header class="kop">
+  <h1>Meettool PR24 <span>Diensttijdopgaven verwerken in Visma · eenvoudige versie 1.0</span></h1>
+  <div class="opslagstatus" id="opslagStatus"></div>
+</header>
+<nav class="voortgang" id="voortgang" aria-label="Stappen">
+  <button type="button" data-ga="1"><span class="nr">1</span>Bestuur en maand</button>
+  <button type="button" data-ga="2"><span class="nr">2</span>Volume en frequentie</button>
+  <button type="button" data-ga="3"><span class="nr">3</span>Dossiers</button>
+  <button type="button" data-ga="4"><span class="nr">4</span>Processtappen en tijd</button>
+  <button type="button" data-ga="5"><span class="nr">5</span>Resultaat en export</button>
+  <span class="meting" id="metingLabel"></span>
+</nav>
+
+<main>
+  <!-- Stap 1 -->
+  <section data-stap="1">
+    <h2>1. Bestuur en maand</h2>
+    <div class="kaart">
+      <div class="velden">
+        <div class="veld"><label for="bestuur">Bestuur</label><select id="bestuur"><option>LEV</option><option>SAMANAS</option></select></div>
+        <div class="veld"><label for="maand">Kalendermaand</label><select id="maand"></select></div>
+        <div class="veld"><label for="jaar">Kalenderjaar</label><select id="jaar"></select></div>
+        <div class="veld"><span class="label">Maandmeting</span><strong id="keuzeLabel"></strong><span class="hint" id="keuzeStatus"></span></div>
+      </div>
+      <div class="knoppen">
+        <button type="button" class="primair" id="knopNieuw">Nieuwe maandmeting</button>
+        <button type="button" id="knopOpslaan">Opslaan</button>
+        <button type="button" class="gevaar" id="knopVerwijderen">Verwijderen</button>
+      </div>
+    </div>
+    <div class="kaart">
+      <h3>Bestaande maandmetingen</h3>
+      <div class="tabelhouder" id="lijst"></div>
+    </div>
+  </section>
+
+  <!-- Stap 2 -->
+  <section data-stap="2" hidden>
+    <h2>2. Volume en frequentie</h2>
+    <div class="geenmeting"></div>
+    <div class="metmeting">
+      <div class="kaart">
+        <div class="velden">
+          <div class="veld"><label for="nieuwe">Aantal nieuwe medewerkers</label><input type="text" id="nieuwe" inputmode="numeric" placeholder="niet ingevuld"></div>
+          <div class="veld"><label for="aangeleverd">Aantal aangeleverde diensttijdopgaven</label><input type="text" id="aangeleverd" inputmode="numeric" placeholder="niet ingevuld"></div>
+          <div class="veld"><label for="verwerkt">Aantal verwerkte diensttijdopgaven</label><input type="text" id="verwerkt" inputmode="numeric" placeholder="niet ingevuld"></div>
+          <div class="veld"><label for="bron">Bron van de aantallen <span class="hint">(optioneel)</span></label><input type="text" id="bron" maxlength="150"></div>
+          <div class="veld breed"><label for="toelichting">Algemene toelichting <span class="hint">(optioneel)</span></label><input type="text" id="toelichting" maxlength="300"></div>
+        </div>
+        <div id="fouten2"></div>
+      </div>
+      <div class="berekend" id="resultaat2"></div>
+    </div>
+  </section>
+
+  <!-- Stap 3 -->
+  <section data-stap="3" hidden>
+    <h2>3. Dossiers</h2>
+    <div class="geenmeting"></div>
+    <div class="metmeting">
+      <div class="melding info">Eén regel per aangeleverde diensttijdopgave. Gebruik alleen een <strong>geanonimiseerde dossiercode</strong>: nooit een naam, personeelsnummer, BSN of ander persoonsgegeven.</div>
+      <div class="kaart">
+        <div class="tabelhouder" id="dossiers"></div>
+        <div class="knoppen"><button type="button" class="primair" id="knopDossier">Dossier toevoegen</button>
+          <span class="hint">Leeg = niet ingevuld (telt niet als 0). Visma-regels alleen invullen als bekend.</span></div>
+        <div id="fouten3"></div>
+      </div>
+      <div class="berekend" id="resultaat3"></div>
+    </div>
+  </section>
+
+  <!-- Stap 4 -->
+  <section data-stap="4" hidden>
+    <h2>4. Processtappen en tijd</h2>
+    <div class="geenmeting"></div>
+    <div class="metmeting">
+      <div class="kaart">
+        <div class="tabelhouder" id="stappen"></div>
+        <p class="hint">Tijden in minuten per eenheid; decimalen met komma (bijv. 1,5). Leeg = niet ingevuld.</p>
+        <div id="fouten4"></div>
+      </div>
+      <div class="berekend" id="resultaat4"></div>
+    </div>
+  </section>
+
+  <!-- Stap 5 -->
+  <section data-stap="5" hidden>
+    <h2>5. Resultaat en export</h2>
+    <div class="geenmeting"></div>
+    <div class="metmeting" id="resultaat5"></div>
+    <div class="kaart">
+      <h3>Export en import</h3>
+      <div class="knoppen" style="margin-top:0">
+        <button type="button" class="primair" id="knopExcel">Excel downloaden</button>
+        <select id="csvKeuze" style="width:auto" aria-label="Onderdeel voor CSV">
+          <option value="samenvatting">Samenvatting</option><option value="maandgegevens">Maandgegevens</option><option value="dossiers">Dossiers</option>
+          <option value="stappen">Processtappen en tijden</option><option value="berekeningen">Berekeningen en meetwijzen</option>
+        </select>
+        <button type="button" id="knopCsv">CSV downloaden</button>
+        <button type="button" id="knopJson">JSON-back-up downloaden</button>
+        <button type="button" id="knopImport">JSON-back-up importeren</button>
+        <input type="file" id="importBestand" accept=".json,application/json" hidden>
+      </div>
+      <p class="hint">Excel en CSV bevatten de gekozen maandmeting. De JSON-back-up bevat alle maandmetingen en kan later weer worden geïmporteerd.</p>
+    </div>
+  </section>
+
+  <div class="navknoppen">
+    <button type="button" id="knopVorige">← Vorige</button>
+    <button type="button" class="primair" id="knopVolgende">Volgende →</button>
+  </div>
+</main>
+
+<dialog id="dialoog"><div class="dialoog-kop" id="dialoogKop"></div><div class="dialoog-inhoud" id="dialoogInhoud"></div><div class="dialoog-knoppen" id="dialoogKnoppen"></div></dialog>
+<div id="meldingen" aria-live="polite"></div>
+
+<script>
+'use strict';
+// =====================================================================
+// Meettool PR24 – eenvoudige versie
+// =====================================================================
+
+const VERSIE = 'PR24-eenvoudig 1.0';
+const SLEUTEL = 'meettool-pr24-eenvoudig';
+const FORMAAT = 'meettool-pr24-eenvoudig';
+const BESTUREN = ['LEV', 'SAMANAS'];
+const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+const STATUSSEN = ['Nog niet verwerkt', 'Gedeeltelijk verwerkt', 'Volledig verwerkt', 'Status onbekend'];
+const MEETWIJZEN = ['Daadwerkelijk gemeten', 'Geschat door medewerker', 'Geschat door onderzoeker', 'Systeemregistratie'];
+const EENHEDEN = { dossier: 'Per dossier', blok: 'Per diensttijdblok' };
+const KLASSEN = ['Klein', 'Gemiddeld', 'Groot', 'Zeer groot'];
+const KLASSE_GRENZEN = { Klein: '1–19 regels', Gemiddeld: '20–50 regels', Groot: '51–100 regels', 'Zeer groot': '101 of meer regels' };
+const STAPPEN = [
+  ['PR24-S01', 'ABP-diensttijdoverzicht in het e-dossier openen', 'dossier'],
+  ['PR24-S02', 'Vaststellen welke diensttijd moet worden geregistreerd', 'dossier'],
+  ['PR24-S03', 'Dienstperioden en onderbrekingen beoordelen', 'dossier'],
+  ['PR24-S04', 'Nieuwe diensttijdregel toevoegen in Visma', 'blok'],
+  ['PR24-S05', 'Begin- en einddatum en werkgever invoeren', 'blok'],
+  ['PR24-S06', 'Instellingen van de diensttijdregel aanpassen', 'blok'],
+  ['PR24-S07', 'Controleren of alle relevante perioden zijn ingevoerd', 'dossier'],
+  ['PR24-S08', 'Ingevoerde diensttijd vergelijken met het overzicht', 'dossier'],
+  ['PR24-S09', 'Registratie van de diensttijd afronden', 'dossier'],
+];
+const S02 = 'PR24-S02';
+const ONVOLDOENDE = 'onvoldoende gegevens';
+const ID_PATROON = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
+
+// ---------- Hulpfuncties ----------
+
+const $ = (sel, ouder = document) => ouder.querySelector(sel);
+const $$ = (sel, ouder = document) => [...ouder.querySelectorAll(sel)];
+const isGetal = (n) => typeof n === 'number' && Number.isFinite(n);
+const uniek = (l) => [...new Set(l)];
+const nuIso = () => new Date().toISOString();
+
+function esc(w) {
+  if (w === null || w === undefined) return '';
+  return String(w).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Leest een getal; komma en punt als decimaalteken. Leeg = null (nooit 0); ongeldig = NaN. */
+function leesGetal(tekst) {
+  const t = String(tekst === null || tekst === undefined ? '' : tekst).trim().replace(/\s+/g, '');
+  if (t === '') return null;
+  if (!/^[-+]?(\d+([.,]\d*)?|[.,]\d+)$/.test(t)) return NaN;
+  const n = Number(t.replace(',', '.'));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function fmtGetal(n, dec = 2) {
+  if (!isGetal(n)) return '';
+  const [heel, deel] = Math.abs(n).toFixed(dec).split('.');
+  const s = heel.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (deel ? ',' + deel : '');
+  return (n < 0 && Number(Math.abs(n).toFixed(dec)) !== 0 ? '-' : '') + s;
+}
+const fmtAantal = (n) => (isGetal(n) && Number.isInteger(n) ? fmtGetal(n, 0) : fmtGetal(n, 2));
+const naarInvoer = (n) => (isGetal(n) ? String(n).replace('.', ',') : '');
+
+function fmtUrenMinuten(min) {
+  if (!isGetal(min)) return '';
+  const totaal = Math.round(Math.abs(min));
+  const u = Math.floor(totaal / 60);
+  return `${min < 0 ? '-' : ''}${u ? u + ' uur ' : ''}${totaal % 60} min`;
+}
+
+function fmtTijdstip(iso, metSeconden) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = (x) => String(x).padStart(2, '0');
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}${metSeconden ? ':' + p(d.getSeconds()) : ''}`;
+}
+
+function som(w) {
+  let t = 0;
+  let c = 0;
+  for (const x of w) { const y = t + x; c += Math.abs(t) >= Math.abs(x) ? (t - y) + x : (x - y) + t; t = y; }
+  return t + c;
+}
+
+const leegHtml = () => '<span class="leeg">niet ingevuld</span>';
+const onvoldoendeHtml = (reden = ONVOLDOENDE) => `<span class="leeg">${esc(reden)}</span>`;
+const nvtHtml = (tekst = 'n.v.t.') => `<span class="nvt">${esc(tekst)}</span>`;
+const invoerHtml = (n) => (isGetal(n) ? esc(fmtAantal(n)) : leegHtml());
+const berekendHtml = (n) => (isGetal(n) ? esc(fmtAantal(n)) : onvoldoendeHtml());
+const minHtml = (n) => (isGetal(n) ? `${esc(fmtGetal(n))} min` : onvoldoendeHtml());
+const info = (tekst) => `<button type="button" class="info" data-info="${esc(tekst)}" title="${esc(tekst)}" aria-label="Uitleg">i</button>`;
+
+function toonMelding(tekst, fout = false) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (fout ? ' fout' : '');
+  el.textContent = tekst;
+  $('#meldingen').appendChild(el);
+  setTimeout(() => el.remove(), fout ? 7000 : 3000);
+}
+
+function foutenHtml(fouten, titel) {
+  return fouten.length ? `<div class="melding fout"><strong>${esc(titel)}</strong><ul>${fouten.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div>` : '';
+}
+
+function dialoog(titel, inhoud, knoppen) {
+  const d = $('#dialoog');
+  $('#dialoogKop').textContent = titel;
+  $('#dialoogInhoud').innerHTML = inhoud;
+  const houder = $('#dialoogKnoppen');
+  houder.innerHTML = '';
+  return new Promise((resolve) => {
+    const sluit = (w) => { d.removeEventListener('cancel', annuleer); if (d.open) d.close(); resolve(w); };
+    const annuleer = (e) => { e.preventDefault(); sluit(null); };
+    d.addEventListener('cancel', annuleer);
+    for (const k of knoppen) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = k.label;
+      if (k.soort) b.className = k.soort;
+      b.addEventListener('click', () => sluit(k.waarde));
+      houder.appendChild(b);
+    }
+    d.showModal();
+  });
+}
+const bevestig = async (titel, tekst, label) => (await dialoog(titel, tekst, [{ label: 'Annuleren', waarde: false }, { label, waarde: true, soort: 'gevaar' }])) === true;
+
+function downloadBlob(blob, naam) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = naam;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function bestandsdatum() {
+  const d = new Date();
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+// ---------- Gegevens en opslag ----------
+//
+// staat.metingen: [{ id, bestuur, jaar, maand, nieuwe, aangeleverd, verwerkt, bron, toelichting,
+//   dossiers: [{ code, regels, blokken, status, visma, bijzonderheid, aangemaakt, gewijzigd }],
+//   stappen: [{ stapId, naam, actief, wacht, eenheid, meetwijze, knelpunt, toelichting, inbegrepen, inbegrepenBij, gewijzigd }],
+//   s02: { Klein, Gemiddeld, Groot, 'Zeer groot' }  (actieve tijd per dossier per complexiteitsklasse),
+//   aangemaakt, gewijzigd }]
+// Ontbrekende getallen zijn null en worden nooit als 0 gebruikt. Berekende waarden worden niet opgeslagen.
+
+let staat = { metingen: [] };
+let opgeslagenOp = null;
+let opslagGeblokkeerd = false;
+
+function laad() {
+  try {
+    const t = localStorage.getItem(SLEUTEL);
+    if (!t) return true;
+    const j = JSON.parse(t);
+    if (!j || !Array.isArray(j.metingen)) throw new Error('formaat');
+    staat = { metingen: j.metingen.map(normaliseer) };
+    opgeslagenOp = j.opgeslagen || null;
+    return true;
+  } catch (e) {
+    opslagGeblokkeerd = true; // onleesbare gegevens nooit overschrijven
+    return false;
+  }
+}
+
+function bewaar() {
+  if (opslagGeblokkeerd) { werkStatusBij(); return false; }
+  const tijd = nuIso();
+  try {
+    localStorage.setItem(SLEUTEL, JSON.stringify({ formaat: FORMAAT, versie: VERSIE, opgeslagen: tijd, metingen: staat.metingen }));
+    opgeslagenOp = tijd;
+    werkStatusBij();
+    return true;
+  } catch (e) {
+    toonMelding('Opslaan in deze browser is mislukt. Download direct een JSON-back-up.', true);
+    return false;
+  }
+}
+
+function werkStatusBij() {
+  const el = $('#opslagStatus');
+  el.classList.toggle('fout', opslagGeblokkeerd);
+  el.textContent = opslagGeblokkeerd ? 'Opslaan uitgeschakeld: opgeslagen gegevens zijn onleesbaar (niet gewist). Importeer een back-up.'
+    : opgeslagenOp ? `Laatst opgeslagen: ${fmtTijdstip(opgeslagenOp, true)}` : 'Nog niets opgeslagen';
+}
+
+const metingId = (bestuur, jaar, maand) => `PR24-${bestuur}-${jaar}-${String(maand).padStart(2, '0')}`;
+const metingLabel = (m) => `PR24 – ${m.bestuur} – ${MAANDEN[m.maand - 1]} ${m.jaar}`;
+const zoekMeting = (b, j, m) => staat.metingen.find((x) => x.bestuur === b && x.jaar === j && x.maand === m) || null;
+const legeStap = ([stapId, naam, eenheid]) => ({ stapId, naam, actief: null, wacht: null, eenheid, meetwijze: '', knelpunt: null, toelichting: '', inbegrepen: false, inbegrepenBij: '', gewijzigd: null });
+
+function normaliseer(m) {
+  const r = { ...m };
+  r.id = r.id || metingId(r.bestuur, r.jaar, r.maand);
+  r.dossiers = Array.isArray(r.dossiers) ? r.dossiers : [];
+  r.stappen = STAPPEN.map((s) => ({ ...legeStap(s), ...((r.stappen || []).find((x) => x.stapId === s[0]) || {}) }));
+  r.s02 = { ...Object.fromEntries(KLASSEN.map((k) => [k, null])), ...(r.s02 || {}) };
+  return r;
+}
+
+function nieuweMeting(bestuur, jaar, maand) {
+  const m = normaliseer({ bestuur, jaar, maand, nieuwe: null, aangeleverd: null, verwerkt: null, bron: '', toelichting: '', dossiers: [], aangemaakt: nuIso(), gewijzigd: null });
+  staat.metingen.push(m);
+  staat.metingen.sort((a, b) => a.jaar - b.jaar || a.maand - b.maand || a.bestuur.localeCompare(b.bestuur));
+  return m;
+}
+
+/** Complexiteitsklasse op basis van het exacte aantal ABP-periode-regels (null als niet ingevuld). */
+function klasse(regels) {
+  if (!isGetal(regels) || regels < 1) return null;
+  if (regels <= 19) return 'Klein';
+  if (regels <= 50) return 'Gemiddeld';
+  if (regels <= 100) return 'Groot';
+  return 'Zeer groot';
+}
+
+function voorstelCode(m) {
+  const prefix = `${m.bestuur}-${m.jaar}-${String(m.maand).padStart(2, '0')}-D`;
+  const nrs = m.dossiers.map((d) => (d.code.startsWith(prefix) && /^\d+$/.test(d.code.slice(prefix.length)) ? Number(d.code.slice(prefix.length)) : 0));
+  return prefix + String(Math.max(0, ...nrs) + 1).padStart(2, '0');
+}
+
+// ---------- Validatie ----------
+
+const geheel = (v, min) => v === null || (Number.isInteger(v) && v >= min);
+
+function valideerMaand(g) {
+  const f = [];
+  for (const [k, l] of [['nieuwe', 'Aantal nieuwe medewerkers'], ['aangeleverd', 'Aantal aangeleverde diensttijdopgaven'], ['verwerkt', 'Aantal verwerkte diensttijdopgaven']]) {
+    if (!geheel(g[k], 0)) f.push(`${l}: vul een geheel getal van 0 of hoger in.`);
+  }
+  if (f.length) return f;
+  if (isGetal(g.aangeleverd) && isGetal(g.nieuwe) && g.aangeleverd > g.nieuwe) f.push(`Aangeleverd (${g.aangeleverd}) mag niet hoger zijn dan het aantal nieuwe medewerkers (${g.nieuwe}).`);
+  if (isGetal(g.verwerkt) && isGetal(g.aangeleverd) && g.verwerkt > g.aangeleverd) f.push(`Verwerkt (${g.verwerkt}) mag niet hoger zijn dan aangeleverd (${g.aangeleverd}).`);
+  return f;
+}
+
+function valideerDossier(d, m, i) {
+  const f = [];
+  const naam = d.code || `Regel ${i + 1}`;
+  if (!d.code) f.push(`${naam}: vul een dossiercode in.`);
+  else if (!ID_PATROON.test(d.code)) f.push(`${naam}: de dossiercode mag alleen letters, cijfers, - en _ bevatten.`);
+  else if (m.dossiers.some((x, j) => j !== i && x.code === d.code)) f.push(`${naam}: deze dossiercode komt al voor.`);
+  if (!geheel(d.regels, 1)) f.push(`${naam}: ABP-periode-regels moet een geheel getal van 1 of hoger zijn (0 is niet geldig bij een aangeleverde opgave).`);
+  if (!geheel(d.blokken, 0)) f.push(`${naam}: verwacht aantal diensttijdblokken moet een geheel getal van 0 of hoger zijn.`);
+  if (!geheel(d.visma, 0)) f.push(`${naam}: werkelijk aantal regels in Visma moet een geheel getal van 0 of hoger zijn.`);
+  if (!STATUSSEN.includes(d.status)) f.push(`${naam}: kies een verwerkingsstatus.`);
+  return f;
+}
+
+function valideerStap(s) {
+  const f = [];
+  for (const [k, l] of [['actief', 'actieve tijd'], ['wacht', 'wachttijd']]) {
+    if (s[k] !== null && !(isGetal(s[k]) && s[k] >= 0)) f.push(`${s.stapId}: ${l} moet een getal van 0 of hoger zijn.`);
+  }
+  if (!EENHEDEN[s.eenheid]) f.push(`${s.stapId}: kies een rekeneenheid.`);
+  if (s.meetwijze && !MEETWIJZEN.includes(s.meetwijze)) f.push(`${s.stapId}: kies een geldige meetwijze.`);
+  return f;
+}
+
+// ---------- Berekeningen ----------
+
+function pct(t, n) {
+  if (!isGetal(t) || !isGetal(n)) return { waarde: null, reden: ONVOLDOENDE };
+  if (n === 0) return { waarde: null, reden: 'niet te berekenen (deler is 0)' };
+  return { waarde: (t / n) * 100 };
+}
+
+function reeks(dossiers, veld) {
+  const met = dossiers.filter((d) => isGetal(d[veld]));
+  const totaal = met.length ? som(met.map((d) => d[veld])) : null;
+  return { n: met.length, totaal, gemiddelde: met.length ? totaal / met.length : null, ontbrekend: dossiers.filter((d) => !isGetal(d[veld])).map((d) => d.code) };
+}
+
+/** Verwacht nog in te voeren blokken van één dossier; null als dat niet vast te stellen is. */
+function restBlokken(d) {
+  if (d.status === 'Volledig verwerkt') return 0;
+  if (!isGetal(d.blokken)) return null;
+  if (isGetal(d.visma)) return Math.max(0, d.blokken - d.visma);
+  if (d.status === 'Nog niet verwerkt') return d.blokken;
+  return null;
+}
+
+const GESCHAT = ['Geschat door medewerker', 'Geschat door onderzoeker'];
+
+function bereken(m) {
+  const verschil = (a, b) => (isGetal(a) && isGetal(b) ? a - b : null);
+  const freq = {
+    nieuwe: m.nieuwe, aangeleverd: m.aangeleverd, verwerkt: m.verwerkt,
+    geenOpgave: verschil(m.nieuwe, m.aangeleverd), nogTeVerwerken: verschil(m.aangeleverd, m.verwerkt),
+    aanleverPct: pct(m.aangeleverd, m.nieuwe), verwerkingsPct: pct(m.verwerkt, m.aangeleverd), verwerktVanNieuwePct: pct(m.verwerkt, m.nieuwe),
+  };
+  const D = m.dossiers;
+  const perKlasse = Object.fromEntries(KLASSEN.map((k) => [k, D.filter((d) => klasse(d.regels) === k)]));
+  const rest = D.map((d) => restBlokken(d));
+  const dos = {
+    aantal: D.length,
+    perKlasse: Object.fromEntries(KLASSEN.map((k) => [k, perKlasse[k].length])),
+    zonderKlasse: D.filter((d) => !klasse(d.regels)).map((d) => d.code),
+    regels: reeks(D, 'regels'), blokken: reeks(D, 'blokken'), visma: reeks(D, 'visma'),
+    perStatus: Object.fromEntries(STATUSSEN.map((s) => [s, D.filter((d) => d.status === s).length])),
+    resterend: { totaal: rest.some(isGetal) ? som(rest.filter(isGetal)) : null, n: rest.filter(isGetal).length, onbekend: D.filter((d, i) => !isGetal(rest[i])).map((d) => d.code) },
+    afwijking: isGetal(m.aangeleverd) && D.length !== m.aangeleverd,
+  };
+  const eenheden = {
+    dossier: { uit: m.verwerkt, verw: m.aangeleverd, uitLabel: 'verwerkte diensttijdopgaven', verwLabel: 'aangeleverde diensttijdopgaven' },
+    blok: { uit: dos.visma.totaal, verw: dos.blokken.totaal, uitLabel: 'werkelijk ingevoerde Visma-regels', verwLabel: 'verwachte diensttijdblokken' },
+  };
+  const maal = (t, n) => (isGetal(t) && isGetal(n) ? t * n : null);
+  const tekst = (t, n, label, u) => `${isGetal(t) ? fmtGetal(t) + ' min' : 'tijd niet ingevuld'} × ${isGetal(n) ? fmtAantal(n) : '?'} ${label} = ${isGetal(u) ? fmtGetal(u) + ' min' : ONVOLDOENDE}`;
+
+  const stappen = m.stappen.map((s) => {
+    const r = { stap: s, inbegrepen: !!s.inbegrepen, schatting: false, berekening: {} };
+    const e = s.stapId === S02 ? eenheden.dossier : eenheden[s.eenheid] || eenheden.dossier;
+    r.eenheid = s.stapId === S02 ? 'dossier' : s.eenheid;
+    // Wachttijd (en actieve tijd behalve bij S02): tijd × aantal eenheden.
+    for (const soort of ['actief', 'wacht']) {
+      if (soort === 'actief' && s.stapId === S02) continue;
+      const uit = maal(s[soort], e.uit);
+      const verw = maal(s[soort], e.verw);
+      r[soort] = { uit, verw, rest: isGetal(uit) && isGetal(verw) ? verw - uit : null };
+      r.berekening[soort] = { uit: tekst(s[soort], e.uit, e.uitLabel, uit), verw: tekst(s[soort], e.verw, e.verwLabel, verw) };
+    }
+    if (s.stapId === S02) {
+      // S02 per complexiteitsklasse: aantal dossiers in klasse × tijd voor die klasse.
+      // Uitgevoerd: volledig verwerkte dossiers per klasse; verwacht: alle geregistreerde dossiers per klasse.
+      const klassen = KLASSEN.map((k) => {
+        const t = m.s02[k];
+        const nVerw = perKlasse[k].length;
+        const nUit = perKlasse[k].filter((d) => d.status === 'Volledig verwerkt').length;
+        return { klasse: k, tijd: t, nVerw, nUit, nvt: nVerw === 0, ontbreekt: nVerw > 0 && !isGetal(t), uit: nVerw > 0 && isGetal(t) ? t * nUit : nVerw === 0 ? 0 : null, verw: nVerw > 0 && isGetal(t) ? t * nVerw : nVerw === 0 ? 0 : null };
+      });
+      const redenen = [];
+      if (!D.length) redenen.push('nog geen dossiers geregistreerd');
+      if (dos.zonderKlasse.length) redenen.push(`${dos.zonderKlasse.length} dossier(s) zonder ABP-periode-regels`);
+      const ontbrekend = klassen.filter((k) => k.ontbreekt).map((k) => k.klasse);
+      if (ontbrekend.length) redenen.push(`geen tijd ingevuld voor ${ontbrekend.join(', ')}`);
+      const ok = !redenen.length;
+      const uit = ok ? som(klassen.map((k) => k.uit)) : null;
+      const verw = ok ? som(klassen.map((k) => k.verw)) : null;
+      r.actief = { uit, verw, rest: ok ? verw - uit : null };
+      r.klassen = klassen;
+      r.redenS02 = redenen.join('; ');
+      r.berekening.actief = {
+        uit: ok ? klassen.filter((k) => !k.nvt).map((k) => `${k.nUit} × ${fmtGetal(k.tijd)} min (${k.klasse})`).join(' + ') + ` = ${fmtGetal(uit)} min` : `${ONVOLDOENDE}: ${r.redenS02}`,
+        verw: ok ? klassen.filter((k) => !k.nvt).map((k) => `${k.nVerw} × ${fmtGetal(k.tijd)} min (${k.klasse})`).join(' + ') + ` = ${fmtGetal(verw)} min` : `${ONVOLDOENDE}: ${r.redenS02}`,
+      };
+    }
+    const heeftTijd = isGetal(s.actief) || isGetal(s.wacht) || (s.stapId === S02 && KLASSEN.some((k) => isGetal(m.s02[k])));
+    r.schatting = heeftTijd && (!s.meetwijze || GESCHAT.includes(s.meetwijze));
+    return r;
+  });
+
+  const meetellend = stappen.filter((r) => !r.inbegrepen);
+  const totaal = (soort, deel) => {
+    const w = meetellend.map((r) => r[soort][deel]);
+    const bekend = w.filter(isGetal);
+    return { waarde: bekend.length === w.length ? som(w) : null, deelsom: bekend.length ? som(bekend) : null, nBekend: bekend.length, n: w.length };
+  };
+  const tijd = {};
+  for (const soort of ['actief', 'wacht']) tijd[soort] = { uit: totaal(soort, 'uit'), rest: totaal(soort, 'rest'), verw: totaal(soort, 'verw') };
+  const hoogste = meetellend.filter((r) => isGetal(r.actief.verw) && r.actief.verw > 0).sort((a, b) => b.actief.verw - a.actief.verw).slice(0, 3).map((r) => r.stap.stapId);
+  const waarschuwingen = [];
+  for (const r of stappen.filter((x) => x.inbegrepen)) {
+    const doel = m.stappen.find((s) => s.stapId === r.stap.inbegrepenBij);
+    if (!doel) waarschuwingen.push(`${r.stap.stapId} is gemarkeerd als inbegrepen, maar er is niet gekozen bij welke stap.`);
+    else if (doel.inbegrepen) waarschuwingen.push(`${r.stap.stapId} is inbegrepen bij ${doel.stapId}, maar ${doel.stapId} is zelf ook als inbegrepen gemarkeerd; die tijd telt dan nergens mee.`);
+  }
+  return {
+    meting: m, freq, dos, eenheden, stappen, tijd, hoogste, waarschuwingen,
+    schatting: meetellend.some((r) => r.schatting),
+    knelpunten: stappen.filter((r) => r.stap.knelpunt === true).sort((a, b) => (isGetal(b.actief.verw) ? b.actief.verw : -1) - (isGetal(a.actief.verw) ? a.actief.verw : -1)),
+  };
+}
+
+// ---------- Navigatie en selectie ----------
+
+let keuze = { bestuur: 'LEV', jaar: new Date().getFullYear(), maand: new Date().getMonth() + 1 };
+let huidigeStap = 1;
+const huidig = () => zoekMeting(keuze.bestuur, keuze.jaar, keuze.maand);
+
+function bewaarKeuze() {
+  try { sessionStorage.setItem(SLEUTEL + '-keuze', JSON.stringify({ ...keuze, stap: huidigeStap })); } catch (e) { /* niet kritiek */ }
+}
+
+function toonStap(n) {
+  huidigeStap = Math.min(5, Math.max(1, n));
+  for (const s of $$('section[data-stap]')) s.hidden = Number(s.dataset.stap) !== huidigeStap;
+  for (const b of $$('#voortgang button')) {
+    b.classList.toggle('actief', Number(b.dataset.ga) === huidigeStap);
+    b.classList.toggle('klaar', Number(b.dataset.ga) < huidigeStap);
+  }
+  $('#knopVorige').disabled = huidigeStap === 1;
+  $('#knopVolgende').hidden = huidigeStap === 5;
+  bewaarKeuze();
+  render();
+  window.scrollTo(0, 0);
+}
+
+function render() {
+  const m = huidig();
+  const label = metingLabel(keuze);
+  $('#metingLabel').textContent = m ? label : '';
+  $('#keuzeLabel').textContent = label;
+  $('#keuzeStatus').textContent = m ? `Geopend · aangemaakt ${fmtTijdstip(m.aangemaakt)}${m.gewijzigd ? ' · laatst gewijzigd ' + fmtTijdstip(m.gewijzigd) : ''}` : 'Nog niet aangemaakt.';
+  $('#knopNieuw').disabled = !!m;
+  $('#knopOpslaan').disabled = !m;
+  $('#knopVerwijderen').disabled = !m;
+  for (const s of $$('.geenmeting')) s.innerHTML = m ? '' : `<div class="melding waarschuwing">Er is nog geen maandmeting voor ${esc(label)}. <button type="button" class="klein" data-ga="1">Naar stap 1</button></div>`;
+  for (const s of $$('.metmeting')) s.hidden = !m;
+  for (const b of $$('#knopExcel, #knopCsv, #csvKeuze')) b.disabled = !m;
+  renderLijst();
+  if (!m) return;
+  const b = bereken(m);
+  if (huidigeStap === 2) { vulMaandvelden(m); $('#resultaat2').innerHTML = frequentieHtml(b); }
+  if (huidigeStap === 3) { $('#dossiers').innerHTML = dossierTabelHtml(m); $('#resultaat3').innerHTML = dossierResultaatHtml(b); }
+  if (huidigeStap === 4) { $('#stappen').innerHTML = stappenTabelHtml(m); $('#resultaat4').innerHTML = tijdTotalenHtml(b); }
+  if (huidigeStap === 5) $('#resultaat5').innerHTML = dashboardHtml(b);
+}
+
+function renderLijst() {
+  $('#lijst').innerHTML = staat.metingen.length ? `<table><thead><tr><th>Maandmeting</th><th class="getal">Nieuwe medewerkers</th><th class="getal">Aangeleverd</th><th class="getal">Verwerkt</th><th class="getal">Dossiers</th><th>Laatst gewijzigd</th><th></th></tr></thead><tbody>
+    ${staat.metingen.map((m) => `<tr${m.id === (huidig() || {}).id ? ' style="font-weight:600"' : ''}><td>${esc(metingLabel(m))}</td><td class="getal">${invoerHtml(m.nieuwe)}</td><td class="getal">${invoerHtml(m.aangeleverd)}</td><td class="getal">${invoerHtml(m.verwerkt)}</td>
+      <td class="getal">${m.dossiers.length}</td><td>${esc(fmtTijdstip(m.gewijzigd || m.aangemaakt))}</td><td style="text-align:right"><button type="button" class="klein" data-open="${esc(m.id)}">Openen</button></td></tr>`).join('')}</tbody></table>`
+    : '<p class="leeg">Nog geen maandmetingen.</p>';
+}
+
+// ---------- Stap 2: volume en frequentie ----------
+
+function vulMaandvelden(m) {
+  for (const k of ['nieuwe', 'aangeleverd', 'verwerkt']) if (document.activeElement !== $('#' + k)) $('#' + k).value = naarInvoer(m[k]);
+  for (const k of ['bron', 'toelichting']) if (document.activeElement !== $('#' + k)) $('#' + k).value = m[k] || '';
+}
+
+function uitkomst(label, waardeHtml, uitleg, sub = '') {
+  return `<div class="uitkomst"><div class="l">${esc(label)}${uitleg ? info(uitleg) : ''}</div><div class="w">${waardeHtml}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+}
+const pctHtml = (p) => (isGetal(p.waarde) ? esc(fmtGetal(p.waarde, 1) + '%') : onvoldoendeHtml(p.reden));
+
+function frequentieHtml(b, metEtiket = true) {
+  const f = b.freq;
+  return `${metEtiket ? '<span class="etiket">Frequentie – automatisch berekend</span>' : ''}<div class="kaarten">
+    ${uitkomst('Nieuwe medewerkers', invoerHtml(f.nieuwe))}
+    ${uitkomst('Aangeleverde diensttijdopgaven', invoerHtml(f.aangeleverd))}
+    ${uitkomst('Geen diensttijdopgave', berekendHtml(f.geenOpgave), 'Nieuwe medewerkers − aangeleverde diensttijdopgaven')}
+    ${uitkomst('Verwerkt', invoerHtml(f.verwerkt))}
+    ${uitkomst('Nog te verwerken', berekendHtml(f.nogTeVerwerken), 'Aangeleverd − verwerkt')}
+    ${uitkomst('Aanleverpercentage', pctHtml(f.aanleverPct), 'Aangeleverd ÷ nieuwe medewerkers × 100% (afgerond op één decimaal)')}
+    ${uitkomst('Verwerkingspercentage', pctHtml(f.verwerkingsPct), 'Verwerkt ÷ aangeleverd × 100%')}
+    ${uitkomst('Verwerkt van alle nieuwe medewerkers', pctHtml(f.verwerktVanNieuwePct), 'Verwerkt ÷ nieuwe medewerkers × 100%')}
+  </div>`;
+}
+
+function verwerkMaandInvoer() {
+  const m = huidig();
+  if (!m) return;
+  const g = { nieuwe: leesGetal($('#nieuwe').value), aangeleverd: leesGetal($('#aangeleverd').value), verwerkt: leesGetal($('#verwerkt').value) };
+  const fouten = valideerMaand(g);
+  for (const k of ['nieuwe', 'aangeleverd', 'verwerkt']) {
+    $('#' + k).classList.toggle('ongeldig', !geheel(g[k], 0) || fouten.some((f) => (k === 'aangeleverd' && f.startsWith('Aangeleverd')) || (k === 'verwerkt' && f.startsWith('Verwerkt'))));
+  }
+  $('#fouten2').innerHTML = foutenHtml(fouten, 'Ongeldige invoer – niet opgeslagen:');
+  if (fouten.length) return;
+  Object.assign(m, g, { bron: $('#bron').value.trim(), toelichting: $('#toelichting').value.trim(), gewijzigd: nuIso() });
+  bewaar();
+  $('#resultaat2').innerHTML = frequentieHtml(bereken(m));
+}
+
+// ---------- Stap 3: dossiers ----------
+
+function dossierTabelHtml(m) {
+  const getal = (d, veld, label) => `<input type="text" class="getal" data-d="${veld}" inputmode="numeric" value="${esc(naarInvoer(d[veld]))}" placeholder="–" aria-label="${label} ${esc(d.code)}">`;
+  if (!m.dossiers.length) return '<p class="leeg">Nog geen dossiers. Klik op ‘Dossier toevoegen’.</p>';
+  return `<table class="invoer" id="dossierTabel"><thead><tr><th style="width:170px">Dossiercode</th><th>ABP-periode-regels</th><th>Complexiteit ${info('Automatisch bepaald: 1–19 Klein, 20–50 Gemiddeld, 51–100 Groot, 101 of meer Zeer groot.')}</th><th>Verwacht aantal diensttijdblokken</th><th style="width:180px">Verwerkingsstatus</th><th>Werkelijk aantal regels in Visma</th><th>Korte bijzonderheid of knelpunt</th><th></th></tr></thead><tbody>
+    ${m.dossiers.map((d, i) => `<tr data-i="${i}">
+      <td><input type="text" data-d="code" value="${esc(d.code)}" maxlength="40" aria-label="Dossiercode"></td>
+      <td>${getal(d, 'regels', 'ABP-periode-regels')}</td>
+      <td class="berekend" data-klasse>${klasse(d.regels) ? esc(klasse(d.regels)) : leegHtml()}</td>
+      <td>${getal(d, 'blokken', 'Verwacht aantal diensttijdblokken')}</td>
+      <td><select data-d="status" aria-label="Verwerkingsstatus ${esc(d.code)}">${STATUSSEN.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td>${getal(d, 'visma', 'Werkelijk aantal regels in Visma')}</td>
+      <td><input type="text" data-d="bijzonderheid" value="${esc(d.bijzonderheid || '')}" maxlength="200" placeholder="optioneel" aria-label="Bijzonderheid ${esc(d.code)}"></td>
+      <td style="text-align:right"><button type="button" class="klein gevaar" data-verwijder-dossier="${i}">Verwijderen</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+function dossierResultaatHtml(b) {
+  const d = b.dos;
+  const gebaseerd = (r) => `gebaseerd op ${r.n} van ${d.aantal} dossiers`;
+  return `<span class="etiket">Dossiers – automatisch berekend</span>
+    ${d.afwijking ? `<div class="melding waarschuwing">Er zijn ${d.aantal} dossiers geregistreerd, maar ${fmtAantal(b.freq.aangeleverd)} diensttijdopgaven aangeleverd. U kunt verder werken; vul de dossiers later aan.</div>` : ''}
+    <div class="kaarten">
+      ${uitkomst('Geregistreerde dossiers', esc(String(d.aantal)))}
+      ${KLASSEN.map((k) => uitkomst(k, esc(String(d.perKlasse[k])), `Aantal dossiers met ${KLASSE_GRENZEN[k]}`)).join('')}
+      ${uitkomst('Totaal ABP-periode-regels', berekendHtml(d.regels.totaal), 'Som van de ingevulde dossiers (nooit gemiddelde × aantal)', gebaseerd(d.regels))}
+      ${uitkomst('Gemiddeld ABP-periode-regels', isGetal(d.regels.gemiddelde) ? esc(fmtGetal(d.regels.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ aantal dossiers met een ingevulde waarde', gebaseerd(d.regels))}
+      ${uitkomst('Totaal verwachte blokken', berekendHtml(d.blokken.totaal), 'Som van de ingevulde dossiers', gebaseerd(d.blokken))}
+      ${uitkomst('Gemiddeld verwachte blokken', isGetal(d.blokken.gemiddelde) ? esc(fmtGetal(d.blokken.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ aantal dossiers met een ingevulde waarde', gebaseerd(d.blokken))}
+      ${uitkomst('Ingevoerde Visma-regels', berekendHtml(d.visma.totaal), 'Som van de dossiers waarbij het aantal bekend is', gebaseerd(d.visma))}
+      ${uitkomst('Volledig verwerkt', esc(String(d.perStatus['Volledig verwerkt'])), 'Dossiers met status volledig verwerkt')}
+      ${uitkomst('Nog niet verwerkt', esc(String(d.perStatus['Nog niet verwerkt'])), 'Dossiers met status nog niet verwerkt')}
+      ${uitkomst('Verwacht nog in te voeren blokken', berekendHtml(d.resterend.totaal), 'Per dossier: volledig verwerkt = 0; anders verwachte blokken − Visma-regels (minimaal 0); nog niet verwerkt zonder Visma-regels = verwachte blokken. Overige dossiers tellen niet mee.',
+        d.resterend.onbekend.length ? `onvolledig: ${ONVOLDOENDE} bij ${esc(d.resterend.onbekend.join(', '))}` : gebaseerd(d.resterend))}
+    </div>`;
+}
+
+function verwerkDossierInvoer(e) {
+  const m = huidig();
+  const rij = e.target.closest('tr[data-i]');
+  if (!m || !rij) return;
+  const fouten = [];
+  for (const r of $$('#dossierTabel tr[data-i]')) {
+    const i = Number(r.dataset.i);
+    const veld = (k) => $(`[data-d="${k}"]`, r);
+    const d = { ...m.dossiers[i], code: veld('code').value.trim(), regels: leesGetal(veld('regels').value), blokken: leesGetal(veld('blokken').value), status: veld('status').value, visma: leesGetal(veld('visma').value), bijzonderheid: veld('bijzonderheid').value.trim() };
+    const f = valideerDossier(d, m, i);
+    veld('code').classList.toggle('ongeldig', f.some((x) => x.includes('dossiercode')));
+    veld('regels').classList.toggle('ongeldig', !geheel(d.regels, 1));
+    veld('blokken').classList.toggle('ongeldig', !geheel(d.blokken, 0));
+    veld('visma').classList.toggle('ongeldig', !geheel(d.visma, 0));
+    $('[data-klasse]', r).innerHTML = geheel(d.regels, 1) && klasse(d.regels) ? esc(klasse(d.regels)) : leegHtml();
+    if (/\d{7,}/.test(d.code)) fouten.push(`${d.code}: deze code bevat een lange cijferreeks en lijkt op een echt nummer. Gebruik een geanonimiseerde code.`);
+    if (f.length) { fouten.push(...f); continue; }
+    if (JSON.stringify(d) !== JSON.stringify(m.dossiers[i])) { m.dossiers[i] = { ...d, gewijzigd: nuIso() }; m.gewijzigd = nuIso(); }
+  }
+  $('#fouten3').innerHTML = foutenHtml(fouten, 'Controleer de invoer (ongeldige waarden zijn niet opgeslagen):');
+  bewaar();
+  $('#resultaat3').innerHTML = dossierResultaatHtml(bereken(m));
+}
+
+// ---------- Stap 4: processtappen en tijd ----------
+
+function stappenTabelHtml(m) {
+  const opties = (lijst, gekozen, leeg) => `${leeg ? `<option value="">${leeg}</option>` : ''}${lijst.map(([w, l]) => `<option value="${esc(w)}" ${w === gekozen ? 'selected' : ''}>${esc(l)}</option>`).join('')}`;
+  const rij = (s) => {
+    const isS02 = s.stapId === S02;
+    const tijd = (k, l) => `<input type="text" class="getal" data-s="${k}" inputmode="decimal" value="${esc(naarInvoer(s[k]))}" placeholder="–" aria-label="${l} ${s.stapId}">`;
+    const ingevuld = KLASSEN.filter((k) => isGetal(m.s02[k])).length;
+    return `<tr data-stap="${s.stapId}"${s.inbegrepen ? ' class="inbegrepen"' : ''}>
+      <td><span class="mono">${s.stapId}</span><br>${esc(s.naam)}</td>
+      <td>${isS02 ? `<button type="button" class="klein" data-klassen-toggle aria-expanded="false">Per klasse ▸</button><div class="hint">${ingevuld} van 4 ingevuld</div>` : tijd('actief', 'Actieve tijd')}</td>
+      <td>${tijd('wacht', 'Wachttijd')}</td>
+      <td>${isS02 ? 'Per dossier (per klasse)' : `<select data-s="eenheid" aria-label="Rekeneenheid ${s.stapId}">${opties(Object.entries(EENHEDEN), s.eenheid)}</select>`}</td>
+      <td><select data-s="meetwijze" aria-label="Meetwijze ${s.stapId}">${opties(MEETWIJZEN.map((w) => [w, w]), s.meetwijze, '–')}</select></td>
+      <td><select data-s="knelpunt" aria-label="Knelpunt ${s.stapId}">${opties([['nee', 'Nee'], ['ja', 'Ja']], s.knelpunt === true ? 'ja' : s.knelpunt === false ? 'nee' : '', '–')}</select></td>
+      <td><input type="text" data-s="toelichting" value="${esc(s.toelichting || '')}" maxlength="200" placeholder="optioneel" aria-label="Toelichting ${s.stapId}"></td>
+      <td><label style="font-weight:400;font-size:13px"><input type="checkbox" data-s="inbegrepen" ${s.inbegrepen ? 'checked' : ''}> inbegrepen bij</label>
+        <select data-s="inbegrepenBij" aria-label="Inbegrepen bij welke stap (${s.stapId})" ${s.inbegrepen ? '' : 'hidden'}>${opties(STAPPEN.filter(([id]) => id !== s.stapId).map(([id]) => [id, id]), s.inbegrepenBij, '– kies stap –')}</select></td>
+    </tr>
+    ${isS02 ? `<tr class="klassen" data-klassen hidden><td></td><td colspan="7">
+      <div class="klassenvelden">${KLASSEN.map((k) => `<div class="veld"><label>${k} <span class="hint">(${KLASSE_GRENZEN[k]})</span></label>
+        <input type="text" class="getal" style="width:100%" data-klasse-tijd="${k}" inputmode="decimal" value="${esc(naarInvoer(m.s02[k]))}" placeholder="min per dossier"></div>`).join('')}</div>
+      <p class="hint" style="margin:6px 0 0">Actieve tijd per dossier per complexiteitsklasse; onbekend = leeg laten. Voorbeeld: een medewerker schat dat het bepalen van relevante diensttijd bij een opgave met meer dan vijftig periode-regels circa dertig minuten kan duren. Zo’n schatting voert u zelf in en valideert u.</p></td></tr>` : ''}`;
+  };
+  return `<table class="invoer" id="stapTabel"><thead><tr><th style="width:230px">Processtap</th><th>Actieve tijd (min)</th><th>Wachttijd (min)</th><th style="width:150px">Rekeneenheid</th><th style="width:170px">Meetwijze</th><th>Knelpunt</th><th>Korte toelichting</th><th style="width:130px">Dubbeltelling ${info('Vink aan als de tijd van deze stap al in een andere stap zit. De stap blijft zichtbaar, maar telt niet mee in de totalen.')}</th></tr></thead>
+    <tbody>${m.stappen.map(rij).join('')}</tbody></table>`;
+}
+
+function verwerkStapInvoer(e) {
+  const m = huidig();
+  if (!m) return;
+  const fouten = [];
+  if (e.target.matches('[data-klasse-tijd]')) {
+    for (const el of $$('[data-klasse-tijd]')) {
+      const w = leesGetal(el.value);
+      const ok = w === null || (isGetal(w) && w >= 0);
+      el.classList.toggle('ongeldig', !ok);
+      if (!ok) { fouten.push(`S02 – ${el.dataset.klasseTijd}: vul een getal van 0 of hoger in.`); continue; }
+      if (m.s02[el.dataset.klasseTijd] !== w) { m.s02[el.dataset.klasseTijd] = w; m.gewijzigd = nuIso(); }
+    }
+  } else {
+    const rij = e.target.closest('tr[data-stap]');
+    if (!rij) return;
+    const i = m.stappen.findIndex((s) => s.stapId === rij.dataset.stap);
+    const veld = (k) => $(`[data-s="${k}"]`, rij);
+    const leesTijd = (k) => (veld(k) ? leesGetal(veld(k).value) : m.stappen[i][k]);
+    const kn = veld('knelpunt').value;
+    const s = {
+      ...m.stappen[i], actief: leesTijd('actief'), wacht: leesTijd('wacht'), eenheid: veld('eenheid') ? veld('eenheid').value : m.stappen[i].eenheid,
+      meetwijze: veld('meetwijze').value, knelpunt: kn === 'ja' ? true : kn === 'nee' ? false : null, toelichting: veld('toelichting').value.trim(),
+      inbegrepen: veld('inbegrepen').checked, inbegrepenBij: veld('inbegrepen').checked ? veld('inbegrepenBij').value : '',
+    };
+    veld('inbegrepenBij').hidden = !s.inbegrepen;
+    rij.classList.toggle('inbegrepen', s.inbegrepen);
+    const f = valideerStap(s);
+    for (const k of ['actief', 'wacht']) if (veld(k)) veld(k).classList.toggle('ongeldig', f.some((x) => x.includes(k === 'actief' ? 'actieve tijd' : 'wachttijd')));
+    fouten.push(...f);
+    if (!f.length && JSON.stringify(s) !== JSON.stringify(m.stappen[i])) { m.stappen[i] = { ...s, gewijzigd: nuIso() }; m.gewijzigd = nuIso(); }
+  }
+  bewaar();
+  const b = bereken(m);
+  $('#fouten4').innerHTML = foutenHtml(fouten, 'Ongeldige invoer – niet opgeslagen:') + b.waarschuwingen.map((w) => `<div class="melding waarschuwing">${esc(w)}</div>`).join('');
+  $('#resultaat4').innerHTML = tijdTotalenHtml(b);
+  const knop = $('[data-klassen-toggle] + .hint');
+  if (knop) knop.textContent = `${KLASSEN.filter((k) => isGetal(m.s02[k])).length} van 4 ingevuld`;
+}
+
+function totaalUitkomst(label, t, uitleg) {
+  const sub = isGetal(t.waarde) ? `${esc(fmtUrenMinuten(t.waarde))}` : t.nBekend ? `deelsom ${t.nBekend} van ${t.n} stappen: ${esc(fmtGetal(t.deelsom))} min (onvolledig)` : '';
+  return uitkomst(label, minHtml(t.waarde), uitleg, sub);
+}
+
+const FORMULE_UIT = 'Per dossier: tijd × verwerkte diensttijdopgaven (S02: per klasse × volledig verwerkte dossiers). Per diensttijdblok: tijd × werkelijk ingevoerde Visma-regels. Inbegrepen stappen tellen niet mee.';
+const FORMULE_VERW = 'Per dossier: tijd × aangeleverde diensttijdopgaven (S02: per klasse × geregistreerde dossiers). Per diensttijdblok: tijd × totaal verwachte diensttijdblokken. Inbegrepen stappen tellen niet mee.';
+
+function tijdTotalenHtml(b) {
+  const t = b.tijd;
+  return `<span class="etiket">Tijd – automatisch berekend</span>${b.schatting ? '<span class="label-schatting">bevat schattingen</span>' : ''}
+    <div class="kaarten">
+      ${totaalUitkomst('Uitgevoerde actieve tijd', t.actief.uit, FORMULE_UIT)}
+      ${totaalUitkomst('Resterende actieve tijd', t.actief.rest, 'Totale verwachte − uitgevoerde actieve tijd')}
+      ${totaalUitkomst('Totale verwachte actieve tijd', t.actief.verw, FORMULE_VERW)}
+      ${totaalUitkomst('Totale verwachte wachttijd', t.wacht.verw, 'Zelfde berekening met de wachttijd per eenheid')}
+    </div>`;
+}
+
+// ---------- Stap 5: resultaat ----------
+
+function dashboardHtml(b) {
+  const d = b.dos;
+  const t = b.tijd;
+  const maxVerw = Math.max(0, ...b.stappen.filter((r) => !r.inbegrepen).map((r) => r.actief.verw).filter(isGetal));
+  const tijdCel = (r, soort, deel) => (r.inbegrepen ? nvtHtml(deel === 'verw' ? `n.v.t. (inbegrepen bij ${r.stap.inbegrepenBij || '?'})` : 'n.v.t.')
+    : isGetal(r[soort][deel]) ? esc(fmtGetal(r[soort][deel])) : onvoldoendeHtml(r.stap.stapId === S02 && soort === 'actief' && deel === 'verw' && r.redenS02 ? `${ONVOLDOENDE}: ${r.redenS02}` : ONVOLDOENDE));
+  const stapRij = (r) => {
+    const s = r.stap;
+    const hoog = b.hoogste.includes(s.stapId);
+    const per = s.stapId === S02 ? `<span class="hint">${KLASSEN.map((k) => `${k}: ${isGetal(b.meting.s02[k]) ? fmtGetal(b.meting.s02[k]) : '–'}`).join('<br>')}</span>` : (isGetal(s.actief) ? esc(fmtGetal(s.actief)) : leegHtml());
+    return `<tr${r.inbegrepen ? ' class="inbegrepen"' : ''}><td><span class="mono">${s.stapId}</span>${hoog ? '<span class="label-hoog">hoogste tijd</span>' : ''}<br>${esc(s.naam)}</td>
+      <td class="getal">${per}</td><td class="getal">${isGetal(s.wacht) ? esc(fmtGetal(s.wacht)) : leegHtml()}</td><td>${esc(EENHEDEN[r.eenheid])}</td>
+      <td class="getal berekend">${tijdCel(r, 'actief', 'uit')}</td><td class="getal berekend">${tijdCel(r, 'actief', 'rest')}</td>
+      <td class="getal berekend"><strong>${tijdCel(r, 'actief', 'verw')}</strong>${!r.inbegrepen && isGetal(r.actief.verw) && maxVerw > 0 ? `<div class="balk"><span style="width:${(r.actief.verw / maxVerw * 100).toFixed(1)}%"></span></div>` : ''}</td>
+      <td class="getal berekend">${tijdCel(r, 'wacht', 'verw')}</td>
+      <td>${s.meetwijze ? esc(s.meetwijze) + (r.schatting ? '<span class="label-schatting">schatting</span>' : '') : leegHtml()}</td>
+      <td>${s.knelpunt === true ? '<strong>Ja</strong>' : s.knelpunt === false ? 'Nee' : leegHtml()}</td></tr>`;
+  };
+  return `
+    <div class="berekend"><span class="etiket">Frequentie</span>${frequentieHtml(b, false)}</div>
+    <div class="twee">
+      <div class="berekend"><span class="etiket">Bronregels en complexiteit</span><div class="kaarten">
+        ${uitkomst('Totaal ABP-periode-regels', berekendHtml(d.regels.totaal), 'Som van de afzonderlijke dossiers', `gebaseerd op ${d.regels.n} van ${d.aantal} dossiers`)}
+        ${uitkomst('Gemiddeld ABP-periode-regels', isGetal(d.regels.gemiddelde) ? esc(fmtGetal(d.regels.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ dossiers met een ingevulde waarde', `n = ${d.regels.n} dossiers`)}
+        </div>
+        <table style="margin-top:8px"><thead><tr><th>Complexiteit</th><th>Grenzen</th><th class="getal">Dossiers</th></tr></thead><tbody>
+        ${KLASSEN.map((k) => `<tr><td>${k}</td><td class="hint">${KLASSE_GRENZEN[k]}</td><td class="getal">${d.perKlasse[k]}</td></tr>`).join('')}
+        ${d.zonderKlasse.length ? `<tr><td colspan="2" class="leeg">niet ingevuld</td><td class="getal">${d.zonderKlasse.length}</td></tr>` : ''}</tbody></table></div>
+      <div class="berekend"><span class="etiket">Diensttijdblokken en verwerkingsstatus</span><div class="kaarten">
+        ${uitkomst('Totaal verwachte blokken', berekendHtml(d.blokken.totaal), 'Som van de afzonderlijke dossiers', `gebaseerd op ${d.blokken.n} van ${d.aantal} dossiers`)}
+        ${uitkomst('Gemiddeld blokken per dossier', isGetal(d.blokken.gemiddelde) ? esc(fmtGetal(d.blokken.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ dossiers met een ingevulde waarde', `n = ${d.blokken.n}`)}
+        ${uitkomst('Ingevoerde Visma-regels', berekendHtml(d.visma.totaal), 'Som van de dossiers waarbij het aantal bekend is', `gebaseerd op ${d.visma.n} dossiers`)}
+        ${uitkomst('Verwacht resterende blokken', berekendHtml(d.resterend.totaal), 'Zie stap 3', d.resterend.onbekend.length ? `onvolledig (${d.resterend.onbekend.length} dossier(s) onbekend)` : '')}
+        </div>
+        <table style="margin-top:8px"><thead><tr><th>Verwerkingsstatus</th><th class="getal">Dossiers</th></tr></thead><tbody>
+        ${STATUSSEN.map((s) => `<tr><td>${s}</td><td class="getal">${d.perStatus[s]}</td></tr>`).join('')}</tbody></table></div>
+    </div>
+    <div class="berekend"><span class="etiket">Tijd per processtap</span>${b.schatting ? '<span class="label-schatting">bevat schattingen</span>' : ''}
+      ${d.afwijking ? `<div class="melding waarschuwing">Gebaseerd op ${d.aantal} geregistreerde dossiers van ${fmtAantal(b.freq.aangeleverd)} aangeleverde opgaven; tijden per blok en voor S02 zijn daardoor mogelijk te laag.</div>` : ''}
+      ${b.waarschuwingen.map((w) => `<div class="melding waarschuwing">${esc(w)}</div>`).join('')}
+      <div class="kaarten">
+        ${totaalUitkomst('Totale uitgevoerde actieve tijd', t.actief.uit, FORMULE_UIT)}
+        ${totaalUitkomst('Totale resterende actieve tijd', t.actief.rest, 'Totale verwachte − uitgevoerde actieve tijd')}
+        ${totaalUitkomst('Totale verwachte actieve tijd', t.actief.verw, FORMULE_VERW)}
+        ${totaalUitkomst('Totale wachttijd (verwacht)', t.wacht.verw, 'Wachttijd per eenheid × aantal eenheden, opgeteld over de meetellende stappen')}
+      </div>
+      <div class="tabelhouder" style="margin-top:10px"><table id="resultaatStappen"><thead><tr><th style="width:230px">Processtap</th><th class="getal">Actief per eenheid (min)</th><th class="getal">Wacht per eenheid (min)</th><th>Reken&shy;eenheid</th>
+        <th class="getal">Uitgevoerd actief (min)</th><th class="getal">Resterend actief (min)</th><th class="getal">Totaal verwacht actief (min)</th><th class="getal">Wacht verwacht (min)</th><th>Meetwijze</th><th>Knelpunt</th></tr></thead>
+        <tbody>${b.stappen.map(stapRij).join('')}</tbody></table></div>
+      <h3 style="margin-top:12px">Belangrijkste knelpunten</h3>
+      ${b.knelpunten.length ? `<ul style="margin:0 0 0 18px">${b.knelpunten.map((r) => `<li><span class="mono">${r.stap.stapId}</span> ${esc(r.stap.naam)}${r.stap.toelichting ? ` – ${esc(r.stap.toelichting)}` : ''}${isGetal(r.actief.verw) ? ` <span class="hint">(${fmtGetal(r.actief.verw)} min verwacht)</span>` : ''}</li>`).join('')}</ul>` : '<p class="leeg">Geen stappen met een knelpunt gemarkeerd.</p>'}
+    </div>`;
+}
+
+// ---------- Export ----------
+
+/** Rijen voor de vijf exportonderdelen; gebruikt voor Excel én CSV. */
+function exportOnderdelen(m) {
+  const b = bereken(m);
+  const nu = fmtTijdstip(nuIso(), true);
+  const w = (v) => (isGetal(v) ? v : ONVOLDOENDE);
+  const i = (v) => (isGetal(v) ? v : 'niet ingevuld');
+  const p = (x) => (isGetal(x.waarde) ? Math.round(x.waarde * 10) / 10 : x.reden);
+  const kop = (rij) => rij.map((v) => ({ v, s: 'kop' }));
+  const ident = [['Proces', 'PR24 – diensttijdopgaven verwerken in Visma'], ['Bestuur', m.bestuur], ['Maand', MAANDEN[m.maand - 1]], ['Jaar', m.jaar], ['Maandmeting', metingLabel(m)], ['Exportdatum', nu], ['Laatst gewijzigd', fmtTijdstip(m.gewijzigd || m.aangemaakt)], []];
+  const d = b.dos;
+  const t = b.tijd;
+
+  const samenvatting = [[{ v: `Samenvatting – ${metingLabel(m)}`, s: 'titel' }], ...ident, kop(['Onderdeel', 'Uitkomst', 'Waarde', 'Eenheid', 'Toelichting'])];
+  const sv = (o, u, v, e, tl = '') => samenvatting.push([o, u, v, e, tl]);
+  sv('Frequentie', 'Nieuwe medewerkers', i(b.freq.nieuwe), 'medewerkers');
+  sv('Frequentie', 'Aangeleverde diensttijdopgaven', i(b.freq.aangeleverd), 'opgaven');
+  sv('Frequentie', 'Geen diensttijdopgave', w(b.freq.geenOpgave), 'medewerkers', 'nieuwe − aangeleverd');
+  sv('Frequentie', 'Verwerkt', i(b.freq.verwerkt), 'opgaven');
+  sv('Frequentie', 'Nog te verwerken', w(b.freq.nogTeVerwerken), 'opgaven', 'aangeleverd − verwerkt');
+  sv('Frequentie', 'Aanleverpercentage', p(b.freq.aanleverPct), '%', 'aangeleverd ÷ nieuwe × 100%');
+  sv('Frequentie', 'Verwerkingspercentage', p(b.freq.verwerkingsPct), '%', 'verwerkt ÷ aangeleverd × 100%');
+  sv('Frequentie', 'Verwerkt van alle nieuwe medewerkers', p(b.freq.verwerktVanNieuwePct), '%', 'verwerkt ÷ nieuwe × 100%');
+  sv('Dossiers', 'Geregistreerde dossiers', d.aantal, 'dossiers', d.afwijking ? `wijkt af van ${m.aangeleverd} aangeleverde opgaven` : '');
+  for (const k of KLASSEN) sv('Complexiteit', k, d.perKlasse[k], 'dossiers', KLASSE_GRENZEN[k]);
+  sv('Bronregels', 'Totaal ABP-periode-regels', w(d.regels.totaal), 'regels', `som van ${d.regels.n} van ${d.aantal} dossiers`);
+  sv('Bronregels', 'Gemiddeld ABP-periode-regels', w(d.regels.gemiddelde), 'regels per dossier', `gebaseerd op ${d.regels.n} dossiers`);
+  sv('Diensttijdblokken', 'Totaal verwachte blokken', w(d.blokken.totaal), 'blokken', `som van ${d.blokken.n} van ${d.aantal} dossiers`);
+  sv('Diensttijdblokken', 'Gemiddeld blokken per dossier', w(d.blokken.gemiddelde), 'blokken per dossier', `gebaseerd op ${d.blokken.n} dossiers`);
+  sv('Diensttijdblokken', 'Werkelijk ingevoerde Visma-regels', w(d.visma.totaal), 'regels', `som van ${d.visma.n} dossiers`);
+  sv('Diensttijdblokken', 'Verwacht resterende blokken', w(d.resterend.totaal), 'blokken', d.resterend.onbekend.length ? `onvolledig; onbekend bij ${d.resterend.onbekend.join(', ')}` : '');
+  for (const s of STATUSSEN) sv('Verwerkingsstatus', s, d.perStatus[s], 'dossiers');
+  for (const [u, x] of [['Totale uitgevoerde actieve tijd', t.actief.uit], ['Totale resterende actieve tijd', t.actief.rest], ['Totale verwachte actieve tijd', t.actief.verw], ['Totale uitgevoerde wachttijd', t.wacht.uit], ['Totale verwachte wachttijd', t.wacht.verw]]) {
+    sv('Tijd', u, w(x.waarde), 'min', isGetal(x.waarde) ? `${fmtGetal(x.waarde / 60)} uur` : x.nBekend ? `deelsom ${x.nBekend} van ${x.n} stappen: ${fmtGetal(x.deelsom)} min (onvolledig)` : '');
+  }
+  sv('Tijd', 'Bevat schattingen', b.schatting ? 'Ja' : 'Nee', '');
+  for (const r of b.knelpunten) sv('Knelpunt', r.stap.stapId, r.stap.toelichting || '(geen toelichting)', '', r.stap.naam);
+
+  const maandgegevens = [[{ v: `Maandgegevens – ${metingLabel(m)}`, s: 'titel' }], ...ident, kop(['Veld', 'Waarde']),
+    ['Aantal nieuwe medewerkers', i(m.nieuwe)], ['Aantal aangeleverde diensttijdopgaven', i(m.aangeleverd)], ['Aantal verwerkte diensttijdopgaven', i(m.verwerkt)],
+    ['Bron van de aantallen', m.bron || ''], ['Algemene toelichting', m.toelichting || ''], ['Aangemaakt', fmtTijdstip(m.aangemaakt)]];
+
+  const dossiers = [[{ v: `Dossiers – ${metingLabel(m)}`, s: 'titel' }], ...ident,
+    kop(['Bestuur', 'Maand', 'Jaar', 'Dossiercode', 'ABP-periode-regels', 'Complexiteitsklasse', 'Verwacht aantal diensttijdblokken', 'Verwerkingsstatus', 'Werkelijk aantal regels in Visma', 'Verwacht resterende blokken (berekend)', 'Bijzonderheid of knelpunt', 'Laatst gewijzigd'])];
+  for (const x of m.dossiers) dossiers.push([m.bestuur, MAANDEN[m.maand - 1], m.jaar, x.code, i(x.regels), klasse(x.regels) || 'niet ingevuld', i(x.blokken), x.status, i(x.visma), w(restBlokken(x)), x.bijzonderheid || '', fmtTijdstip(x.gewijzigd || x.aangemaakt)]);
+
+  const stappen = [[{ v: `Processtappen en tijden – ${metingLabel(m)}`, s: 'titel' }], ...ident,
+    kop(['Bestuur', 'Maand', 'Jaar', 'Stap-ID', 'Processtap', 'Rekeneenheid', 'Actieve tijd per eenheid (min)', ...KLASSEN.map((k) => `S02 ${k} (min per dossier)`), 'Wachttijd per eenheid (min)', 'Meetwijze', 'Knelpunt', 'Korte toelichting', 'Inbegrepen bij',
+      'Actief uitgevoerd (min)', 'Actief resterend (min)', 'Actief verwacht (min)', 'Actief verwacht (uur)', 'Wacht uitgevoerd (min)', 'Wacht resterend (min)', 'Wacht verwacht (min)', 'Telt mee in totaal', 'Laatst gewijzigd'])];
+  for (const r of b.stappen) {
+    const s = r.stap;
+    const isS02 = s.stapId === S02;
+    const v = (soort, deel) => (r.inbegrepen ? 'n.v.t. (inbegrepen)' : w(r[soort][deel]));
+    stappen.push([m.bestuur, MAANDEN[m.maand - 1], m.jaar, s.stapId, s.naam, EENHEDEN[r.eenheid], isS02 ? 'per klasse' : i(s.actief), ...KLASSEN.map((k) => (isS02 ? i(m.s02[k]) : '')), i(s.wacht), s.meetwijze || 'niet ingevuld',
+      s.knelpunt === true ? 'Ja' : s.knelpunt === false ? 'Nee' : 'niet ingevuld', s.toelichting || '', s.inbegrepen ? s.inbegrepenBij || '(niet gekozen)' : '',
+      v('actief', 'uit'), v('actief', 'rest'), v('actief', 'verw'), r.inbegrepen ? 'n.v.t. (inbegrepen)' : isGetal(r.actief.verw) ? r.actief.verw / 60 : ONVOLDOENDE, v('wacht', 'uit'), v('wacht', 'rest'), v('wacht', 'verw'), r.inbegrepen ? 'Nee' : 'Ja', s.gewijzigd ? fmtTijdstip(s.gewijzigd) : '']);
+  }
+
+  const berekeningen = [[{ v: `Berekeningen en meetwijzen – ${metingLabel(m)}`, s: 'titel' }], ...ident,
+    kop(['Onderdeel', 'Uitkomst', 'Waarde', 'Formule', 'Berekening met gebruikte getallen', 'Gebaseerd op', 'Meetwijze', 'Schatting'])];
+  const bw = (...x) => berekeningen.push(x);
+  const g = (v) => (isGetal(v) ? fmtAantal(v) : 'niet ingevuld');
+  bw('Frequentie', 'Geen diensttijdopgave', w(b.freq.geenOpgave), 'nieuwe medewerkers − aangeleverd', `${g(m.nieuwe)} − ${g(m.aangeleverd)}`, 'maandgegevens', m.bron || '', '');
+  bw('Frequentie', 'Nog te verwerken', w(b.freq.nogTeVerwerken), 'aangeleverd − verwerkt', `${g(m.aangeleverd)} − ${g(m.verwerkt)}`, 'maandgegevens', m.bron || '', '');
+  bw('Frequentie', 'Aanleverpercentage', p(b.freq.aanleverPct), 'aangeleverd ÷ nieuwe medewerkers × 100%', `${g(m.aangeleverd)} ÷ ${g(m.nieuwe)} × 100%`, 'maandgegevens', m.bron || '', '');
+  bw('Frequentie', 'Verwerkingspercentage', p(b.freq.verwerkingsPct), 'verwerkt ÷ aangeleverd × 100%', `${g(m.verwerkt)} ÷ ${g(m.aangeleverd)} × 100%`, 'maandgegevens', m.bron || '', '');
+  bw('Frequentie', 'Verwerkt van alle nieuwe medewerkers', p(b.freq.verwerktVanNieuwePct), 'verwerkt ÷ nieuwe medewerkers × 100%', `${g(m.verwerkt)} ÷ ${g(m.nieuwe)} × 100%`, 'maandgegevens', m.bron || '', '');
+  bw('Dossiers', 'Complexiteitsklasse', '', '1–19 Klein; 20–50 Gemiddeld; 51–100 Groot; ≥ 101 Zeer groot', KLASSEN.map((k) => `${k}: ${d.perKlasse[k]}`).join('; '), `${d.aantal} dossiers`, '', '');
+  for (const [naam, r, veld] of [['ABP-periode-regels', d.regels, 'regels'], ['verwachte blokken', d.blokken, 'blokken'], ['Visma-regels', d.visma, 'visma']]) {
+    const delen = m.dossiers.filter((x) => isGetal(x[veld])).map((x) => `${x.code}: ${x[veld]}`).join(' + ');
+    bw('Dossiers', `Totaal ${naam}`, w(r.totaal), 'som van de ingevulde dossierwaarden', r.n ? `${delen} = ${fmtAantal(r.totaal)}` : ONVOLDOENDE, `${r.n} van ${d.aantal} dossiers${r.ontbrekend.length ? `; niet ingevuld: ${r.ontbrekend.join(', ')}` : ''}`, '', '');
+    if (veld !== 'visma') bw('Dossiers', `Gemiddeld ${naam}`, w(r.gemiddelde), 'totaal ÷ aantal dossiers met een ingevulde waarde', r.n ? `${fmtAantal(r.totaal)} ÷ ${r.n}` : ONVOLDOENDE, `${r.n} dossiers`, '', '');
+  }
+  bw('Dossiers', 'Verwacht resterende blokken', w(d.resterend.totaal), 'volledig verwerkt = 0; anders verwacht − Visma (min. 0); nog niet verwerkt zonder Visma = verwacht', m.dossiers.map((x) => `${x.code}: ${isGetal(restBlokken(x)) ? restBlokken(x) : '?'}`).join('; '), `${d.resterend.n} dossiers`, '', '');
+  for (const r of b.stappen) {
+    const s = r.stap;
+    const meet = s.meetwijze || 'niet ingevuld';
+    if (r.inbegrepen) { bw(`${s.stapId} (${EENHEDEN[r.eenheid]})`, 'Tijd', 'n.v.t.', 'inbegrepen bij een andere stap; telt niet mee', `inbegrepen bij ${s.inbegrepenBij || '(niet gekozen)'}`, '', meet, r.schatting ? 'Ja' : 'Nee'); continue; }
+    if (s.stapId === S02) {
+      for (const k of r.klassen) bw(`${s.stapId} – ${k.klasse}`, 'Actieve tijd per klasse (verwacht)', k.nvt ? 'n.v.t. (geen dossiers)' : w(k.verw), 'dossiers in klasse × tijd voor die klasse', k.nvt ? '0 dossiers' : `${k.nVerw} × ${isGetal(k.tijd) ? fmtGetal(k.tijd) + ' min' : 'tijd niet ingevuld'}`, `${k.nVerw} dossiers (${k.nUit} volledig verwerkt)`, meet, r.schatting ? 'Ja' : 'Nee');
+    }
+    const formuleUit = s.stapId === S02 ? 'per klasse: volledig verwerkte dossiers × tijd' : r.eenheid === 'blok' ? 'tijd per blok × ingevoerde Visma-regels' : 'tijd per dossier × verwerkte opgaven';
+    const formuleVerw = s.stapId === S02 ? 'per klasse: geregistreerde dossiers × tijd' : r.eenheid === 'blok' ? 'tijd per blok × verwachte diensttijdblokken' : 'tijd per dossier × aangeleverde opgaven';
+    bw(`${s.stapId} (${EENHEDEN[r.eenheid]})`, 'Actieve tijd uitgevoerd', w(r.actief.uit), formuleUit, r.berekening.actief.uit, s.naam, meet, r.schatting ? 'Ja' : 'Nee');
+    bw(`${s.stapId} (${EENHEDEN[r.eenheid]})`, 'Actieve tijd verwacht', w(r.actief.verw), formuleVerw, r.berekening.actief.verw, s.naam, meet, r.schatting ? 'Ja' : 'Nee');
+    bw(`${s.stapId} (${EENHEDEN[r.eenheid]})`, 'Actieve tijd resterend', w(r.actief.rest), 'verwacht − uitgevoerd', isGetal(r.actief.rest) ? `${fmtGetal(r.actief.verw)} − ${fmtGetal(r.actief.uit)}` : ONVOLDOENDE, s.naam, meet, r.schatting ? 'Ja' : 'Nee');
+    bw(`${s.stapId} (${EENHEDEN[r.eenheid]})`, 'Wachttijd verwacht', w(r.wacht.verw), formuleVerw.replace('tijd', 'wachttijd'), r.berekening.wacht.verw, s.naam, meet, r.schatting ? 'Ja' : 'Nee');
+  }
+  for (const [u, x] of [['Totale uitgevoerde actieve tijd', t.actief.uit], ['Totale resterende actieve tijd', t.actief.rest], ['Totale verwachte actieve tijd', t.actief.verw], ['Totale verwachte wachttijd', t.wacht.verw]]) {
+    bw('Totaal', u, w(x.waarde), 'som over de stappen die meetellen (niet inbegrepen)', isGetal(x.waarde) ? `som van ${x.n} stappen` : `${x.nBekend} van ${x.n} stappen bekend${x.nBekend ? `; deelsom ${fmtGetal(x.deelsom)} min` : ''}`, '', '', b.schatting ? 'Ja' : 'Nee');
+  }
+  return [
+    { naam: 'Samenvatting', sleutel: 'samenvatting', rijen: samenvatting, kolombreedtes: [22, 38, 16, 18, 50] },
+    { naam: 'Maandgegevens', sleutel: 'maandgegevens', rijen: maandgegevens, kolombreedtes: [38, 50] },
+    { naam: 'Dossiers', sleutel: 'dossiers', rijen: dossiers, kolombreedtes: [10, 11, 7, 20, 12, 14, 14, 22, 14, 14, 40, 18] },
+    { naam: 'Processtappen en tijden', sleutel: 'stappen', rijen: stappen, kolombreedtes: [10, 11, 7, 10, 46, 18, 12, 12, 12, 12, 12, 12, 24, 10, 36, 14, 12, 12, 12, 12, 12, 12, 12, 10, 18] },
+    { naam: 'Berekeningen en meetwijzen', sleutel: 'berekeningen', rijen: berekeningen, kolombreedtes: [26, 34, 16, 50, 60, 34, 24, 10] },
+  ];
+}
+
+function csvVeld(w) {
+  if (w === null || w === undefined) return '';
+  if (typeof w === 'object') w = w.v;
+  let t = typeof w === 'number' ? naarInvoer(w) : String(w);
+  if (/[";\r\n]/.test(t) || /^\s|\s$/.test(t)) t = '"' + t.replace(/"/g, '""') + '"';
+  return t;
+}
+
+function bestandsnaam(m, soort, ext) {
+  return `PR24_${m.bestuur}_${m.jaar}-${String(m.maand).padStart(2, '0')}_${soort}_${bestandsdatum()}.${ext}`;
+}
+
+function exporteerExcel() {
+  const m = huidig();
+  if (!m) return;
+  downloadBlob(maakXlsx(exportOnderdelen(m)), bestandsnaam(m, 'export', 'xlsx'));
+  toonMelding('Excel-bestand is aangemaakt.');
+}
+
+function exporteerCsv() {
+  const m = huidig();
+  if (!m) return;
+  const blad = exportOnderdelen(m).find((x) => x.sleutel === $('#csvKeuze').value);
+  const tekst = '﻿' + blad.rijen.map((r) => r.map(csvVeld).join(';')).join('\r\n') + '\r\n';
+  downloadBlob(new Blob([tekst], { type: 'text/csv;charset=utf-8' }), bestandsnaam(m, blad.sleutel, 'csv'));
+  toonMelding('CSV-bestand is aangemaakt.');
+}
+
+function backupTekst() {
+  return JSON.stringify({ formaat: FORMAAT, versie: VERSIE, exportdatum: nuIso(), metingen: staat.metingen }, null, 2);
+}
+
+function exporteerJson() {
+  downloadBlob(new Blob([backupTekst()], { type: 'application/json' }), `PR24_eenvoudig_backup_${bestandsdatum()}.json`);
+  toonMelding('JSON-back-up is gedownload.');
+}
+
+/** Controleert een back-up met dezelfde regels als bij de invoer. */
+function controleerBackup(j) {
+  if (!j || j.formaat !== FORMAAT || !Array.isArray(j.metingen)) return { fouten: ['Dit is geen back-up van de Meettool PR24 (eenvoudige versie).'] };
+  const fouten = [];
+  const gezien = new Set();
+  const metingen = j.metingen.map((ruw, n) => {
+    const m = normaliseer(ruw || {});
+    const l = BESTUREN.includes(m.bestuur) && Number.isInteger(m.maand) ? metingLabel(m) : `Maandmeting ${n + 1}`;
+    if (!BESTUREN.includes(m.bestuur)) fouten.push(`${l}: bestuur ontbreekt of is ongeldig.`);
+    if (!Number.isInteger(m.jaar) || m.jaar < 2000 || m.jaar > 2100 || !Number.isInteger(m.maand) || m.maand < 1 || m.maand > 12) fouten.push(`${l}: maand of jaar is ongeldig.`);
+    if (gezien.has(m.id)) fouten.push(`${l}: komt meer dan één keer voor.`);
+    gezien.add(m.id);
+    for (const k of ['nieuwe', 'aangeleverd', 'verwerkt']) if (m[k] === undefined) m[k] = null;
+    fouten.push(...valideerMaand(m).map((f) => `${l}: ${f}`));
+    m.dossiers.forEach((d, i) => fouten.push(...valideerDossier({ regels: null, blokken: null, visma: null, ...d }, m, i).map((f) => `${l}: ${f}`)));
+    m.stappen.forEach((s) => fouten.push(...valideerStap(s).map((f) => `${l}: ${f}`)));
+    for (const k of KLASSEN) if (m.s02[k] !== null && !(isGetal(m.s02[k]) && m.s02[k] >= 0)) fouten.push(`${l}: S02-tijd voor ${k} is ongeldig.`);
+    return m;
+  });
+  return { fouten, metingen };
+}
+
+async function importeer(bestand) {
+  let j;
+  try { j = JSON.parse(await bestand.text()); } catch (e) { await dialoog('Import niet mogelijk', '<div class="melding fout">Het bestand is geen geldig JSON-bestand.</div>', [{ label: 'Sluiten', waarde: true }]); return; }
+  const { fouten, metingen } = controleerBackup(j);
+  if (fouten.length) { await dialoog('Import niet mogelijk', foutenHtml(fouten.slice(0, 20), 'De back-up is niet geïmporteerd:'), [{ label: 'Sluiten', waarde: true }]); return; }
+  const nieuw = metingen.filter((x) => !staat.metingen.some((y) => y.id === x.id));
+  const bestaand = metingen.length - nieuw.length;
+  const keuzeImport = await dialoog('JSON-back-up importeren', `<p>Het bestand bevat ${metingen.length} maandmeting(en): ${esc(metingen.map(metingLabel).join(', ') || '—')}.</p>
+    <p><strong>Samenvoegen:</strong> ${nieuw.length} nieuwe maandmeting(en) toevoegen; ${bestaand} bestaande blijven ongewijzigd.</p>
+    <p><strong>Alles vervangen:</strong> alle ${staat.metingen.length} huidige maandmetingen worden vervangen. Er wordt eerst automatisch een back-up van de huidige gegevens gedownload.</p>`,
+  [{ label: 'Annuleren', waarde: null }, { label: 'Alles vervangen', waarde: 'vervangen', soort: 'gevaar' }, { label: 'Samenvoegen', waarde: 'samenvoegen', soort: 'primair' }]);
+  if (!keuzeImport) return;
+  if (opslagGeblokkeerd) {
+    try { localStorage.setItem(`${SLEUTEL}-onleesbaar-${bestandsdatum()}`, localStorage.getItem(SLEUTEL) || ''); } catch (e) { toonMelding('De onleesbare gegevens konden niet apart worden bewaard; import afgebroken.', true); return; }
+    opslagGeblokkeerd = false;
+  }
+  if (keuzeImport === 'vervangen') {
+    downloadBlob(new Blob([backupTekst()], { type: 'application/json' }), `PR24_eenvoudig_veiligheidsbackup_${bestandsdatum()}.json`);
+    staat.metingen = metingen;
+  } else staat.metingen.push(...nieuw);
+  staat.metingen.sort((a, b) => a.jaar - b.jaar || a.maand - b.maand || a.bestuur.localeCompare(b.bestuur));
+  bewaar();
+  render();
+  toonMelding(keuzeImport === 'vervangen' ? 'Gegevens vervangen door de back-up.' : `${nieuw.length} maandmeting(en) toegevoegd.`);
+}
+
+// ---------- Excel-schrijver (overgenomen uit de bestaande meettool; werkt lokaal, zonder bibliotheek) ----------
+// ---------- Excel-export (.xlsx) zonder externe bibliotheek ----------
+//
+// Een .xlsx-bestand is een ZIP-archief met XML-bestanden (Office Open XML).
+// Deze module schrijft een minimale, geldige werkmap: tekstcellen (inline),
+// getalcellen met volledige precisie en een weergaveformaat met twee decimalen.
+
+const CRC_TABEL = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABEL[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** Maakt een ZIP-archief (methode 'stored', zonder compressie). bestanden: [{ naam, inhoud: string }] */
+function maakZip(bestanden) {
+  const enc = new TextEncoder();
+  const nu = new Date();
+  const dosTijd = (nu.getHours() << 11) | (nu.getMinutes() << 5) | (Math.floor(nu.getSeconds() / 2));
+  const dosDatum = ((nu.getFullYear() - 1980) << 9) | ((nu.getMonth() + 1) << 5) | nu.getDate();
+  const delen = [];
+  const centraal = [];
+  let positie = 0;
+  for (const b of bestanden) {
+    const naam = enc.encode(b.naam);
+    const data = enc.encode(b.inhoud);
+    const crc = crc32(data);
+    const lokaal = new DataView(new ArrayBuffer(30));
+    lokaal.setUint32(0, 0x04034b50, true);
+    lokaal.setUint16(4, 20, true);
+    lokaal.setUint16(6, 0x0800, true); // UTF-8 bestandsnamen
+    lokaal.setUint16(8, 0, true);
+    lokaal.setUint16(10, dosTijd, true);
+    lokaal.setUint16(12, dosDatum, true);
+    lokaal.setUint32(14, crc, true);
+    lokaal.setUint32(18, data.length, true);
+    lokaal.setUint32(22, data.length, true);
+    lokaal.setUint16(26, naam.length, true);
+    lokaal.setUint16(28, 0, true);
+    delen.push(new Uint8Array(lokaal.buffer), naam, data);
+
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true);
+    c.setUint16(4, 20, true);
+    c.setUint16(6, 20, true);
+    c.setUint16(8, 0x0800, true);
+    c.setUint16(10, 0, true);
+    c.setUint16(12, dosTijd, true);
+    c.setUint16(14, dosDatum, true);
+    c.setUint32(16, crc, true);
+    c.setUint32(20, data.length, true);
+    c.setUint32(24, data.length, true);
+    c.setUint16(28, naam.length, true);
+    c.setUint32(42, positie, true);
+    centraal.push(new Uint8Array(c.buffer), naam);
+    positie += 30 + naam.length + data.length;
+  }
+  const centraalGrootte = centraal.reduce((s, d) => s + d.length, 0);
+  const eind = new DataView(new ArrayBuffer(22));
+  eind.setUint32(0, 0x06054b50, true);
+  eind.setUint16(8, bestanden.length, true);
+  eind.setUint16(10, bestanden.length, true);
+  eind.setUint32(12, centraalGrootte, true);
+  eind.setUint32(16, positie, true);
+  return new Blob([...delen, ...centraal, new Uint8Array(eind.buffer)], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+}
+
+function xmlEsc(t) {
+  return String(t)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function kolomLetter(i) {
+  let s = '';
+  i += 1;
+  while (i > 0) {
+    const r = (i - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    i = Math.floor((i - 1) / 26);
+  }
+  return s;
+}
+
+// Stijlindexen (zie stijlenXml): 0 standaard, 1 kop, 2 getal 0,00, 3 titel, 4 waarschuwing, 5 tekst met terugloop
+const XLSX_STIJL = { standaard: 0, kop: 1, getal: 2, titel: 3, waarschuwing: 4, terugloop: 5 };
+
+function stijlenXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>
+<fonts count="4">
+<font><sz val="11"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="13"/><name val="Calibri"/><family val="2"/></font>
+<font><b/><sz val="11"/><color rgb="FF9C2A00"/><name val="Calibri"/><family val="2"/></font>
+</fonts>
+<fills count="3">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFDDF0E2"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="6">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+}
+
+/**
+ * Cel: string | number | null | { v, s } waarbij s een sleutel van XLSX_STIJL is.
+ * Getallen worden onafgerond opgeslagen; het weergaveformaat toont twee decimalen.
+ */
+function celXml(cel, ref) {
+  if (cel === null || cel === undefined || cel === '') return '';
+  let waarde = cel;
+  let stijl = null;
+  if (typeof cel === 'object') { waarde = cel.v; stijl = cel.s; }
+  if (waarde === null || waarde === undefined || waarde === '') {
+    return stijl ? `<c r="${ref}" s="${XLSX_STIJL[stijl]}"/>` : '';
+  }
+  if (typeof waarde === 'number' && Number.isFinite(waarde)) {
+    const s = XLSX_STIJL[stijl || 'getal'];
+    return `<c r="${ref}" s="${s}"><v>${waarde}</v></c>`;
+  }
+  const s = stijl ? ` s="${XLSX_STIJL[stijl]}"` : '';
+  return `<c r="${ref}" t="inlineStr"${s}><is><t xml:space="preserve">${xmlEsc(waarde)}</t></is></c>`;
+}
+
+function werkbladXml(blad) {
+  const rijen = blad.rijen.map((rij, ri) => {
+    const cellen = rij.map((cel, ci) => celXml(cel, kolomLetter(ci) + (ri + 1))).join('');
+    return `<row r="${ri + 1}">${cellen}</row>`;
+  }).join('');
+  const breedtes = (blad.kolombreedtes || [])
+    .map((b, i) => `<col min="${i + 1}" max="${i + 1}" width="${b}" customWidth="1"/>`).join('');
+  const vastzetten = blad.kopRij
+    ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${blad.kopRij}" topLeftCell="A${blad.kopRij + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+    : '';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${vastzetten}${breedtes ? '<cols>' + breedtes + '</cols>' : ''}<sheetData>${rijen}</sheetData></worksheet>`;
+}
+
+/** bladen: [{ naam, rijen: [[cel]], kolombreedtes?: [getal], kopRij?: rijnummer om vast te zetten }] */
+function maakXlsx(bladen) {
+  const bestanden = [];
+  bestanden.push({
+    naam: '[Content_Types].xml',
+    inhoud: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+${bladen.map((b, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n')}
+</Types>`,
+  });
+  bestanden.push({
+    naam: '_rels/.rels',
+    inhoud: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`,
+  });
+  const nu = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  bestanden.push({
+    naam: 'docProps/core.xml',
+    inhoud: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<dc:title>Meettool PR24 – export</dc:title>
+<dc:creator>Meettool ${xmlEsc(VERSIE)}</dc:creator>
+<dcterms:created xsi:type="dcterms:W3CDTF">${nu}</dcterms:created>
+</cp:coreProperties>`,
+  });
+  bestanden.push({
+    naam: 'docProps/app.xml',
+    inhoud: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Meettool ${xmlEsc(VERSIE)}</Application></Properties>`,
+  });
+  bestanden.push({
+    naam: 'xl/workbook.xml',
+    inhoud: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets>${bladen.map((b, i) => `<sheet name="${xmlEsc(b.naam.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>
+</workbook>`,
+  });
+  bestanden.push({
+    naam: 'xl/_rels/workbook.xml.rels',
+    inhoud: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${bladen.map((b, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('\n')}
+<Relationship Id="rId${bladen.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+  });
+  bestanden.push({ naam: 'xl/styles.xml', inhoud: stijlenXml() });
+  bladen.forEach((b, i) => bestanden.push({ naam: `xl/worksheets/sheet${i + 1}.xml`, inhoud: werkbladXml(b) }));
+  return maakZip(bestanden);
+}
+
+// ---------- Start ----------
+
+function kiesSelectie() {
+  keuze = { bestuur: $('#bestuur').value, maand: Number($('#maand').value), jaar: Number($('#jaar').value) };
+  bewaarKeuze();
+  render();
+}
+
+function vulJaren() {
+  const huidigJaar = new Date().getFullYear();
+  const jaren = uniek([huidigJaar - 2, huidigJaar - 1, huidigJaar, huidigJaar + 1, keuze.jaar, ...staat.metingen.map((m) => m.jaar)]).sort();
+  $('#jaar').innerHTML = jaren.map((j) => `<option value="${j}" ${j === keuze.jaar ? 'selected' : ''}>${j}</option>`).join('');
+}
+
+function start() {
+  const gelezen = laad();
+  try {
+    const k = JSON.parse(sessionStorage.getItem(SLEUTEL + '-keuze') || 'null');
+    if (k && BESTUREN.includes(k.bestuur)) { keuze = { bestuur: k.bestuur, jaar: k.jaar, maand: k.maand }; huidigeStap = k.stap || 1; }
+  } catch (e) { /* niet kritiek */ }
+  $('#maand').innerHTML = MAANDEN.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+  $('#bestuur').value = keuze.bestuur;
+  $('#maand').value = String(keuze.maand);
+  vulJaren();
+  for (const id of ['#bestuur', '#maand', '#jaar']) $(id).addEventListener('change', kiesSelectie);
+  $('#knopNieuw').addEventListener('click', () => {
+    if (huidig()) return;
+    if (opslagGeblokkeerd) { toonMelding('Opslaan is uitgeschakeld omdat de opgeslagen gegevens onleesbaar zijn.', true); return; }
+    const m = nieuweMeting(keuze.bestuur, keuze.jaar, keuze.maand);
+    bewaar();
+    toonMelding(`Maandmeting ${metingLabel(m)} is aangemaakt.`);
+    toonStap(2);
+  });
+  $('#knopOpslaan').addEventListener('click', () => { if (bewaar()) toonMelding($$('.ongeldig').length ? 'Opgeslagen; rood gemarkeerde, ongeldige invoer is niet opgeslagen.' : 'Alle wijzigingen zijn opgeslagen.', $$('.ongeldig').length > 0); });
+  $('#knopVerwijderen').addEventListener('click', async () => {
+    const m = huidig();
+    if (!m || !(await bevestig('Maandmeting verwijderen', `<p>${esc(metingLabel(m))} wordt verwijderd, met ${m.dossiers.length} dossier(s) en alle tijden. Andere maanden en besturen blijven ongewijzigd.</p><p>Dit kan niet ongedaan worden gemaakt.</p>`, 'Maandmeting verwijderen'))) return;
+    staat.metingen = staat.metingen.filter((x) => x.id !== m.id);
+    bewaar();
+    render();
+    toonMelding(`${metingLabel(m)} is verwijderd.`);
+  });
+  $('#knopDossier').addEventListener('click', () => {
+    const m = huidig();
+    m.dossiers.push({ code: voorstelCode(m), regels: null, blokken: null, status: 'Status onbekend', visma: null, bijzonderheid: '', aangemaakt: nuIso(), gewijzigd: null });
+    m.gewijzigd = nuIso();
+    bewaar();
+    render();
+    const rijen = $$('#dossierTabel tr[data-i]');
+    $('[data-d="regels"]', rijen[rijen.length - 1]).focus();
+  });
+  $('#dossiers').addEventListener('input', verwerkDossierInvoer);
+  $('#dossiers').addEventListener('change', verwerkDossierInvoer);
+  for (const id of ['#nieuwe', '#aangeleverd', '#verwerkt', '#bron', '#toelichting']) $(id).addEventListener('input', verwerkMaandInvoer);
+  $('#stappen').addEventListener('input', verwerkStapInvoer);
+  $('#stappen').addEventListener('change', verwerkStapInvoer);
+  $('#knopVorige').addEventListener('click', () => toonStap(huidigeStap - 1));
+  $('#knopVolgende').addEventListener('click', () => toonStap(huidigeStap + 1));
+  $('#knopExcel').addEventListener('click', exporteerExcel);
+  $('#knopCsv').addEventListener('click', exporteerCsv);
+  $('#knopJson').addEventListener('click', exporteerJson);
+  $('#knopImport').addEventListener('click', () => $('#importBestand').click());
+  $('#importBestand').addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) await importeer(f); });
+  document.addEventListener('click', async (e) => {
+    const ga = e.target.closest('[data-ga]');
+    if (ga) { toonStap(Number(ga.dataset.ga)); return; }
+    const open = e.target.closest('[data-open]');
+    if (open) {
+      const m = staat.metingen.find((x) => x.id === open.dataset.open);
+      keuze = { bestuur: m.bestuur, jaar: m.jaar, maand: m.maand };
+      $('#bestuur').value = m.bestuur;
+      $('#maand').value = String(m.maand);
+      vulJaren();
+      bewaarKeuze();
+      render();
+      return;
+    }
+    const inf = e.target.closest('button.info');
+    if (inf) { await dialoog('Uitleg', `<p>${esc(inf.dataset.info)}</p>`, [{ label: 'Sluiten', waarde: true, soort: 'primair' }]); return; }
+    const toggle = e.target.closest('[data-klassen-toggle]');
+    if (toggle) {
+      const r = $('#stapTabel tr[data-klassen]');
+      r.hidden = !r.hidden;
+      toggle.setAttribute('aria-expanded', String(!r.hidden));
+      toggle.textContent = r.hidden ? 'Per klasse ▸' : 'Per klasse ▾';
+      return;
+    }
+    const verw = e.target.closest('[data-verwijder-dossier]');
+    if (verw) {
+      const m = huidig();
+      const d = m.dossiers[Number(verw.dataset.verwijderDossier)];
+      if (!(await bevestig('Dossier verwijderen', `<p>Dossier <strong>${esc(d.code)}</strong> wordt verwijderd.</p>`, 'Dossier verwijderen'))) return;
+      m.dossiers.splice(Number(verw.dataset.verwijderDossier), 1);
+      m.gewijzigd = nuIso();
+      bewaar();
+      render();
+    }
+  });
+  werkStatusBij();
+  toonStap(huidigeStap);
+  if (!gelezen) toonMelding('De opgeslagen gegevens konden niet worden gelezen. Ze zijn niet gewist; importeer zo nodig een back-up.', true);
+  // Alleen voor geautomatiseerde tests: lezen van gegevens en berekeningen.
+  window.__pr24 = { staat: () => staat, bereken, klasse, klaar: true };
+}
+
+document.addEventListener('DOMContentLoaded', start);
+</script>
+</body>
+</html>
