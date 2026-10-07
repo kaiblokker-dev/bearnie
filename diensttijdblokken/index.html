@@ -1,0 +1,1276 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'">
+<title>Diensttijdblokken ABP → Visma</title>
+<style>
+  :root {
+    --tekst: #1d2733; --zacht: #5b6775; --rand: #cfd6de; --vlak: #f4f6f8; --wit: #fff;
+    --accent: #1f5f8b; --accent-licht: #e5eff6; --fout: #b42318; --fout-licht: #fdecea;
+    --waarsch: #8a5a00; --waarsch-licht: #fff4dc; --ok: #1e7a3c; --ok-licht: #e6f4ea; --uit: #8892a0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 "Segoe UI", Arial, sans-serif; color: var(--tekst); background: var(--vlak); }
+  header.kop { background: var(--accent); color: #fff; padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+  header.kop h1 { font-size: 19px; margin: 0; font-weight: 600; }
+  header.kop .sub { opacity: .85; font-size: 13px; }
+  #opslagstatus { margin-left: auto; font-size: 13px; }
+  main { max-width: 1500px; margin: 0 auto; padding: 14px 20px 40px; }
+  section { background: var(--wit); border: 1px solid var(--rand); border-radius: 6px; padding: 14px 16px; margin-bottom: 14px; }
+  h2 { font-size: 16px; margin: 0 0 10px; color: var(--accent); }
+  h3 { font-size: 14px; margin: 12px 0 6px; }
+  .hint { color: var(--zacht); font-size: 12.5px; margin: 4px 0 8px; }
+  .raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 14px; }
+  label.veld { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--zacht); }
+  label.veld input, label.veld select, label.veld textarea { font: inherit; color: var(--tekst); }
+  input, select, textarea { border: 1px solid var(--rand); border-radius: 4px; padding: 4px 6px; background: #fff; font: inherit; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-licht); border-color: var(--accent); }
+  button { font: inherit; border: 1px solid var(--accent); background: #fff; color: var(--accent); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+  button:hover { background: var(--accent-licht); }
+  button.primair { background: var(--accent); color: #fff; }
+  button.primair:hover { background: #174a6d; }
+  button.gevaar { border-color: var(--fout); color: var(--fout); }
+  button.gevaar:hover { background: var(--fout-licht); }
+  button:disabled { opacity: .45; cursor: default; background: #fff; }
+  button.klein { padding: 1px 7px; font-size: 12.5px; }
+  .balk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .balk .scheiding { width: 1px; height: 22px; background: var(--rand); margin: 0 4px; }
+  .tabelvak { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid var(--rand); padding: 4px 6px; vertical-align: top; text-align: left; }
+  th { background: var(--vlak); font-weight: 600; white-space: nowrap; }
+  td.nr { text-align: right; color: var(--zacht); width: 34px; }
+  #regelTabel input { width: 100%; min-width: 60px; padding: 3px 5px; }
+  #regelTabel input.datum { min-width: 98px; }
+  #regelTabel select { padding: 3px 2px; }
+  #regelTabel td { padding: 3px 4px; }
+  tr.r-fout td { background: var(--fout-licht); }
+  tr.r-uit td { background: #f1f2f4; color: var(--uit); }
+  tr.r-uit input, tr.r-uit select { color: var(--uit); }
+  input.ongeldig { border-color: var(--fout); background: var(--fout-licht); }
+  td.acties { white-space: nowrap; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+  .kpi { border: 1px solid var(--rand); border-radius: 5px; padding: 8px 10px; background: var(--vlak); }
+  .kpi .w { font-size: 22px; font-weight: 600; }
+  .kpi .l { font-size: 12px; color: var(--zacht); }
+  .kpi.hoofd { grid-column: span 2; background: var(--accent-licht); border-color: var(--accent); }
+  .kpi.hoofd .w { font-size: 30px; color: var(--accent); }
+  .melding { border-radius: 5px; padding: 8px 12px; margin: 8px 0; border: 1px solid; }
+  .melding.fout { background: var(--fout-licht); border-color: var(--fout); color: var(--fout); }
+  .melding.waarsch { background: var(--waarsch-licht); border-color: #e0b54b; color: var(--waarsch); }
+  .melding.info { background: var(--accent-licht); border-color: #9cc0da; color: #174a6d; }
+  .melding.ok { background: var(--ok-licht); border-color: #8cc79d; color: var(--ok); }
+  ul.meldingen { list-style: none; padding: 0; margin: 0; }
+  ul.meldingen li { padding: 5px 8px; border-left: 4px solid; margin-bottom: 4px; border-radius: 3px; }
+  ul.meldingen li.fout { border-color: var(--fout); background: var(--fout-licht); }
+  ul.meldingen li.waarschuwing { border-color: #e0b54b; background: var(--waarsch-licht); }
+  ul.meldingen li.info { border-color: #9cc0da; background: var(--accent-licht); }
+  .label { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 9px; text-transform: uppercase; letter-spacing: .02em; margin-right: 6px; }
+  .label.fout { background: var(--fout); color: #fff; }
+  .label.waarschuwing { background: #e0b54b; color: #3b2a00; }
+  .label.info { background: #9cc0da; color: #10344f; }
+  .label.ok { background: var(--ok); color: #fff; }
+  .label.handm { background: #6b4fa0; color: #fff; }
+  tr.b-uit td { background: #f1f2f4; color: var(--uit); text-decoration: line-through; }
+  tr.b-uit td.acties, tr.b-uit td.opm { text-decoration: none; }
+  tr.b-handm td:first-child { box-shadow: inset 4px 0 0 #6b4fa0; }
+  td.reden { font-size: 12.5px; min-width: 260px; }
+  td.reden ul { margin: 0; padding-left: 16px; }
+  ol.logboek { margin: 0; padding-left: 26px; font-size: 13px; max-height: 420px; overflow-y: auto; }
+  ol.logboek li { padding: 2px 0; }
+  .logsoort { display: inline-block; min-width: 108px; font-size: 11.5px; color: var(--zacht); }
+  textarea#plakveld { width: 100%; min-height: 130px; font-family: Consolas, monospace; font-size: 12.5px; }
+  details summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  .testlijst { list-style: none; padding: 0; margin: 0; font-size: 13px; columns: 2 420px; }
+  .testlijst li { padding: 2px 0; break-inside: avoid; }
+  .instelling { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; background: var(--accent-licht); border-radius: 5px; }
+  .instelling input { margin-top: 3px; }
+  #rapport { display: none; }
+  .verborgen { display: none !important; }
+  @media print {
+    body { background: #fff; font-size: 11pt; }
+    header.kop, main { display: none !important; }
+    #rapport { display: block; padding: 0; }
+    #rapport h1 { font-size: 16pt; margin: 0 0 4pt; }
+    #rapport h2 { font-size: 12.5pt; margin: 14pt 0 5pt; color: #000; }
+    #rapport table { font-size: 9.5pt; page-break-inside: auto; }
+    #rapport tr { page-break-inside: avoid; }
+    #rapport th { background: #eee; }
+    #rapport .groot { font-size: 14pt; font-weight: 700; }
+  }
+</style>
+</head>
+<body>
+<header class="kop">
+  <h1>Diensttijdblokken ABP → Visma</h1>
+  <span class="sub">Verwacht aantal Visma-regels/diensttijdblokken uit een ABP-diensttijdoverzicht · werkt volledig lokaal</span>
+  <span id="opslagstatus"></span>
+</header>
+
+<main>
+  <!-- ===== Dossier en bestand ===== -->
+  <section>
+    <h2>Dossiergegevens</h2>
+    <p class="hint">Gebruik uitsluitend geanonimiseerde gegevens. Vul geen namen, BSN-nummers of andere persoonsgegevens in.</p>
+    <div class="raster">
+      <label class="veld">Anoniem dossier-ID *<input id="d-id" data-dossier="id" maxlength="40" placeholder="bijv. D-2026-014"></label>
+      <label class="veld">Bestuur<input id="d-bestuur" data-dossier="bestuur" maxlength="80"></label>
+      <label class="veld">Maand en jaar<input id="d-maand" data-dossier="maandJaar" maxlength="20" placeholder="mm-jjjj"></label>
+      <label class="veld">Status
+        <select id="d-status" data-dossier="status">
+          <option>Niet verwerkt</option><option>Gedeeltelijk verwerkt</option><option>Verwerkt</option>
+        </select>
+      </label>
+      <label class="veld" style="grid-column: span 2">Opmerking<input id="d-opm" data-dossier="opmerking" maxlength="300"></label>
+    </div>
+    <div class="balk">
+      <button class="primair" id="btnOpslaan">Opslaan in browser</button>
+      <select id="dossierLijst" aria-label="Opgeslagen dossiers"></select>
+      <button id="btnOpenen">Dossier openen</button>
+      <button id="btnNieuw">Nieuw dossier</button>
+      <span class="scheiding"></span>
+      <button id="btnCsv">Exporteren als CSV</button>
+      <button id="btnJson">Exporteren als JSON</button>
+      <button id="btnJsonImport">JSON importeren</button>
+      <input type="file" id="jsonBestand" accept=".json,application/json" class="verborgen">
+      <button id="btnPrint">Afdrukken / PDF</button>
+      <span class="scheiding"></span>
+      <button class="gevaar" id="btnWissen">Alle lokale gegevens verwijderen</button>
+    </div>
+  </section>
+
+  <!-- ===== Invoer ===== -->
+  <section>
+    <h2>ABP-perioderegels</h2>
+    <p class="hint">Iedere regel onder ‘Periode’ in het ABP-overzicht is één perioderegel, ook als de periode één dag duurt. Datums in het formaat <b>dd-mm-jjjj</b>. De ABP-einddatum is <b>exclusief</b>; een lege einddatum betekent dat de periode doorloopt.</p>
+    <div class="tabelvak">
+      <table id="regelTabel">
+        <thead><tr>
+          <th>Nr</th><th>Vereniging/ stichting</th><th>Arbeidsverh.-ID</th><th>Soort verhouding</th>
+          <th>ABP-begindatum</th><th>ABP-einddatum</th><th>Deeltijd&shy;factor</th><th>Meetel&shy;waarde</th>
+          <th>Meetellen</th><th>Opmerking</th><th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="balk">
+      <button class="primair" id="btnRegel">+ Regel toevoegen</button>
+      <button id="btnSorteer">Sorteren op vereniging en begindatum</button>
+      <button class="gevaar" id="btnAlleRegelsWeg">Alle regels verwijderen</button>
+    </div>
+    <label class="instelling">
+      <input type="checkbox" id="instAndereAV" checked>
+      <span><b>Direct aansluitende perioden bij dezelfde vereniging maar met een ander arbeidsverhouding-ID samenvoegen.</b><br>
+      <span class="hint">Standaard aan. Uitgeschakeld: een aansluitende periode met een ander AV-ID start een nieuw blok. Overlappende perioden bij dezelfde vereniging worden altijd samengevoegd (telregel 9).</span></span>
+    </label>
+
+    <details id="plakDetails" style="margin-top:12px">
+      <summary>Meerdere regels plakken (tabgescheiden tekst, bijv. uit Excel)</summary>
+      <p class="hint">Standaard kolomvolgorde: <b>Vereniging · AV-ID · Soort · Begindatum · Einddatum · Deeltijdfactor · Meetelwaarde · Opmerking</b>.
+        Een kopregel met herkenbare kolomnamen (bijv. ‘Vereniging’, ‘Begindatum’, ‘Einddatum’, ‘Periode’) wordt automatisch herkend.
+        Een kolom ‘Periode’ met twee datums (bijv. <code>23-06-2003 tot 25-06-2003</code>) wordt gesplitst. Geplakte regels worden pas toegevoegd nadat u ze hebt gecontroleerd.</p>
+      <textarea id="plakveld" placeholder="A&#9;AV1&#9;Arbeidsverhouding&#9;01-08-2003&#9;01-08-2004&#9;0,5&#9;0,5000"></textarea>
+      <div class="balk"><button id="btnPlakControle">Controleren</button><button id="btnPlakLeeg">Plakveld leegmaken</button></div>
+      <div id="plakVoorbeeld"></div>
+    </details>
+  </section>
+
+  <!-- ===== Resultaat ===== -->
+  <section>
+    <h2>Resultaat</h2>
+    <div id="resultaatMeldingen"></div>
+    <div class="kpis" id="kpis"></div>
+    <h3>Gebruikte telregels</h3>
+    <ol id="telregels" class="hint" style="margin:0;padding-left:22px"></ol>
+  </section>
+
+  <section>
+    <h2>Controle diensttijdblokken</h2>
+    <p class="hint">De automatische uitkomst is een <b>voorstel</b>, geen definitieve registratie. Controleer ieder blok. Handmatige correcties worden vastgelegd in het berekeningslogboek en alle totalen worden direct opnieuw berekend.</p>
+    <div class="balk">
+      <button id="btnSamenvoegen" disabled>Geselecteerde blokken samenvoegen</button>
+      <button id="btnOngedaan" disabled>Laatste correctie ongedaan maken</button>
+      <button class="gevaar" id="btnCorrectiesWeg" disabled>Alle handmatige correcties wissen</button>
+    </div>
+    <div class="tabelvak">
+      <table id="blokTabel">
+        <thead><tr>
+          <th>Blok</th><th>Vereniging/ stichting</th><th>Samengevoegde bronregels</th>
+          <th>Verwachte Visma-begindatum</th><th>Verwachte Visma-einddatum</th><th>Reden van samenvoegen of splitsen</th>
+          <th>Handmatig aanpassen</th><th>Blok splitsen</th><th>Samen&shy;voegen</th><th>Blok uitsluiten</th><th>Opmerking</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Waarschuwingen</h2>
+    <ul class="meldingen" id="waarschuwingen"></ul>
+  </section>
+
+  <section>
+    <h2>Berekeningslogboek</h2>
+    <ol class="logboek" id="logboek"></ol>
+  </section>
+
+  <section>
+    <h2>Automatische tests</h2>
+    <div id="testSamenvatting"></div>
+    <ul class="testlijst" id="testLijst"></ul>
+    <div class="balk"><button id="btnTests" class="klein">Tests opnieuw uitvoeren</button></div>
+  </section>
+</main>
+
+<div id="rapport"></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   1. CONFIGURATIE – telregels centraal, zodat ze eenvoudig aan te passen zijn
+   ===================================================================== */
+
+const SOORTEN = ['Arbeidsverhouding', 'Werkloosheidsverhouding', 'Anders'];
+const STATUSSEN = ['Niet verwerkt', 'Gedeeltelijk verwerkt', 'Verwerkt'];
+
+const TELREGELS = {
+  // Telregel 2: of een soort verhouding standaard wordt meegenomen.
+  standaardMeetellen: { Arbeidsverhouding: true, Werkloosheidsverhouding: false, Anders: true },
+  // Telregel 4/5: ABP-einddatum is exclusief; Visma-einddatum = ABP-einddatum + deze verschuiving (in dagen).
+  vismaEindVerschuiving: -1,
+};
+
+const STANDAARD_INSTELLINGEN = { samenvoegenAndereAV: true };
+
+/** Beschrijving van de telregels zoals getoond in resultaat en export. */
+function telregelTeksten(inst) {
+  return [
+    'Iedere regel onder ‘Periode’ is een ABP-perioderegel, ook wanneer de periode maar één dag duurt.',
+    'Een werkloosheidsverhouding wordt standaard niet meegenomen; per regel handmatig te wijzigen.',
+    'Deeltijdfactor en meetelwaarde bepalen niet of een arbeidsperiode wordt meegenomen.',
+    'De ABP-einddatum is exclusief.',
+    'De verwachte Visma-einddatum is daarom één kalenderdag vóór de ABP-einddatum.',
+    'Voorbeeld: 23-06-2003 tot 25-06-2003 wordt in Visma 23-06-2003 t/m 24-06-2003.',
+    'Perioden met een echte onderbreking worden afzonderlijke diensttijdblokken, ook bij dezelfde vereniging en arbeidsverhouding.',
+    'Direct aansluitende perioden bij dezelfde vereniging worden samengevoegd.',
+    'Overlappende perioden bij dezelfde vereniging worden samengevoegd (met waarschuwing).',
+    'Perioden van verschillende verenigingen worden nooit automatisch samengevoegd.',
+    'Een open periode (lege einddatum) loopt door en kan aansluiten op of overlappen met latere perioden.',
+    'Ongeldige of onduidelijke datums worden niet stilzwijgend verwerkt maar als fout gemeld.',
+    'Instelling (geen telregel) – ‘aansluitende perioden met ander arbeidsverhouding-ID samenvoegen’: ' +
+      (inst.samenvoegenAndereAV ? 'AAN (aansluitende perioden met een ander AV-ID worden samengevoegd).'
+                                : 'UIT (aansluitende perioden met een ander AV-ID blijven afzonderlijke blokken).'),
+  ];
+}
+
+/* =====================================================================
+   2. HULPFUNCTIES – datums, tekst
+   ===================================================================== */
+
+const DAG_MS = 86400000;
+const pad2 = (n) => String(n).padStart(2, '0');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const normSleutel = (s) => String(s ?? '').trim().toUpperCase();
+
+/**
+ * Zet een datumtekst dd-mm-jjjj om naar een dagnummer (dagen sinds 1-1-1970, UTC).
+ * Retourneert {leeg:true}, {dag:n} of {fout:'...'}. Onbestaande datums (31-02) worden geweigerd.
+ */
+function parseDatum(tekst) {
+  const s = String(tekst ?? '').trim();
+  if (!s) return { leeg: true };
+  const m = /^(\d{1,2})([-./])(\d{1,2})\2(\d{4})$/.exec(s);
+  if (!m) return { fout: `‘${s}’ is geen datum in het formaat dd-mm-jjjj` };
+  const d = +m[1], mnd = +m[3], j = +m[4];
+  if (j < 1900 || j > 2100) return { fout: `jaartal in ‘${s}’ ligt buiten 1900–2100` };
+  const t = Date.UTC(j, mnd - 1, d);
+  const dt = new Date(t);
+  if (dt.getUTCFullYear() !== j || dt.getUTCMonth() !== mnd - 1 || dt.getUTCDate() !== d) {
+    return { fout: `‘${s}’ bestaat niet als kalenderdatum` };
+  }
+  return { dag: Math.round(t / DAG_MS) };
+}
+
+/** Dagnummer → 'dd-mm-jjjj'. null → '' (doorlopend). */
+function formatDag(dag) {
+  if (dag === null || dag === undefined) return '';
+  const d = new Date(dag * DAG_MS);
+  return `${pad2(d.getUTCDate())}-${pad2(d.getUTCMonth() + 1)}-${d.getUTCFullYear()}`;
+}
+
+/** ABP-einddatum (exclusief) → verwachte Visma-einddatum (t/m). null = doorlopend. */
+function abpEindNaarVisma(abpEind) {
+  return abpEind === null ? null : abpEind + TELREGELS.vismaEindVerschuiving;
+}
+
+const isGetal = (s) => /^-?\d+([.,]\d+)?$/.test(String(s).trim());
+const lijstNrs = (nrs) => {
+  const a = [...nrs];
+  return a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' en ' + a[a.length - 1];
+};
+
+/** Maakt een nieuwe, lege perioderegel met de standaardwaarde voor ‘Meetellen’. */
+function nieuweRegel(waarden = {}) {
+  const r = {
+    uid: uid(), vereniging: '', avId: '', soort: 'Arbeidsverhouding', begin: '', eind: '',
+    deeltijd: '', meetelwaarde: '', meetellen: null, meetellenHandmatig: false, opmerking: '', ...waarden,
+  };
+  if (!SOORTEN.includes(r.soort)) r.soort = 'Anders';
+  if (r.meetellen !== 'ja' && r.meetellen !== 'nee') {
+    r.meetellen = TELREGELS.standaardMeetellen[r.soort] ? 'ja' : 'nee';
+    r.meetellenHandmatig = false;
+  }
+  return r;
+}
+
+/* =====================================================================
+   3. BEREKENING – volledig los van de interface (ook gebruikt door de tests)
+   ===================================================================== */
+
+/**
+ * Controleert één perioderegel. Retourneert {fouten:[], begin, eind}
+ * waarbij eind === null een open (doorlopende) periode is.
+ */
+function valideerRegel(r) {
+  const fouten = [];
+  if (!String(r.vereniging).trim()) fouten.push('vereniging/stichting ontbreekt');
+  const b = parseDatum(r.begin), e = parseDatum(r.eind);
+  if (b.leeg) fouten.push('begindatum ontbreekt');
+  else if (b.fout) fouten.push('ongeldige begindatum: ' + b.fout);
+  if (e.fout) fouten.push('ongeldige einddatum: ' + e.fout);
+  const begin = b.dag ?? null, eind = e.leeg ? null : (e.dag ?? null);
+  if (begin !== null && eind !== null) {
+    if (eind < begin) fouten.push(`einddatum ${formatDag(eind)} ligt vóór begindatum ${formatDag(begin)}`);
+    else if (eind === begin) fouten.push(`einddatum is gelijk aan begindatum (${formatDag(begin)}); omdat de ABP-einddatum exclusief is, is dit een periode van nul dagen`);
+  }
+  return { fouten, begin, eind };
+}
+
+/** Maakt een blok uit een lijst perioden (gebruikt bij automatische vorming én handmatig splitsen/samenvoegen). */
+function maakBlok(perioden, redenen = []) {
+  const ps = [...perioden].sort((a, b) => a.begin - b.begin || a.nr - b.nr);
+  const abpBegin = Math.min(...ps.map((p) => p.begin));
+  const abpEind = ps.some((p) => p.eind === null) ? null : Math.max(...ps.map((p) => p.eind));
+  const verenigingen = [...new Set(ps.map((p) => p.vereniging))];
+  return {
+    sleutel: ps.map((p) => p.uid).sort().join('|'),
+    perioden: ps, vereniging: verenigingen.join(' + '), verenigingSleutels: [...new Set(ps.map((p) => p.verKey))],
+    abpBegin, abpEind, vismaBegin: abpBegin, vismaEind: abpEindNaarVisma(abpEind),
+    redenen: [...redenen], aangepast: false, handmatig: false, uitgesloten: false, nummer: 0,
+  };
+}
+
+/**
+ * Kern van de telregels 7–11: vormt per vereniging blokken uit gesorteerde perioden.
+ * Beslist per periode: overlap → samenvoegen; aansluitend → samenvoegen (afhankelijk van AV-instelling);
+ * onderbreking → nieuw blok.
+ */
+function vormBlokken(perioden, inst, ctx) {
+  const groepen = new Map();
+  for (const p of perioden) {
+    if (!groepen.has(p.verKey)) groepen.set(p.verKey, []);
+    groepen.get(p.verKey).push(p);
+  }
+  const blokken = [];
+  const sorteer = (a, b) => a.begin - b.begin || (a.eind ?? Infinity) - (b.eind ?? Infinity) || a.nr - b.nr;
+  for (const [, lijst] of [...groepen.entries()].sort((a, b) => a[0].localeCompare(b[0], 'nl'))) {
+    lijst.sort(sorteer);
+    let huidig = null; // { perioden:[], eind, redenen:[] }
+    const sluitAf = () => { if (huidig) blokken.push(maakBlok(huidig.perioden, huidig.redenen)); };
+    for (const p of lijst) {
+      const ver = p.vereniging;
+      if (!huidig) {
+        huidig = { perioden: [p], eind: p.eind, redenen: [`Start met regel ${p.nr}: eerste meegenomen periode bij vereniging ${ver}.`] };
+        ctx.log('nieuw blok', `Nieuw blok gestart bij regel ${p.nr}: eerste meegenomen periode bij vereniging ${ver}.`);
+        continue;
+      }
+      const bEind = huidig.eind; // null = open
+      if (bEind === null || p.begin < bEind) {
+        // Overlap (telregel 9 en 11)
+        const met = huidig.perioden.filter((q) => q.eind === null || q.eind > p.begin);
+        const metTekst = met.map((q) => q.eind === null ? `regel ${q.nr} (open periode)` : `regel ${q.nr} (ABP-einde ${formatDag(q.eind)})`).join(', ');
+        const reden = `Regels ${lijstNrs([...met.map((q) => q.nr), p.nr])} zijn samengevoegd omdat regel ${p.nr} (begint ${formatDag(p.begin)}) overlapt met ${metTekst} en beide bij vereniging ${ver} horen.`;
+        ctx.log('samenvoegen', reden);
+        ctx.waarschuwing('waarschuwing', `Overlappende perioden bij vereniging ${ver}: regel ${p.nr} overlapt met ${met.map((q) => 'regel ' + q.nr).join(', ')}. Ze zijn samengevoegd; controleer of dit klopt.`, [...met.map((q) => q.nr), p.nr]);
+        ctx.tel.overlappen++; ctx.tel.samenvoegingen++;
+        huidig.perioden.push(p);
+        huidig.eind = (bEind === null || p.eind === null) ? null : Math.max(bEind, p.eind);
+        huidig.redenen.push(`Regel ${p.nr} overlapt → samengevoegd.`);
+      } else if (p.begin === bEind) {
+        // Direct aansluitend (telregel 8 + instelling)
+        const vorig = huidig.perioden.filter((q) => q.eind === bEind);
+        const zelfdeAV = vorig.some((q) => q.avKey === p.avKey);
+        const vorigNrs = vorig.map((q) => q.nr);
+        if (zelfdeAV || inst.samenvoegenAndereAV) {
+          const avToel = zelfdeAV ? '' : ` (ander arbeidsverhouding-ID: ${p.av || '–'} na ${vorig.map((q) => q.av || '–').join('/')}; instelling staat aan)`;
+          ctx.log('samenvoegen', `Regels ${lijstNrs([...vorigNrs, p.nr])} zijn samengevoegd omdat regel ${p.nr} begint op de exclusieve einddatum van regel ${lijstNrs(vorigNrs)} (${formatDag(bEind)}) en beide bij vereniging ${ver} horen${avToel}.`);
+          ctx.tel.samenvoegingen++;
+          huidig.perioden.push(p); huidig.eind = p.eind;
+          huidig.redenen.push(`Regel ${p.nr} sluit direct aan op regel ${lijstNrs(vorigNrs)}${zelfdeAV ? '' : ' (ander AV-ID)'} → samengevoegd.`);
+        } else {
+          sluitAf();
+          const t = `Nieuw blok gestart bij regel ${p.nr}: sluit direct aan op regel ${lijstNrs(vorigNrs)} maar heeft een ander arbeidsverhouding-ID (${p.av || '–'} i.p.v. ${vorig.map((q) => q.av || '–').join('/')}) en de instelling ‘ander AV-ID samenvoegen’ staat uit.`;
+          ctx.log('nieuw blok', t);
+          huidig = { perioden: [p], eind: p.eind, redenen: [t.replace('Nieuw blok gestart bij', 'Start met')] };
+        }
+      } else {
+        // Echte onderbreking (telregel 7)
+        const gat = p.begin - bEind;
+        const vorig = huidig.perioden.filter((q) => q.eind === bEind).map((q) => q.nr);
+        sluitAf();
+        ctx.tel.onderbrekingen++;
+        const t = `Nieuw blok gestart bij regel ${p.nr}: onderbreking van ${gat} dag${gat === 1 ? '' : 'en'} na regel ${lijstNrs(vorig)} (vorige Visma-einddatum ${formatDag(abpEindNaarVisma(bEind))}, nieuwe begindatum ${formatDag(p.begin)}).`;
+        ctx.log('nieuw blok', t);
+        huidig = { perioden: [p], eind: p.eind, redenen: [t.replace('Nieuw blok gestart bij', 'Start met')] };
+      }
+    }
+    sluitAf();
+  }
+  return blokken;
+}
+
+/**
+ * Past handmatige correcties in volgorde toe op de automatisch gevormde blokken.
+ * Correcties verwijzen naar blokken via de interne ID's van hun bronregels, zodat ze
+ * blijven werken als regels worden hernummerd. Niet meer toepasbare correcties worden gemeld.
+ */
+function pasCorrectiesToe(blokken, correcties, ctx, nrVan) {
+  let toegepast = 0, mislukt = 0;
+  const zoek = (s) => blokken.findIndex((b) => b.sleutel === s);
+  const regelsVan = (s) => { const n = s.split('|').map(nrVan).sort((a, b) => a - b); return (n.length === 1 ? 'regel ' : 'regels ') + lijstNrs(n); };
+  correcties.forEach((c, i) => {
+    const cnr = `Correctie ${i + 1}`;
+    const faal = (t) => {
+      mislukt++;
+      ctx.waarschuwing('waarschuwing', `${cnr} (${c.type}) kon niet meer worden toegepast: ${t}. Controleer de blokken opnieuw.`);
+      ctx.log('handmatig', `${cnr} (${c.type}) NIET toegepast: ${t}.`);
+    };
+    if (c.type === 'uitsluiten') {
+      const k = zoek(c.sleutel);
+      if (k < 0) return faal('het blok bestaat niet meer (bronregels gewijzigd)');
+      blokken[k].uitgesloten = true; blokken[k].handmatig = true;
+      blokken[k].redenen.push('Handmatig uitgesloten' + (c.reden ? `: ${c.reden}` : '.'));
+      ctx.log('handmatig', `${cnr}: blok met ${regelsVan(c.sleutel)} handmatig uitgesloten.`);
+    } else if (c.type === 'aanpassen') {
+      const k = zoek(c.sleutel);
+      if (k < 0) return faal('het blok bestaat niet meer (bronregels gewijzigd)');
+      const b = blokken[k];
+      ctx.log('handmatig', `${cnr}: blok met ${regelsVan(c.sleutel)} handmatig aangepast: Visma ${formatDag(b.vismaBegin)} t/m ${formatDag(b.vismaEind) || 'doorlopend'} → ${formatDag(c.begin)} t/m ${formatDag(c.eind) || 'doorlopend'}.`);
+      b.vismaBegin = c.begin; b.vismaEind = c.eind; b.aangepast = true; b.handmatig = true;
+      b.redenen.push(`Visma-datums handmatig aangepast naar ${formatDag(c.begin)} t/m ${formatDag(c.eind) || 'doorlopend'}.`);
+    } else if (c.type === 'splitsen') {
+      const k = zoek(c.sleutel);
+      if (k < 0) return faal('het blok bestaat niet meer (bronregels gewijzigd)');
+      const ps = blokken[k].perioden;
+      const idx = ps.findIndex((p) => p.uid === c.naUid);
+      if (idx < 0 || idx >= ps.length - 1) return faal('de splitsregel hoort niet (meer) binnen dit blok');
+      const na = nrVan(c.naUid);
+      const a = maakBlok(ps.slice(0, idx + 1), [`Handmatig gesplitst: deel tot en met regel ${na}.`]);
+      const b = maakBlok(ps.slice(idx + 1), [`Handmatig gesplitst: deel na regel ${na}.`]);
+      a.handmatig = b.handmatig = true;
+      blokken.splice(k, 1, a, b);
+      ctx.log('handmatig', `${cnr}: blok met ${regelsVan(c.sleutel)} handmatig gesplitst na regel ${na} in ${regelsVan(a.sleutel)} en ${regelsVan(b.sleutel)}.`);
+    } else if (c.type === 'samenvoegen') {
+      const idxs = c.sleutels.map(zoek);
+      if (idxs.some((k) => k < 0)) return faal('één van de blokken bestaat niet meer (bronregels gewijzigd)');
+      const ps = idxs.flatMap((k) => blokken[k].perioden);
+      const nb = maakBlok(ps, [`Handmatig samengevoegd uit ${c.sleutels.map((s) => '[' + regelsVan(s) + ']').join(' en ')}.`]);
+      nb.handmatig = true;
+      if (nb.verenigingSleutels.length > 1) ctx.waarschuwing('waarschuwing', `${cnr}: blokken van verschillende verenigingen (${nb.vereniging}) zijn handmatig samengevoegd. Dit wijkt af van telregel 10.`);
+      const eerste = Math.min(...idxs);
+      [...idxs].sort((x, y) => y - x).forEach((k) => blokken.splice(k, 1));
+      blokken.splice(Math.min(eerste, blokken.length), 0, nb);
+      ctx.log('handmatig', `${cnr}: blokken ${c.sleutels.map((s) => '[' + regelsVan(s) + ']').join(' en ')} handmatig samengevoegd tot één blok.`);
+      ctx.tel.samenvoegingenHandmatig++;
+    } else {
+      return faal('onbekend type');
+    }
+    toegepast++;
+  });
+  return { toegepast, mislukt };
+}
+
+/**
+ * Hoofdberekening: van perioderegels naar diensttijdblokken, waarschuwingen, logboek en tellingen.
+ * Puur: wijzigt de invoer niet en gebruikt de DOM niet.
+ */
+function bereken(regels, instellingen = STANDAARD_INSTELLINGEN, correcties = []) {
+  const inst = { ...STANDAARD_INSTELLINGEN, ...instellingen };
+  const waarschuwingen = [], log = [];
+  const tel = { onderbrekingen: 0, samenvoegingen: 0, samenvoegingenHandmatig: 0, overlappen: 0 };
+  const ctx = {
+    tel,
+    log: (soort, tekst) => log.push({ soort, tekst }),
+    waarschuwing: (niveau, tekst, regelNrs = []) => waarschuwingen.push({ niveau, tekst, regels: regelNrs }),
+  };
+  const nrPerUid = new Map(regels.map((r, i) => [r.uid, i + 1]));
+  const nrVan = (u) => nrPerUid.get(u) ?? '?';
+  const regelStatus = {}; // uid → {status:'mee'|'uit'|'fout', fouten:[]}
+
+  ctx.log('instelling', `Instelling ‘aansluitende perioden met ander AV-ID samenvoegen’ staat ${inst.samenvoegenAndereAV ? 'AAN' : 'UIT'}.`);
+
+  // Stap 1: valideren, uitsluiten en einddatums omrekenen
+  const perioden = [], geldig = [];
+  regels.forEach((r, i) => {
+    const nr = i + 1;
+    const v = valideerRegel(r);
+    if (v.fouten.length) {
+      regelStatus[r.uid] = { status: 'fout', fouten: v.fouten };
+      v.fouten.forEach((f) => ctx.waarschuwing('fout', `Regel ${nr}: ${f}. Deze regel is niet berekend.`, [nr]));
+      ctx.log('uitsluiting', `Regel ${nr} niet berekend wegens fout: ${v.fouten.join('; ')}.`);
+      return;
+    }
+    const p = {
+      uid: r.uid, nr, vereniging: String(r.vereniging).trim(), verKey: normSleutel(r.vereniging),
+      av: String(r.avId ?? '').trim(), avKey: normSleutel(r.avId), soort: r.soort, begin: v.begin, eind: v.eind,
+    };
+    geldig.push(p);
+    if (r.meetellen === 'nee') {
+      regelStatus[r.uid] = { status: 'uit', fouten: [] };
+      const reden = (r.soort === 'Werkloosheidsverhouding' && !r.meetellenHandmatig)
+        ? 'werkloosheidsverhouding wordt standaard niet meegenomen (telregel 2)'
+        : '‘Meetellen’ is handmatig op nee gezet';
+      ctx.log('uitsluiting', `Regel ${nr} uitgesloten: ${reden}.`);
+      if (r.meetellenHandmatig) ctx.waarschuwing('info', `Regel ${nr} is handmatig uitgesloten (Meetellen = nee).`, [nr]);
+      return;
+    }
+    regelStatus[r.uid] = { status: 'mee', fouten: [] };
+    perioden.push(p);
+    if (r.soort === 'Werkloosheidsverhouding') ctx.waarschuwing('waarschuwing', `Regel ${nr}: werkloosheidsverhouding is handmatig wél meegeteld.`, [nr]);
+    if (r.soort === 'Anders') ctx.waarschuwing('waarschuwing', `Regel ${nr}: verhouding van het type ‘Anders’. Controleer of deze periode mee moet tellen.`, [nr]);
+    if (!p.av) ctx.waarschuwing('info', `Regel ${nr}: arbeidsverhouding-ID ontbreekt.`, [nr]);
+    ['deeltijd', 'meetelwaarde'].forEach((veld) => {
+      if (String(r[veld] ?? '').trim() && !isGetal(r[veld])) ctx.waarschuwing('info', `Regel ${nr}: ${veld === 'deeltijd' ? 'deeltijdfactor' : 'meetelwaarde'} ‘${r[veld]}’ is geen getal (heeft geen invloed op de telling).`, [nr]);
+    });
+    if (p.eind === null) {
+      ctx.waarschuwing('waarschuwing', `Regel ${nr}: open periode vanaf ${formatDag(p.begin)} (geen ABP-einddatum). De Visma-einddatum blijft leeg.`, [nr]);
+      ctx.log('omrekening', `Regel ${nr}: ABP-einddatum leeg → periode loopt door; Visma ${formatDag(p.begin)} t/m (doorlopend).`);
+    } else {
+      ctx.log('omrekening', `Regel ${nr}: ABP ${formatDag(p.begin)} tot ${formatDag(p.eind)} (exclusief) → Visma ${formatDag(p.begin)} t/m ${formatDag(abpEindNaarVisma(p.eind))}.`);
+    }
+  });
+
+  // Stap 2: dubbele perioderegels
+  const gezien = new Map();
+  for (const p of geldig) {
+    const k = [p.verKey, p.avKey, p.soort, p.begin, p.eind].join('#');
+    if (gezien.has(k)) ctx.waarschuwing('waarschuwing', `Dubbele perioderegel: regel ${p.nr} is gelijk aan regel ${gezien.get(k)} (zelfde vereniging, AV-ID, soort en datums).`, [gezien.get(k), p.nr]);
+    else gezien.set(k, p.nr);
+  }
+
+  // Stap 3: verschillende arbeidsverhoudingen bij dezelfde vereniging
+  const avPerVer = new Map();
+  for (const p of perioden) {
+    if (!avPerVer.has(p.verKey)) avPerVer.set(p.verKey, { naam: p.vereniging, avs: new Set() });
+    avPerVer.get(p.verKey).avs.add(p.av || '(leeg)');
+  }
+  for (const { naam, avs } of avPerVer.values()) {
+    if (avs.size > 1) ctx.waarschuwing('waarschuwing', `Vereniging ${naam} heeft verschillende arbeidsverhoudingen (${[...avs].join(', ')}). Aansluitende perioden met een ander AV-ID worden ${inst.samenvoegenAndereAV ? 'samengevoegd' : 'NIET samengevoegd'} (instelling).`);
+  }
+
+  // Stap 4: blokken vormen
+  const blokken = vormBlokken(perioden, inst, ctx);
+  const automatischAantal = blokken.length;
+
+  // Stap 5: handmatige correcties
+  const corr = pasCorrectiesToe(blokken, correcties, ctx, nrVan);
+  if (corr.toegepast) ctx.waarschuwing('waarschuwing', `De berekening is handmatig gewijzigd (${corr.toegepast} correctie${corr.toegepast === 1 ? '' : 's'}). Automatisch berekend aantal was ${automatischAantal}.`);
+
+  // Stap 6: nummeren (op vereniging en begindatum) en controle op overlappende blokken
+  blokken.sort((a, b) => a.vereniging.localeCompare(b.vereniging, 'nl') || a.vismaBegin - b.vismaBegin);
+  blokken.forEach((b, i) => { b.nummer = i + 1; });
+  const actief = blokken.filter((b) => !b.uitgesloten);
+  for (let i = 0; i < actief.length; i++) {
+    for (let j = i + 1; j < actief.length; j++) {
+      const a = actief[i], b = actief[j];
+      if (!a.verenigingSleutels.some((v) => b.verenigingSleutels.includes(v))) continue;
+      const aEind = a.vismaEind ?? Infinity, bEind = b.vismaEind ?? Infinity;
+      if (a.vismaBegin <= bEind && b.vismaBegin <= aEind) ctx.waarschuwing('waarschuwing', `Blokken ${a.nummer} en ${b.nummer} (vereniging ${a.vereniging}) overlappen in Visma-datums. Controleer de handmatige correcties.`);
+    }
+  }
+  blokken.forEach((b) => {
+    const nrs = b.perioden.map((p) => p.nr).sort((x, y) => x - y);
+    ctx.log('resultaat', `Blok ${b.nummer} (vereniging ${b.vereniging}): ${nrs.length === 1 ? 'regel' : 'regels'} ${lijstNrs(nrs)} → Visma ${formatDag(b.vismaBegin)} t/m ${formatDag(b.vismaEind) || 'doorlopend'}${b.uitgesloten ? ' – UITGESLOTEN, telt niet mee' : ''}.`);
+  });
+
+  const statussen = Object.values(regelStatus);
+  const tellingen = {
+    ingevoerd: regels.length,
+    meegenomen: statussen.filter((s) => s.status === 'mee').length,
+    uitgesloten: statussen.filter((s) => s.status !== 'mee').length,
+    fouten: statussen.filter((s) => s.status === 'fout').length,
+    blokken: actief.length,
+    blokkenAutomatisch: automatischAantal,
+    blokkenUitgesloten: blokken.length - actief.length,
+    verenigingen: new Set(actief.flatMap((b) => b.verenigingSleutels)).size,
+    onderbrekingen: tel.onderbrekingen,
+    samenvoegingen: tel.samenvoegingen + tel.samenvoegingenHandmatig,
+    samenvoegingenHandmatig: tel.samenvoegingenHandmatig,
+    overlappen: tel.overlappen,
+    waarschuwingen: waarschuwingen.filter((w) => w.niveau !== 'info').length,
+    correctiesToegepast: corr.toegepast,
+    correctiesMislukt: corr.mislukt,
+    handmatig: corr.toegepast > 0,
+  };
+  ctx.log('resultaat', `Verwacht aantal Visma-regels/diensttijdblokken: ${tellingen.blokken} (${tellingen.handmatig ? 'handmatig gecorrigeerd' : 'automatisch berekend'}).`);
+
+  return { blokken, waarschuwingen, log, tellingen, regelStatus, instellingen: inst, telregels: telregelTeksten(inst) };
+}
+
+/* =====================================================================
+   4. PLAKKEN – tabgescheiden tekst omzetten naar perioderegels
+   ===================================================================== */
+
+const DATUM_RE = /\d{1,2}[-./]\d{1,2}[-./]\d{4}/g;
+const KOLOM_HERKENNING = [
+  ['vereniging', /vereniging|stichting|werkgever|bestuur/i],
+  ['avId', /arbeidsverh.*id|^av[- ]?id|^av$|verhouding.?id|dienstverband/i],
+  ['soort', /soort|type|verhouding/i],
+  ['periode', /^periode$/i],
+  ['begin', /begin|ingang|^van$|vanaf/i],
+  ['eind', /eind|^tot$|^t\/m$/i],
+  ['deeltijd', /deeltijd/i],
+  ['meetelwaarde', /meetel.?waarde/i],
+  ['meetellen', /^meetellen$/i],
+  ['opmerking', /opmerking|toelichting/i],
+];
+const STANDAARD_KOLOMMEN = ['vereniging', 'avId', 'soort', 'begin', 'eind', 'deeltijd', 'meetelwaarde', 'opmerking'];
+
+/** Herkent de soort verhouding uit vrije tekst. */
+function herkenSoort(t) {
+  const s = String(t ?? '').trim();
+  if (!s) return { soort: 'Arbeidsverhouding', melding: 'soort leeg → Arbeidsverhouding aangenomen' };
+  if (/werkloos|^ww$|uitkering/i.test(s)) return { soort: 'Werkloosheidsverhouding' };
+  if (/arbeid|^av$|dienstverband/i.test(s)) return { soort: 'Arbeidsverhouding' };
+  return { soort: 'Anders', melding: `soort ‘${s}’ niet herkend → Anders` };
+}
+
+/** Zet geplakte tekst om naar voorgestelde regels met meldingen per regel (niets wordt direct toegevoegd). */
+function parsePlaktekst(tekst) {
+  const regels = String(tekst).split(/\r?\n/).filter((l) => l.trim());
+  const algemeen = [];
+  if (!regels.length) return { rijen: [], algemeen: ['Het plakveld is leeg.'] };
+  const splits = (l) => (l.includes('\t') ? l.split('\t') : l.includes(';') ? l.split(';') : l.split(/\s{2,}/)).map((c) => c.trim());
+  if (!regels.some((l) => l.includes('\t'))) algemeen.push('Geen tabs gevonden; kolommen zijn gesplitst op puntkomma of meerdere spaties. Controleer de kolommen extra goed.');
+  let kolommen = STANDAARD_KOLOMMEN, start = 0;
+  const eerste = splits(regels[0]);
+  if (!eerste.some((c) => c.match(DATUM_RE)) && eerste.some((c) => /[a-z]{3,}/i.test(c))) {
+    const herkend = eerste.map((c) => (KOLOM_HERKENNING.find(([, re]) => re.test(c)) || [null])[0]);
+    if (herkend.some(Boolean)) {
+      kolommen = herkend; start = 1;
+      algemeen.push('Kopregel herkend: ' + eerste.map((c, i) => `‘${c}’ → ${herkend[i] || '(genegeerd)'}`).join(', ') + '.');
+    }
+  }
+  const rijen = regels.slice(start).map((l) => {
+    const cellen = splits(l), w = {}, meldingen = [];
+    kolommen.forEach((k, i) => { if (k && cellen[i] !== undefined && w[k] === undefined) w[k] = cellen[i]; });
+    if (w.periode !== undefined) {
+      const d = w.periode.match(DATUM_RE) || [];
+      if (!w.begin) w.begin = d[0] || w.periode;
+      if (!w.eind && d[1]) w.eind = d[1];
+    }
+    // Begindatum met twee datums in één cel ("01-01-2003 tot 01-02-2003")
+    const inBegin = String(w.begin ?? '').match(DATUM_RE) || [];
+    if (inBegin.length === 2 && !w.eind) { w.begin = inBegin[0]; w.eind = inBegin[1]; meldingen.push('periode in één cel gesplitst'); }
+    const s = herkenSoort(w.soort);
+    if (s.melding) meldingen.push(s.melding);
+    let meetellen = null;
+    if (w.meetellen !== undefined && w.meetellen !== '') {
+      if (/^(ja|j|1|true)$/i.test(w.meetellen)) meetellen = 'ja';
+      else if (/^(nee|n|0|false)$/i.test(w.meetellen)) meetellen = 'nee';
+      else meldingen.push(`meetellen ‘${w.meetellen}’ niet herkend → standaardwaarde`);
+    }
+    const r = nieuweRegel({
+      vereniging: w.vereniging || '', avId: w.avId || '', soort: s.soort, begin: w.begin || '', eind: w.eind || '',
+      deeltijd: w.deeltijd || '', meetelwaarde: w.meetelwaarde || '', opmerking: w.opmerking || '', meetellen,
+    });
+    if (meetellen) r.meetellenHandmatig = meetellen !== (TELREGELS.standaardMeetellen[r.soort] ? 'ja' : 'nee');
+    const v = valideerRegel(r);
+    return { regel: r, meldingen, fouten: v.fouten, bron: l };
+  });
+  return { rijen, algemeen };
+}
+
+/* =====================================================================
+   5. AUTOMATISCHE TESTS
+   ===================================================================== */
+
+/** Voert de testgevallen uit op de pure berekening en retourneert [{naam, geslaagd, detail}]. */
+function voerTestsUit() {
+  const R = (ver, av, begin, eind, extra = {}) => nieuweRegel({ vereniging: ver, avId: av, begin, eind, ...extra });
+  const tests = [
+    ['1. Vier onderbroken perioden bij dezelfde vereniging en AV → 4 blokken', () => {
+      const u = bereken([R('A', 'AV1', '01-01-2001', '01-03-2001'), R('A', 'AV1', '01-05-2001', '01-07-2001'),
+                         R('A', 'AV1', '01-09-2001', '01-11-2001'), R('A', 'AV1', '01-01-2002', '01-03-2002')]);
+      return [u.tellingen.blokken === 4 && u.tellingen.onderbrekingen === 3, `blokken=${u.tellingen.blokken}, onderbrekingen=${u.tellingen.onderbrekingen}`];
+    }],
+    ['2. Direct aansluitende perioden bij dezelfde vereniging → 1 blok', () => {
+      const u = bereken([R('B', 'AV1', '01-08-2003', '01-08-2004'), R('B', 'AV1', '01-08-2004', '01-08-2005'), R('B', 'AV2', '01-08-2005', '01-01-2006')]);
+      const b = u.blokken[0];
+      return [u.tellingen.blokken === 1 && formatDag(b.vismaBegin) === '01-08-2003' && formatDag(b.vismaEind) === '31-12-2005',
+        `blokken=${u.tellingen.blokken}, Visma ${formatDag(b?.vismaBegin)} t/m ${formatDag(b?.vismaEind)}`];
+    }],
+    ['3. Eén periode bij A en een doorlopende reeks bij B → 2 blokken', () => {
+      const u = bereken([R('A', 'AV1', '01-01-2000', '01-06-2000'), R('B', 'AV1', '01-06-2000', '01-01-2001'),
+                         R('B', 'AV1', '01-01-2001', '01-01-2002'), R('B', 'AV2', '01-01-2002', '')]);
+      return [u.tellingen.blokken === 2 && u.tellingen.verenigingen === 2 && u.blokken[1].vismaEind === null, `blokken=${u.tellingen.blokken}, verenigingen=${u.tellingen.verenigingen}`];
+    }],
+    ['4. Werkloosheidsverhouding wordt standaard uitgesloten', () => {
+      const w = R('A', 'AV9', '01-01-2010', '01-06-2010', { soort: 'Werkloosheidsverhouding' });
+      const u = bereken([R('A', 'AV1', '01-01-2009', '01-01-2010'), w]);
+      return [w.meetellen === 'nee' && u.tellingen.uitgesloten === 1 && u.tellingen.meegenomen === 1 && u.tellingen.blokken === 1,
+        `meetellen=${w.meetellen}, uitgesloten=${u.tellingen.uitgesloten}, blokken=${u.tellingen.blokken}`];
+    }],
+    ['5. Eendaagse ABP-periode → één Visma-regel met gelijke begin- en einddatum', () => {
+      const u = bereken([R('C', 'AV1', '23-06-2003', '24-06-2003')]);
+      const b = u.blokken[0];
+      return [u.tellingen.blokken === 1 && b.vismaBegin === b.vismaEind && formatDag(b.vismaEind) === '23-06-2003',
+        `Visma ${formatDag(b?.vismaBegin)} t/m ${formatDag(b?.vismaEind)}`];
+    }],
+    ['5b. Voorbeeld 23-06-2003 tot 25-06-2003 → Visma t/m 24-06-2003', () => {
+      const b = bereken([R('C', 'AV1', '23-06-2003', '25-06-2003')]).blokken[0];
+      return [formatDag(b.vismaEind) === '24-06-2003', `Visma t/m ${formatDag(b?.vismaEind)}`];
+    }],
+    ['6. Overlappende perioden bij dezelfde vereniging → samengevoegd + waarschuwing', () => {
+      const u = bereken([R('A', 'AV1', '01-01-2005', '01-07-2005'), R('A', 'AV2', '01-04-2005', '01-10-2005')]);
+      const w = u.waarschuwingen.some((x) => x.niveau === 'waarschuwing' && /overlap/i.test(x.tekst));
+      return [u.tellingen.blokken === 1 && w && formatDag(u.blokken[0].vismaEind) === '30-09-2005', `blokken=${u.tellingen.blokken}, waarschuwing=${w}`];
+    }],
+    ['7. Perioden van verschillende verenigingen worden niet samengevoegd', () => {
+      const u = bereken([R('A', 'AV1', '01-01-2005', '01-07-2005'), R('B', 'AV1', '01-07-2005', '01-10-2005'), R('C', 'AV1', '01-08-2005', '01-09-2005')]);
+      return [u.tellingen.blokken === 3 && u.tellingen.samenvoegingen === 0, `blokken=${u.tellingen.blokken}, samenvoegingen=${u.tellingen.samenvoegingen}`];
+    }],
+    ['8. Ongeldige datum → foutmelding, niet stilzwijgend berekend', () => {
+      const u = bereken([R('A', 'AV1', '31-02-2020', '01-06-2020'), R('A', 'AV1', '2020-07-01', '')]);
+      const fouten = u.waarschuwingen.filter((x) => x.niveau === 'fout').length;
+      return [u.tellingen.blokken === 0 && u.tellingen.fouten === 2 && fouten >= 2, `blokken=${u.tellingen.blokken}, regels met fout=${u.tellingen.fouten}`];
+    }],
+    ['Extra: einddatum vóór begindatum → fout', () => {
+      const u = bereken([R('A', 'AV1', '01-06-2020', '01-01-2020')]);
+      return [u.tellingen.fouten === 1 && u.tellingen.blokken === 0, `fouten=${u.tellingen.fouten}`];
+    }],
+    ['Extra: instelling UIT – aansluitend met ander AV-ID → 2 blokken', () => {
+      const regels = [R('B', 'AV1', '01-01-2010', '01-01-2011'), R('B', 'AV2', '01-01-2011', '01-01-2012')];
+      const aan = bereken(regels, { samenvoegenAndereAV: true }).tellingen.blokken;
+      const uit = bereken(regels, { samenvoegenAndereAV: false }).tellingen.blokken;
+      return [aan === 1 && uit === 2, `aan=${aan}, uit=${uit}`];
+    }],
+    ['Extra: open periode overlapt latere periode → 1 blok, doorlopend', () => {
+      const u = bereken([R('A', 'AV1', '01-01-2015', ''), R('A', 'AV2', '01-01-2018', '01-01-2019')]);
+      return [u.tellingen.blokken === 1 && u.blokken[0].vismaEind === null, `blokken=${u.tellingen.blokken}`];
+    }],
+    ['Extra: handmatig splitsen, samenvoegen en uitsluiten herberekenen de totalen', () => {
+      const regels = [R('A', 'AV1', '01-01-2001', '01-01-2002'), R('A', 'AV1', '01-01-2002', '01-01-2003'), R('B', 'AV1', '01-01-2004', '01-01-2005')];
+      const s0 = bereken(regels).blokken.find((b) => b.perioden.length === 2).sleutel;
+      const c1 = [{ type: 'splitsen', sleutel: s0, naUid: regels[0].uid }];
+      const u1 = bereken(regels, {}, c1);
+      const c2 = [...c1, { type: 'uitsluiten', sleutel: regels[2].uid }];
+      const u2 = bereken(regels, {}, c2);
+      const c3 = [...c1, { type: 'samenvoegen', sleutels: [regels[0].uid, regels[1].uid] }];
+      const u3 = bereken(regels, {}, c3);
+      return [u1.tellingen.blokken === 3 && u2.tellingen.blokken === 2 && u3.tellingen.blokken === 2 && u1.tellingen.handmatig,
+        `na splitsen=${u1.tellingen.blokken}, +uitsluiten=${u2.tellingen.blokken}, splitsen+samenvoegen=${u3.tellingen.blokken}`];
+    }],
+    ['Extra: dubbele perioderegel geeft waarschuwing', () => {
+      const u = bereken([R('A', 'AV1', '01-01-2001', '01-01-2002'), R('a', 'av1', '01-01-2001', '01-01-2002')]);
+      return [u.waarschuwingen.some((w) => /dubbele/i.test(w.tekst)) && u.tellingen.blokken === 1, `blokken=${u.tellingen.blokken}`];
+    }],
+    ['Extra: plakken met kopregel en periodekolom', () => {
+      const p = parsePlaktekst('Vereniging\tAV-ID\tSoort\tPeriode\nA\tAV1\tWerkloosheidsverhouding\t23-06-2003 tot 25-06-2003');
+      const r = p.rijen[0]?.regel;
+      return [r && r.begin === '23-06-2003' && r.eind === '25-06-2003' && r.meetellen === 'nee', r ? `${r.begin} – ${r.eind}, meetellen=${r.meetellen}` : 'geen regel'];
+    }],
+  ];
+  return tests.map(([naam, fn]) => {
+    try { const [ok, detail] = fn(); return { naam, geslaagd: !!ok, detail }; }
+    catch (e) { return { naam, geslaagd: false, detail: 'Fout: ' + e.message }; }
+  });
+}
+
+/* =====================================================================
+   6. TOESTAND EN OPSLAG (localStorage)
+   ===================================================================== */
+
+const OPSLAG_SLEUTEL = 'diensttijdtool.dossiers.v1';
+const OPSLAG_PREFIX = 'diensttijdtool.';
+
+function legeStaat() {
+  return {
+    dossier: { id: '', bestuur: '', maandJaar: '', status: 'Niet verwerkt', opmerking: '' },
+    instellingen: { ...STANDAARD_INSTELLINGEN },
+    regels: [nieuweRegel()],
+    correcties: [],
+    blokOpmerkingen: {},
+  };
+}
+
+let staat = legeStaat();
+let resultaat = null;
+let gewijzigd = false;
+let geladenId = null;   // dossier-ID waaronder de huidige staat is geopend/opgeslagen
+let bewerkSleutel = null; // blok dat handmatig wordt aangepast
+let plakResultaat = null;
+
+function leesDossiers() {
+  try { return JSON.parse(localStorage.getItem(OPSLAG_SLEUTEL) || '{}') || {}; }
+  catch (e) { return null; }
+}
+function schrijfDossiers(d) {
+  try { localStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify(d)); return true; }
+  catch (e) { alert('Opslaan in de browser is niet gelukt (localStorage niet beschikbaar of vol). Exporteer het dossier als JSON.'); return false; }
+}
+
+/** Zet een opgeslagen of geïmporteerd object om naar een geldige staat. */
+function normaliseerStaat(o) {
+  const s = legeStaat();
+  if (!o || typeof o !== 'object') throw new Error('Geen geldig dossier.');
+  Object.assign(s.dossier, o.dossier || {});
+  if (!STATUSSEN.includes(s.dossier.status)) s.dossier.status = 'Niet verwerkt';
+  Object.assign(s.instellingen, o.instellingen || {});
+  s.regels = Array.isArray(o.regels) ? o.regels.map((r) => nieuweRegel({ ...r, uid: r.uid || uid() })) : [];
+  s.correcties = Array.isArray(o.correcties) ? o.correcties : [];
+  s.blokOpmerkingen = o.blokOpmerkingen && typeof o.blokOpmerkingen === 'object' ? o.blokOpmerkingen : {};
+  return s;
+}
+
+const markeerGewijzigd = () => { gewijzigd = true; toonOpslagStatus(); };
+function toonOpslagStatus() {
+  const el = document.getElementById('opslagstatus');
+  el.textContent = gewijzigd ? '● Niet-opgeslagen wijzigingen' : (geladenId ? `Opgeslagen als ${geladenId}` : 'Nieuw dossier');
+}
+
+/* =====================================================================
+   7. INTERFACE
+   ===================================================================== */
+
+const $ = (id) => document.getElementById(id);
+
+/** Tekent de invoertabel opnieuw (alleen bij toevoegen/verwijderen/sorteren/laden, niet bij typen). */
+function renderRegels() {
+  $('regelTabel').tBodies[0].innerHTML = staat.regels.map((r, i) => `
+    <tr data-uid="${r.uid}">
+      <td class="nr">${i + 1}</td>
+      <td><input data-veld="vereniging" value="${esc(r.vereniging)}" maxlength="20" style="min-width:50px"></td>
+      <td><input data-veld="avId" value="${esc(r.avId)}" maxlength="20"></td>
+      <td><select data-veld="soort">${SOORTEN.map((s) => `<option${s === r.soort ? ' selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td><input class="datum" data-veld="begin" value="${esc(r.begin)}" placeholder="dd-mm-jjjj"></td>
+      <td><input class="datum" data-veld="eind" value="${esc(r.eind)}" placeholder="leeg = loopt door"></td>
+      <td><input data-veld="deeltijd" value="${esc(r.deeltijd)}" style="min-width:52px"></td>
+      <td><input data-veld="meetelwaarde" value="${esc(r.meetelwaarde)}" style="min-width:52px"></td>
+      <td><select data-veld="meetellen"><option value="ja"${r.meetellen === 'ja' ? ' selected' : ''}>ja</option><option value="nee"${r.meetellen === 'nee' ? ' selected' : ''}>nee</option></select></td>
+      <td><input data-veld="opmerking" value="${esc(r.opmerking)}" maxlength="200" style="min-width:120px"></td>
+      <td class="acties"><button class="klein" data-actie="kopieer" title="Regel kopiëren">Kopiëren</button>
+        <button class="klein gevaar" data-actie="verwijder" title="Regel verwijderen">Verwijderen</button></td>
+    </tr>`).join('');
+}
+
+/** Markeert invoerregels met fout/uitgesloten status zonder de invoervelden opnieuw te tekenen. */
+function markeerRegels() {
+  for (const tr of $('regelTabel').tBodies[0].rows) {
+    const st = resultaat.regelStatus[tr.dataset.uid];
+    tr.classList.toggle('r-fout', st?.status === 'fout');
+    tr.classList.toggle('r-uit', st?.status === 'uit');
+    tr.title = st?.status === 'fout' ? 'Fout: ' + st.fouten.join('; ') : st?.status === 'uit' ? 'Uitgesloten van de berekening' : '';
+    for (const veld of ['begin', 'eind']) {
+      const inp = tr.querySelector(`[data-veld="${veld}"]`);
+      const p = parseDatum(inp.value);
+      inp.classList.toggle('ongeldig', !!(p.fout || (veld === 'begin' && p.leeg && st?.status === 'fout')));
+    }
+    tr.querySelector('[data-veld="vereniging"]').classList.toggle('ongeldig', st?.status === 'fout' && !tr.querySelector('[data-veld="vereniging"]').value.trim());
+  }
+}
+
+/** Herberekent alles en tekent resultaat, blokken, waarschuwingen en logboek. */
+function herbereken() {
+  resultaat = bereken(staat.regels, staat.instellingen, staat.correcties);
+  privacyControle(resultaat);
+  markeerRegels();
+  renderResultaat();
+  renderBlokken();
+  renderWaarschuwingen();
+  renderLogboek();
+}
+
+/** Simpele controle op mogelijke persoonsgegevens (9-cijferige nummers die op een BSN lijken). */
+function privacyControle(res) {
+  const teksten = [...Object.values(staat.dossier), ...staat.regels.flatMap((r) => [r.vereniging, r.avId, r.opmerking]), ...Object.values(staat.blokOpmerkingen)];
+  if (teksten.some((t) => /(^|\D)\d{9}(\D|$)/.test(String(t)))) {
+    res.waarschuwingen.unshift({ niveau: 'waarschuwing', tekst: 'Er staat een getal van 9 cijfers in de invoer. Dit kan een BSN zijn: verwijder persoonsgegevens.', regels: [] });
+    res.tellingen.waarschuwingen++;
+  }
+}
+
+function renderResultaat() {
+  const t = resultaat.tellingen;
+  const meld = [];
+  if (t.fouten) meld.push(`<div class="melding fout"><b>Let op:</b> ${t.fouten} perioderegel${t.fouten === 1 ? ' bevat' : 's bevatten'} een fout en ${t.fouten === 1 ? 'is' : 'zijn'} niet berekend. De uitkomst is pas betrouwbaar als deze fouten zijn opgelost.</div>`);
+  if (t.correctiesMislukt) meld.push(`<div class="melding waarsch">${t.correctiesMislukt} handmatige correctie(s) konden niet meer worden toegepast. Zie de waarschuwingen.</div>`);
+  meld.push(t.handmatig
+    ? `<div class="melding waarsch"><span class="label handm">Handmatig gecorrigeerd</span>${t.correctiesToegepast} correctie(s) toegepast. Automatisch berekend: ${t.blokkenAutomatisch} blok(ken).</div>`
+    : `<div class="melding info"><span class="label info">Automatisch berekend</span>Er zijn geen handmatige correcties toegepast.</div>`);
+  $('resultaatMeldingen').innerHTML = meld.join('');
+  const kpi = (w, l, cls = '') => `<div class="kpi ${cls}"><div class="w">${w}</div><div class="l">${l}</div></div>`;
+  $('kpis').innerHTML = [
+    kpi(t.blokken, 'Verwacht aantal Visma-regels/diensttijdblokken', 'hoofd'),
+    kpi(t.ingevoerd, 'Ingevoerde ABP-perioderegels'),
+    kpi(t.meegenomen, 'Meegenomen perioderegels'),
+    kpi(t.uitgesloten, 'Uitgesloten perioderegels' + (t.fouten ? ` (waarvan ${t.fouten} met fout)` : '')),
+    kpi(t.verenigingen, 'Verschillende verenigingen'),
+    kpi(t.onderbrekingen, 'Gevonden onderbrekingen'),
+    kpi(t.samenvoegingen, 'Samenvoegingen' + (t.samenvoegingenHandmatig ? ` (waarvan ${t.samenvoegingenHandmatig} handmatig)` : '')),
+    kpi(t.waarschuwingen, 'Waarschuwingen'),
+    kpi(t.handmatig ? 'Handmatig' : 'Automatisch', t.handmatig ? 'gecorrigeerd' : 'berekend'),
+  ].join('');
+  $('telregels').innerHTML = resultaat.telregels.map((r) => `<li>${esc(r)}</li>`).join('');
+}
+
+function renderBlokken() {
+  const tbody = $('blokTabel').tBodies[0];
+  if (!resultaat.blokken.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="hint">Nog geen diensttijdblokken. Voer geldige perioderegels in.</td></tr>';
+  } else {
+    tbody.innerHTML = resultaat.blokken.map((b) => {
+      const nrs = b.perioden.map((p) => p.nr).sort((x, y) => x - y);
+      const bewerk = bewerkSleutel === b.sleutel;
+      const labels = (b.handmatig ? '<span class="label handm">handmatig</span>' : '') + (b.uitgesloten ? '<span class="label fout">uitgesloten</span>' : '');
+      const splitsOpties = b.perioden.slice(0, -1).map((p) => `<option value="${p.uid}">na regel ${p.nr}</option>`).join('');
+      return `<tr data-sleutel="${esc(b.sleutel)}" class="${b.uitgesloten ? 'b-uit' : ''} ${b.handmatig ? 'b-handm' : ''}">
+        <td><b>${b.nummer}</b></td>
+        <td>${esc(b.vereniging)}</td>
+        <td>${nrs.length === 1 ? 'regel' : 'regels'} ${lijstNrs(nrs)}<br><span class="hint">${b.perioden.map((p) => esc(p.av || '–')).filter((v, i, a) => a.indexOf(v) === i).join(', ')}</span></td>
+        <td>${bewerk ? `<input id="bewerkBegin" class="datum" value="${formatDag(b.vismaBegin)}" size="10">` : formatDag(b.vismaBegin)}</td>
+        <td>${bewerk ? `<input id="bewerkEind" class="datum" value="${formatDag(b.vismaEind)}" size="10" placeholder="leeg = doorlopend">` : (formatDag(b.vismaEind) || '<i>doorlopend</i>')}</td>
+        <td class="reden">${labels}<ul>${b.redenen.map((r) => `<li>${esc(r)}</li>`).join('')}</ul></td>
+        <td class="acties">${bewerk
+          ? `<button class="klein primair" data-blokactie="opslaanDatums">Opslaan</button> <button class="klein" data-blokactie="annuleer">Annuleren</button>${b.aangepast ? ' <button class="klein" data-blokactie="herstelDatums">Automatisch herstellen</button>' : ''}`
+          : `<button class="klein" data-blokactie="bewerk"${b.uitgesloten ? ' disabled' : ''}>Aanpassen</button>`}</td>
+        <td class="acties">${b.perioden.length > 1 ? `<select class="splitsNa">${splitsOpties}</select> <button class="klein" data-blokactie="splits">Splitsen</button>` : '<span class="hint">1 bronregel</span>'}</td>
+        <td style="text-align:center"><input type="checkbox" class="selecteer" aria-label="Selecteer blok ${b.nummer} voor samenvoegen"${b.uitgesloten ? ' disabled' : ''}></td>
+        <td class="acties"><button class="klein ${b.uitgesloten ? '' : 'gevaar'}" data-blokactie="${b.uitgesloten ? 'meenemen' : 'uitsluiten'}">${b.uitgesloten ? 'Weer meenemen' : 'Uitsluiten'}</button></td>
+        <td class="opm"><input class="blokOpm" value="${esc(staat.blokOpmerkingen[b.sleutel] || '')}" maxlength="200" style="min-width:120px"></td>
+      </tr>`;
+    }).join('');
+  }
+  updateBlokKnoppen();
+}
+
+function updateBlokKnoppen() {
+  const n = $('blokTabel').querySelectorAll('input.selecteer:checked').length;
+  $('btnSamenvoegen').disabled = n < 2;
+  $('btnSamenvoegen').textContent = `Geselecteerde blokken samenvoegen${n ? ` (${n})` : ''}`;
+  $('btnOngedaan').disabled = !staat.correcties.length;
+  $('btnCorrectiesWeg').disabled = !staat.correcties.length;
+}
+
+function renderWaarschuwingen() {
+  const w = resultaat.waarschuwingen;
+  const volgorde = { fout: 0, waarschuwing: 1, info: 2 };
+  $('waarschuwingen').innerHTML = w.length
+    ? [...w].sort((a, b) => volgorde[a.niveau] - volgorde[b.niveau]).map((x) => `<li class="${x.niveau}"><span class="label ${x.niveau}">${x.niveau}</span>${esc(x.tekst)}</li>`).join('')
+    : '<li class="info">Geen waarschuwingen.</li>';
+}
+
+function renderLogboek() {
+  $('logboek').innerHTML = resultaat.log.map((l) => `<li><span class="logsoort">[${esc(l.soort)}]</span> ${esc(l.tekst)}</li>`).join('');
+}
+
+function renderTests() {
+  const res = voerTestsUit();
+  const ok = res.filter((r) => r.geslaagd).length;
+  $('testSamenvatting').innerHTML = `<div class="melding ${ok === res.length ? 'ok' : 'fout'}">${ok} van ${res.length} tests geslaagd${ok === res.length ? '' : ' – de berekening werkt niet zoals verwacht!'}</div>`;
+  $('testLijst').innerHTML = res.map((r) => `<li><span class="label ${r.geslaagd ? 'ok' : 'fout'}">${r.geslaagd ? 'geslaagd' : 'mislukt'}</span>${esc(r.naam)} <span class="hint">(${esc(r.detail)})</span></li>`).join('');
+}
+
+function renderDossier() {
+  document.querySelectorAll('[data-dossier]').forEach((el) => { el.value = staat.dossier[el.dataset.dossier] ?? ''; });
+  $('instAndereAV').checked = !!staat.instellingen.samenvoegenAndereAV;
+  const ds = leesDossiers();
+  const lijst = ds ? Object.entries(ds).sort((a, b) => (b[1].opgeslagen || '').localeCompare(a[1].opgeslagen || '')) : [];
+  $('dossierLijst').innerHTML = lijst.length
+    ? lijst.map(([id, d]) => `<option value="${esc(id)}"${id === geladenId ? ' selected' : ''}>${esc(id)} · ${esc(d.data?.dossier?.status || '')} · ${esc((d.opgeslagen || '').slice(0, 16).replace('T', ' '))}</option>`).join('')
+    : `<option value="">${ds === null ? '(lokale opslag niet beschikbaar)' : '(geen opgeslagen dossiers)'}</option>`;
+  $('btnOpenen').disabled = !lijst.length;
+  toonOpslagStatus();
+}
+
+function renderAlles() { renderDossier(); renderRegels(); herbereken(); }
+
+/* ----- Correcties ----- */
+function voegCorrectieToe(c) {
+  staat.correcties.push({ ...c, tijdstip: new Date().toISOString() });
+  bewerkSleutel = null; markeerGewijzigd(); herbereken();
+}
+
+$('blokTabel').addEventListener('click', (e) => {
+  const knop = e.target.closest('[data-blokactie]');
+  if (!knop) return;
+  const tr = knop.closest('tr'), sleutel = tr.dataset.sleutel, actie = knop.dataset.blokactie;
+  if (actie === 'bewerk') { bewerkSleutel = sleutel; renderBlokken(); $('bewerkBegin').focus(); }
+  else if (actie === 'annuleer') { bewerkSleutel = null; renderBlokken(); }
+  else if (actie === 'opslaanDatums') {
+    const b = parseDatum($('bewerkBegin').value), ei = parseDatum($('bewerkEind').value);
+    if (b.leeg || b.fout) return alert('Ongeldige Visma-begindatum. Gebruik dd-mm-jjjj.');
+    if (ei.fout) return alert('Ongeldige Visma-einddatum. Gebruik dd-mm-jjjj of laat leeg voor doorlopend.');
+    const eind = ei.leeg ? null : ei.dag;
+    if (eind !== null && eind < b.dag) return alert('De Visma-einddatum ligt vóór de begindatum.');
+    staat.correcties = staat.correcties.filter((c) => !(c.type === 'aanpassen' && c.sleutel === sleutel));
+    voegCorrectieToe({ type: 'aanpassen', sleutel, begin: b.dag, eind });
+  } else if (actie === 'herstelDatums') {
+    staat.correcties = staat.correcties.filter((c) => !(c.type === 'aanpassen' && c.sleutel === sleutel));
+    bewerkSleutel = null; markeerGewijzigd(); herbereken();
+  } else if (actie === 'splits') {
+    voegCorrectieToe({ type: 'splitsen', sleutel, naUid: tr.querySelector('select.splitsNa').value });
+  } else if (actie === 'uitsluiten') {
+    const reden = prompt('Reden voor uitsluiten van dit blok (optioneel):', '');
+    if (reden === null) return;
+    voegCorrectieToe({ type: 'uitsluiten', sleutel, reden: reden.trim() });
+  } else if (actie === 'meenemen') {
+    staat.correcties = staat.correcties.filter((c) => !(c.type === 'uitsluiten' && c.sleutel === sleutel));
+    markeerGewijzigd(); herbereken();
+  }
+});
+$('blokTabel').addEventListener('change', (e) => { if (e.target.classList.contains('selecteer')) updateBlokKnoppen(); });
+$('blokTabel').addEventListener('input', (e) => {
+  if (!e.target.classList.contains('blokOpm')) return;
+  const s = e.target.closest('tr').dataset.sleutel;
+  if (e.target.value.trim()) staat.blokOpmerkingen[s] = e.target.value; else delete staat.blokOpmerkingen[s];
+  markeerGewijzigd();
+});
+$('btnSamenvoegen').addEventListener('click', () => {
+  const sleutels = [...$('blokTabel').querySelectorAll('input.selecteer:checked')].map((c) => c.closest('tr').dataset.sleutel);
+  if (sleutels.length >= 2) voegCorrectieToe({ type: 'samenvoegen', sleutels });
+});
+$('btnOngedaan').addEventListener('click', () => { staat.correcties.pop(); markeerGewijzigd(); herbereken(); });
+$('btnCorrectiesWeg').addEventListener('click', () => {
+  if (!confirm('Alle handmatige correcties wissen en terug naar de automatische berekening?')) return;
+  staat.correcties = []; markeerGewijzigd(); herbereken();
+});
+
+/* ----- Invoertabel ----- */
+$('regelTabel').addEventListener('input', (e) => {
+  const veld = e.target.dataset.veld; if (!veld) return;
+  const r = staat.regels.find((x) => x.uid === e.target.closest('tr').dataset.uid);
+  r[veld] = e.target.value;
+  if (veld === 'soort' && !r.meetellenHandmatig) {
+    r.meetellen = TELREGELS.standaardMeetellen[r.soort] ? 'ja' : 'nee';
+    e.target.closest('tr').querySelector('[data-veld="meetellen"]').value = r.meetellen;
+  }
+  if (veld === 'meetellen') r.meetellenHandmatig = r.meetellen !== (TELREGELS.standaardMeetellen[r.soort] ? 'ja' : 'nee');
+  markeerGewijzigd(); herbereken();
+});
+$('regelTabel').addEventListener('click', (e) => {
+  const knop = e.target.closest('[data-actie]'); if (!knop) return;
+  const i = staat.regels.findIndex((x) => x.uid === knop.closest('tr').dataset.uid);
+  if (knop.dataset.actie === 'kopieer') staat.regels.splice(i + 1, 0, { ...staat.regels[i], uid: uid() });
+  if (knop.dataset.actie === 'verwijder') {
+    const r = staat.regels[i];
+    if ((r.begin || r.eind || r.vereniging) && !confirm(`Regel ${i + 1} verwijderen?`)) return;
+    staat.regels.splice(i, 1);
+  }
+  markeerGewijzigd(); renderRegels(); herbereken();
+});
+$('btnRegel').addEventListener('click', () => {
+  const vorige = staat.regels[staat.regels.length - 1];
+  // Neem vereniging en AV-ID over en gebruik de vorige einddatum als nieuwe begindatum (snelle invoer van reeksen).
+  staat.regels.push(nieuweRegel(vorige ? { vereniging: vorige.vereniging, avId: vorige.avId, begin: vorige.eind } : {}));
+  markeerGewijzigd(); renderRegels(); herbereken();
+  const rijen = $('regelTabel').tBodies[0].rows;
+  rijen[rijen.length - 1].querySelector('[data-veld="eind"]').focus();
+});
+$('btnSorteer').addEventListener('click', () => {
+  const dag = (s) => parseDatum(s).dag ?? Infinity;
+  staat.regels.sort((a, b) => normSleutel(a.vereniging).localeCompare(normSleutel(b.vereniging), 'nl') || dag(a.begin) - dag(b.begin));
+  markeerGewijzigd(); renderRegels(); herbereken();
+});
+$('btnAlleRegelsWeg').addEventListener('click', () => {
+  if (!confirm('Alle perioderegels en handmatige correcties verwijderen?')) return;
+  staat.regels = [nieuweRegel()]; staat.correcties = []; staat.blokOpmerkingen = {};
+  markeerGewijzigd(); renderRegels(); herbereken();
+});
+$('instAndereAV').addEventListener('change', (e) => {
+  staat.instellingen.samenvoegenAndereAV = e.target.checked; markeerGewijzigd(); herbereken();
+});
+document.querySelectorAll('[data-dossier]').forEach((el) => el.addEventListener('input', () => {
+  staat.dossier[el.dataset.dossier] = el.value; markeerGewijzigd();
+}));
+
+/* ----- Plakken ----- */
+$('btnPlakControle').addEventListener('click', () => {
+  plakResultaat = parsePlaktekst($('plakveld').value);
+  const { rijen, algemeen } = plakResultaat;
+  const nFout = rijen.filter((r) => r.fouten.length).length;
+  $('plakVoorbeeld').innerHTML = `
+    ${algemeen.map((a) => `<div class="melding info">${esc(a)}</div>`).join('')}
+    ${rijen.length ? `<div class="tabelvak"><table><thead><tr><th>#</th><th>Vereniging</th><th>AV-ID</th><th>Soort</th><th>Begin</th><th>Einde</th><th>Deeltijd</th><th>Meetelw.</th><th>Meetellen</th><th>Opmerking</th><th>Controle</th></tr></thead><tbody>
+      ${rijen.map((x, i) => `<tr class="${x.fouten.length ? 'r-fout' : ''}"><td>${i + 1}</td><td>${esc(x.regel.vereniging)}</td><td>${esc(x.regel.avId)}</td><td>${esc(x.regel.soort)}</td><td>${esc(x.regel.begin)}</td><td>${esc(x.regel.eind) || '<i>loopt door</i>'}</td><td>${esc(x.regel.deeltijd)}</td><td>${esc(x.regel.meetelwaarde)}</td><td>${x.regel.meetellen}</td><td>${esc(x.regel.opmerking)}</td>
+        <td>${x.fouten.map((f) => `<span class="label fout">fout</span>${esc(f)}`).join('<br>')}${x.meldingen.map((m) => `<span class="label waarschuwing">let op</span>${esc(m)}`).join('<br>')}${!x.fouten.length && !x.meldingen.length ? '<span class="label ok">ok</span>' : ''}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${nFout ? `<div class="melding fout">${nFout} regel(s) bevatten een fout. U kunt ze toevoegen en daarna in de tabel corrigeren; ze worden niet berekend zolang de fout bestaat.</div>` : ''}
+    <label class="balk"><input type="checkbox" id="plakGecontroleerd"> Ik heb de ${rijen.length} geïmporteerde regel(s) gecontroleerd.</label>
+    <div class="balk"><button class="primair" id="btnPlakToevoegen" disabled>Toevoegen aan perioderegels</button>
+      <button id="btnPlakVervangen" disabled>Bestaande regels vervangen</button><button id="btnPlakAnnuleer">Annuleren</button></div>` : ''}`;
+});
+$('plakVoorbeeld').addEventListener('change', (e) => {
+  if (e.target.id === 'plakGecontroleerd') $('btnPlakToevoegen').disabled = $('btnPlakVervangen').disabled = !e.target.checked;
+});
+$('plakVoorbeeld').addEventListener('click', (e) => {
+  if (e.target.id === 'btnPlakAnnuleer') { plakResultaat = null; $('plakVoorbeeld').innerHTML = ''; return; }
+  const vervang = e.target.id === 'btnPlakVervangen';
+  if (!vervang && e.target.id !== 'btnPlakToevoegen') return;
+  if (vervang && !confirm('Alle bestaande perioderegels en handmatige correcties vervangen door de geplakte regels?')) return;
+  const nieuw = plakResultaat.rijen.map((x) => x.regel);
+  const leeg = (r) => !r.vereniging && !r.begin && !r.eind && !r.avId;
+  if (vervang) { staat.regels = nieuw; staat.correcties = []; staat.blokOpmerkingen = {}; }
+  else staat.regels = [...staat.regels.filter((r) => !leeg(r)), ...nieuw];
+  plakResultaat = null; $('plakVoorbeeld').innerHTML = ''; $('plakveld').value = '';
+  markeerGewijzigd(); renderRegels(); herbereken();
+});
+$('btnPlakLeeg').addEventListener('click', () => { $('plakveld').value = ''; $('plakVoorbeeld').innerHTML = ''; });
+
+/* ----- Opslaan / openen / nieuw / wissen ----- */
+$('btnOpslaan').addEventListener('click', () => {
+  const id = staat.dossier.id.trim();
+  if (!id) { alert('Vul eerst een anoniem dossier-ID in.'); $('d-id').focus(); return; }
+  const ds = leesDossiers();
+  if (ds === null) return alert('Lokale opslag is in deze browser niet beschikbaar. Gebruik ‘Exporteren als JSON’.');
+  if (ds[id] && id !== geladenId && !confirm(`Er bestaat al een opgeslagen dossier ‘${id}’. Overschrijven?`)) return;
+  ds[id] = { opgeslagen: new Date().toISOString(), data: JSON.parse(JSON.stringify(staat)) };
+  if (schrijfDossiers(ds)) { geladenId = id; gewijzigd = false; renderDossier(); }
+});
+$('btnOpenen').addEventListener('click', () => {
+  const id = $('dossierLijst').value, ds = leesDossiers();
+  if (!id || !ds || !ds[id]) return;
+  if (gewijzigd && !confirm('Er zijn niet-opgeslagen wijzigingen. Toch een ander dossier openen?')) return;
+  try { staat = normaliseerStaat(ds[id].data); } catch (e) { return alert('Dit dossier kan niet worden gelezen: ' + e.message); }
+  geladenId = id; gewijzigd = false; bewerkSleutel = null; renderAlles();
+});
+$('btnNieuw').addEventListener('click', () => {
+  if (gewijzigd && !confirm('Er zijn niet-opgeslagen wijzigingen. Toch een nieuw dossier starten?')) return;
+  staat = legeStaat(); geladenId = null; gewijzigd = false; bewerkSleutel = null; renderAlles();
+});
+$('btnWissen').addEventListener('click', () => {
+  if (!confirm('Weet u zeker dat u ALLE lokaal opgeslagen dossiers van deze tool wilt verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
+  try { Object.keys(localStorage).filter((k) => k.startsWith(OPSLAG_PREFIX)).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* geen opslag */ }
+  staat = legeStaat(); geladenId = null; gewijzigd = false; bewerkSleutel = null; renderAlles();
+  alert('Alle lokale gegevens van deze tool zijn verwijderd.');
+});
+window.addEventListener('beforeunload', (e) => { if (gewijzigd) { e.preventDefault(); e.returnValue = ''; } });
+
+/* =====================================================================
+   8. EXPORT – CSV, JSON en afdrukrapport
+   ===================================================================== */
+
+function bestandsnaam(ext) {
+  const id = (staat.dossier.id || 'dossier').replace(/[^\w.-]+/g, '_');
+  return `diensttijdblokken_${id}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+}
+function download(inhoud, naam, type) {
+  const url = URL.createObjectURL(new Blob([inhoud], { type }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: naam });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Blokken in exportvorm (gedeeld door CSV, JSON en rapport). */
+function blokkenExport() {
+  return resultaat.blokken.map((b) => ({
+    blok: b.nummer, vereniging: b.vereniging,
+    bronregels: b.perioden.map((p) => p.nr).sort((x, y) => x - y).join(', '),
+    vismaBegin: formatDag(b.vismaBegin), vismaEind: formatDag(b.vismaEind) || 'doorlopend',
+    abpBegin: formatDag(b.abpBegin), abpEind: formatDag(b.abpEind) || 'open',
+    reden: b.redenen.join(' '), handmatig: b.handmatig ? 'ja' : 'nee', uitgesloten: b.uitgesloten ? 'ja' : 'nee',
+    opmerking: staat.blokOpmerkingen[b.sleutel] || '',
+  }));
+}
+
+function csvCel(v) {
+  let s = String(v ?? '');
+  if (/^[=+@\t\r]/.test(s)) s = "'" + s; // voorkom formule-uitvoering in Excel
+  return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+$('btnCsv').addEventListener('click', () => {
+  const t = resultaat.tellingen, rij = (...c) => c.map(csvCel).join(';');
+  const regels = [
+    rij('DOSSIER'), rij('Dossier-ID', staat.dossier.id), rij('Bestuur', staat.dossier.bestuur), rij('Maand en jaar', staat.dossier.maandJaar),
+    rij('Status', staat.dossier.status), rij('Opmerking', staat.dossier.opmerking), rij('Geëxporteerd', new Date().toLocaleString('nl-NL')), '',
+    rij('RESULTAAT'), rij('Verwacht aantal Visma-regels/diensttijdblokken', t.blokken), rij('Ingevoerde ABP-perioderegels', t.ingevoerd),
+    rij('Meegenomen perioderegels', t.meegenomen), rij('Uitgesloten perioderegels', t.uitgesloten), rij('Waarvan met fout', t.fouten),
+    rij('Verschillende verenigingen', t.verenigingen), rij('Onderbrekingen', t.onderbrekingen), rij('Samenvoegingen', t.samenvoegingen),
+    rij('Waarschuwingen', t.waarschuwingen), rij('Uitkomst', t.handmatig ? `handmatig gecorrigeerd (${t.correctiesToegepast} correcties; automatisch ${t.blokkenAutomatisch})` : 'automatisch berekend'), '',
+    rij('INSTELLINGEN EN TELREGELS'), ...resultaat.telregels.map((r, i) => rij(i + 1, r)), '',
+    rij('BRONREGELS'), rij('Nr', 'Vereniging', 'AV-ID', 'Soort', 'ABP-begin', 'ABP-einde', 'Deeltijdfactor', 'Meetelwaarde', 'Meetellen', 'Status', 'Opmerking'),
+    ...staat.regels.map((r, i) => { const s = resultaat.regelStatus[r.uid]; return rij(i + 1, r.vereniging, r.avId, r.soort, r.begin, r.eind, r.deeltijd, r.meetelwaarde, r.meetellen, s.status === 'fout' ? 'fout: ' + s.fouten.join('; ') : s.status === 'uit' ? 'uitgesloten' : 'meegenomen', r.opmerking); }), '',
+    rij('DIENSTTIJDBLOKKEN'), rij('Blok', 'Vereniging', 'Bronregels', 'Visma-begin', 'Visma-einde', 'ABP-begin', 'ABP-einde', 'Reden', 'Handmatig', 'Uitgesloten', 'Opmerking'),
+    ...blokkenExport().map((b) => rij(b.blok, b.vereniging, b.bronregels, b.vismaBegin, b.vismaEind, b.abpBegin, b.abpEind, b.reden, b.handmatig, b.uitgesloten, b.opmerking)), '',
+    rij('WAARSCHUWINGEN'), rij('Niveau', 'Melding'), ...resultaat.waarschuwingen.map((w) => rij(w.niveau, w.tekst)), '',
+    rij('BEREKENINGSLOGBOEK'), rij('Nr', 'Soort', 'Omschrijving'), ...resultaat.log.map((l, i) => rij(i + 1, l.soort, l.tekst)),
+  ];
+  download('﻿' + regels.join('\r\n'), bestandsnaam('csv'), 'text/csv;charset=utf-8');
+});
+
+$('btnJson').addEventListener('click', () => {
+  const t = resultaat.tellingen;
+  const uit = {
+    formaat: 'diensttijdblokken-dossier', versie: 1, geexporteerd: new Date().toISOString(),
+    dossier: staat.dossier, instellingen: staat.instellingen, telregels: resultaat.telregels,
+    regels: staat.regels, correcties: staat.correcties, blokOpmerkingen: staat.blokOpmerkingen,
+    resultaat: { tellingen: t, blokken: blokkenExport(), waarschuwingen: resultaat.waarschuwingen, logboek: resultaat.log },
+  };
+  download(JSON.stringify(uit, null, 2), bestandsnaam('json'), 'application/json');
+});
+
+$('btnJsonImport').addEventListener('click', () => $('jsonBestand').click());
+$('jsonBestand').addEventListener('change', (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const lezer = new FileReader();
+  lezer.onload = () => {
+    try {
+      const o = JSON.parse(lezer.result);
+      if (o.formaat !== 'diensttijdblokken-dossier') throw new Error('dit is geen export van deze tool');
+      if (gewijzigd && !confirm('Er zijn niet-opgeslagen wijzigingen. Toch het geïmporteerde dossier openen?')) return;
+      staat = normaliseerStaat(o); geladenId = null; bewerkSleutel = null; gewijzigd = true; renderAlles();
+      alert('Dossier geïmporteerd. Controleer de gegevens en klik op ‘Opslaan in browser’ om het lokaal te bewaren.');
+    } catch (err) { alert('Importeren mislukt: ' + err.message); }
+  };
+  lezer.readAsText(f);
+});
+
+/** Bouwt een afdrukvriendelijk overzicht en opent het afdrukvenster. */
+function bouwRapport() {
+  const t = resultaat.tellingen, d = staat.dossier;
+  const tabel = (koppen, rijen) => `<table><thead><tr>${koppen.map((k) => `<th>${esc(k)}</th>`).join('')}</tr></thead><tbody>${rijen.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  $('rapport').innerHTML = `
+    <h1>Diensttijdblokken ABP → Visma</h1>
+    <div>Dossier-ID: <b>${esc(d.id || '–')}</b> · Bestuur: ${esc(d.bestuur || '–')} · Maand/jaar: ${esc(d.maandJaar || '–')} · Status: ${esc(d.status)} · Afgedrukt: ${new Date().toLocaleString('nl-NL')}</div>
+    ${d.opmerking ? `<div>Opmerking: ${esc(d.opmerking)}</div>` : ''}
+    <h2>Resultaat</h2>
+    <p class="groot">Verwacht aantal Visma-regels/diensttijdblokken: ${t.blokken} (${t.handmatig ? 'handmatig gecorrigeerd' : 'automatisch berekend'})</p>
+    ${t.fouten ? `<p><b>Let op: ${t.fouten} perioderegel(s) met fout zijn niet berekend.</b></p>` : ''}
+    ${tabel(['Onderdeel', 'Aantal'], [['Ingevoerde ABP-perioderegels', t.ingevoerd], ['Meegenomen perioderegels', t.meegenomen], ['Uitgesloten perioderegels', t.uitgesloten + (t.fouten ? ` (waarvan ${t.fouten} met fout)` : '')], ['Verschillende verenigingen', t.verenigingen], ['Onderbrekingen', t.onderbrekingen], ['Samenvoegingen', t.samenvoegingen], ['Waarschuwingen', t.waarschuwingen]])}
+    <h2>Diensttijdblokken</h2>
+    ${tabel(['Blok', 'Vereniging', 'Bronregels', 'Visma-begin', 'Visma-einde', 'Reden', 'Status', 'Opmerking'], blokkenExport().map((b) => [b.blok, b.vereniging, b.bronregels, b.vismaBegin, b.vismaEind, b.reden, (b.uitgesloten === 'ja' ? 'uitgesloten' : 'telt mee') + (b.handmatig === 'ja' ? ', handmatig' : ''), b.opmerking]))}
+    <h2>Bronregels</h2>
+    ${tabel(['Nr', 'Vereniging', 'AV-ID', 'Soort', 'ABP-begin', 'ABP-einde', 'Deeltijd', 'Meetelw.', 'Meetellen', 'Status', 'Opmerking'], staat.regels.map((r, i) => { const s = resultaat.regelStatus[r.uid]; return [i + 1, r.vereniging, r.avId, r.soort, r.begin, r.eind || 'loopt door', r.deeltijd, r.meetelwaarde, r.meetellen, s.status === 'fout' ? 'FOUT' : s.status === 'uit' ? 'uitgesloten' : 'meegenomen', r.opmerking]; }))}
+    <h2>Waarschuwingen</h2>
+    ${resultaat.waarschuwingen.length ? tabel(['Niveau', 'Melding'], resultaat.waarschuwingen.map((w) => [w.niveau, w.tekst])) : '<p>Geen.</p>'}
+    <h2>Gebruikte telregels en instelling</h2>
+    <ol>${resultaat.telregels.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>
+    <h2>Berekeningslogboek</h2>
+    <ol>${resultaat.log.map((l) => `<li>[${esc(l.soort)}] ${esc(l.tekst)}</li>`).join('')}</ol>`;
+}
+$('btnPrint').addEventListener('click', () => { bouwRapport(); window.print(); });
+window.addEventListener('beforeprint', bouwRapport);
+$('btnTests').addEventListener('click', renderTests);
+
+/* ===== Start ===== */
+renderAlles();
+renderTests();
+</script>
+</body>
+</html>
