@@ -194,6 +194,11 @@ De broncode staat in `src/`; `node build.js` voegt alles samen tot `Meettool.htm
 - Per dossier ziet u de tijd per stap, de rekeneenheid, de klasse, het gebruikte aantal blokken, de totale actieve tijd en wachttijd en de herkomst (gemeten, geschat of berekend).
 - Het dashboard toont de gemiddelde en totale tijd per dossier, en de tijd per processtap, per klasse en per bestuur en maand. De stappen met de meeste actieve tijd zijn gemarkeerd.
 - Ontbreekt een gegeven, dan staat er *onvoldoende gegevens* (met de deelsom van wat wel bekend is); er wordt nooit 0 ingevuld.
+
+**Verwacht en werkelijk aantal blokken (versie 1.2):**
+- *Volledig verwerkt:* het veld *Verwacht aantal diensttijdblokken* is verborgen en toont *n.v.t.*, ook in de overzichten en de exports. S04, S05, S06 en S08 rekenen alleen met het werkelijke aantal regels in Visma, en het aantal resterende blokken is 0. Een eerder ingevuld verwacht aantal blijft bewaard, maar telt nergens mee. Zet u de status later terug naar gedeeltelijk of nog niet verwerkt, dan is het veld met die waarde weer zichtbaar.
+- *Gedeeltelijk of nog niet verwerkt:* het verwachte aantal telt voor de tijdberekening. Resterend = max(verwacht − werkelijk aantal Visma-regels, 0).
+- Het dashboard en de export tonen *Verwachte blokken voor niet-volledig verwerkte dossiers* (n.v.t. als zulke dossiers er niet zijn) en, als afzonderlijke uitkomst, *Werkelijk ingevoerde Visma-regels*. Het gemiddelde aantal Visma-regels gaat alleen over dossiers waarvoor dat aantal is ingevuld. Verwachte en werkelijke regels worden nooit bij elkaar opgeteld.
 - Gegevens uit versie 1.0 worden bij het openen omgezet. Een tijd per dossier bij een stap die nu per klasse rekent, geldt voor iedere klasse. Een tijd met een onverenigbare eenheid (dossier ↔ blok) wordt niet overgenomen, maar wel in de toelichting vermeld. Er blijft een kopie bewaard onder `meettool-pr24-eenvoudig-kopie-versie-1.0`.
 
 **Opslag:** alleen lokaal in de browser, onder de eigen localStorage-sleutel `meettool-pr24-eenvoudig`. De gegevens van de brede meettool worden niet gelezen of gewijzigd. Onleesbare opgeslagen gegevens worden nooit overschreven.
