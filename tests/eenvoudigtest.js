@@ -4,7 +4,8 @@
 // Controlevoorbeeld LEV – augustus 2026: 30 nieuw, 14 aangeleverd, 5 verwerkt.
 // Dossiers: D01 19 regels/2 blokken/volledig/2 Visma; D02 20/3/volledig/3; D03 50/5/gedeeltelijk/2; D04 51/6/nog niet;
 //           D05 100/10/nog niet; D06 101/–/onbekend; D07 –/4/nog niet (later 30 regels → 371 regels, n = 7, gem. 53).
-//   → eerst regels 341 (n = 6), gem. 56,83; blokken 30 (n = 6), gem. 5; Visma 7 (n = 3); resterend 0+0+3+6+10+4 = 23 (D06 onbekend).
+//   → eerst regels 341 (n = 6), gem. 56,83; verwachte blokken alleen voor niet-volledig verwerkte dossiers: 5+6+10+4 = 25 (n = 4 van 5), gem. 6,25;
+//     Visma 7 (n = 3); resterend 0+0+3+6+10+4 = 23 (D06 onbekend).
 //
 // Tijd per dossier (LEV – oktober 2026): D01 19 regels (Klein), 2 verwacht/3 Visma, volledig verwerkt → 3 blokken (werkelijk);
 //   D02 30 (Middel), 4 verwacht, nog niet verwerkt → 4; D03 60 (Groot), 6 verwacht/2 Visma, gedeeltelijk → 6 (verwacht);
@@ -136,7 +137,8 @@ function ok(stap, tekst) { console.log(`✔ ${stap}: ${tekst}`); }
   b = await bereken('PR24-LEV-2026-08');
   const d = b.dos;
   assert.deepStrictEqual([d.aantal, d.perKlasse, d.zonderKlasse], [7, { Klein: 1, Middel: 2, Groot: 2, 'Zeer groot': 1 }, ['LEV-2026-08-D07']]);
-  assert.deepStrictEqual([d.regels.totaal, d.regels.n, d.blokken.totaal, d.blokken.n, d.blokken.gemiddelde, d.visma.totaal, d.visma.n], [341, 6, 30, 6, 5, 7, 3]);
+  assert.deepStrictEqual([d.regels.totaal, d.regels.n, d.blokken.totaal, d.blokken.n, d.blokken.gemiddelde, d.visma.totaal, d.visma.n], [341, 6, 25, 4, 6.25, 7, 3]);
+  assert.ok(bijna(d.visma.gemiddelde, 7 / 3) && d.blokken.dossiers === 5 && !d.blokken.nvt);
   assert.ok(bijna(d.regels.gemiddelde, 341 / 6));
   assert.deepStrictEqual([d.perStatus['Volledig verwerkt'], d.perStatus['Nog niet verwerkt'], d.resterend.totaal, d.resterend.onbekend], [2, 3, 23, ['LEV-2026-08-D06']]);
   const res3 = await tekst('#resultaat3');
@@ -147,8 +149,8 @@ function ok(stap, tekst) { console.log(`✔ ${stap}: ${tekst}`); }
   assert.ok((await tekst('#fouten3')).includes('komt al voor'));
   await page.fill('#dossierTabel tr[data-i="6"] [data-d="code"]', 'LEV-2026-08-D07');
   ok('4 complexiteit', '19 Klein; 20 en 50 Middel; 51 en 100 Groot; 101 Zeer groot; 0 is ongeldig; leeg = niet ingevuld');
-  ok('5 lege waarden', 'Lege regels, blokken en Visma-regels tellen niet als 0: totalen 341 regels (6 dossiers), 30 blokken (6), 7 Visma-regels (3); resterend 23 met D06 als onbekend');
-  ok('6 gemiddelde met n', 'Gemiddeld 56,83 regels en 5 blokken, met "gebaseerd op 6 van 7 dossiers"; waarschuwing 7 dossiers ≠ 14 aangeleverd zonder blokkade; dubbele en BSN-achtige code afgevangen');
+  ok('5 lege waarden', 'Lege regels, blokken en Visma-regels tellen niet als 0: totalen 341 regels (6 dossiers), 25 verwachte blokken (4 van 5 niet-volledig verwerkte dossiers), 7 Visma-regels (3); resterend 23 met D06 als onbekend');
+  ok('6 gemiddelde met n', 'Gemiddeld 56,83 regels en 6,25 verwachte blokken, met "gebaseerd op 6 van 7 dossiers"; waarschuwing 7 dossiers ≠ 14 aangeleverd zonder blokkade; dubbele en BSN-achtige code afgevangen');
 
   // ---------- 7, 8 en 9. Tijd per dossier ----------
   // Aparte maandmeting met vier dossiers (zie de berekening bovenaan dit bestand).
@@ -283,6 +285,10 @@ print(json.dumps({"bladen": wb.sheetnames, "kop": rijen("Samenvatting")[:8], "sa
   assert.ok(x.sam.some((r) => r.Onderdeel === 'Tijd per bestuur en maand' && r.Uitkomst === 'PR24 – LEV – oktober 2026' && r.Waarde === 160.5));
   assert.ok(x.sam.some((r) => r.Onderdeel === 'Knelpunt' && r.Uitkomst === 'PR24-S04' && r.Waarde === 'Visma traag bij opslaan'));
   assert.strictEqual(x.dos.length, 4);
+  // Verwacht aantal: n.v.t. bij volledig verwerkt; totaal alleen over niet-volledig verwerkte dossiers (D02 4 + D03 6).
+  assert.deepStrictEqual(x.dos.map((r) => r['Verwacht aantal diensttijdblokken']), ['n.v.t.', 4, 6, 'n.v.t.']);
+  assert.deepStrictEqual(x.dos.map((r) => r['Verwacht resterende blokken (berekend)']), [0, 4, 4, 0]);
+  assert.ok(sam('Verwachte blokken voor niet-volledig verwerkte dossiers').Waarde === 10 && sam('Werkelijk ingevoerde Visma-regels').Waarde === 13 && bijna(sam('Gemiddeld werkelijke Visma-regels').Waarde, 13 / 3) && !sam('Totaal verwachte blokken'));
   const xd = (c) => x.dos.find((r) => r.Dossiercode === c);
   assert.deepStrictEqual([xd('LEV-2026-10-D01').Complexiteitsklasse, xd('LEV-2026-10-D01')['Gebruikt aantal blokken'], xd('LEV-2026-10-D01')['Bron gebruikte blokken'], xd('LEV-2026-10-D01')['PR24-S04 actief (min)'], xd('LEV-2026-10-D01')['PR24-S03 actief (min)'], xd('LEV-2026-10-D01')['Totale actieve tijd (min)'], xd('LEV-2026-10-D01')['Totale wachttijd (min)']],
     ['Klein', 3, 'werkelijk (Visma)', 4.5, 'n.v.t. (inbegrepen)', 19.5, 1.5]);
@@ -389,6 +395,103 @@ print(json.dumps({"bladen": wb.sheetnames, "kop": rijen("Samenvatting")[:8], "sa
   await page.click('#knopVolgende');
   assert.ok(await page.isVisible('section[data-stap="5"]'), 'Volgende werkt direct na invoer');
   ok('migratie en klikken', 'Gegevens uit versie 1.0 worden omgezet (S02-klassetijden met Gemiddeld → Middel, tijd per dossier naar iedere klasse, onverenigbare eenheid niet overgenomen maar vermeld) met een kopie van de oude gegevens; "Volgende" werkt direct na invoer');
+
+  // ---------- Verwacht en werkelijk aantal blokken per verwerkingsstatus ----------
+  // LEV – november 2026: acht volledig verwerkte dossiers (Klein, 10 regels) met samen 67 Visma-regels; bij allemaal staat
+  // nog een oud verwacht aantal 99 opgeslagen dat genegeerd moet worden. Daarna D09 gedeeltelijk (Middel) 10 verwacht / 4 Visma
+  // → resterend 6 en D10 nog niet verwerkt (Groot) 8 verwacht / 1 Visma → resterend 7.
+  // Tijd (S01 2 per dossier, S02 Klein 5 / Middel 10 / Groot 20, S04 1,5 per blok, overige 0):
+  //   volledig: 8 × (2 + 5) + 1,5 × 67 = 156,5; D09 2 + 10 + 1,5 × 10 = 27; D10 2 + 20 + 1,5 × 8 = 34 → 217,5.
+  await stap(1);
+  await kies('LEV', 11, 2026);
+  await page.click('#knopNieuw');
+  await stap(3);
+  const vismaN = ['5', '6', '7', '8', '9', '10', '11', '11'];
+  for (const [i, v] of vismaN.entries()) {
+    await page.click('#knopDossier');
+    const rij = `#dossierTabel tr[data-i="${i}"]`;
+    await page.fill(`${rij} [data-d="regels"]`, '10');
+    await page.fill(`${rij} [data-d="blokken"]`, '99');
+    await page.selectOption(`${rij} [data-d="status"]`, 'Volledig verwerkt');
+    assert.ok(!(await page.isVisible(`${rij} [data-d="blokken"]`)) && (await page.textContent(`${rij} [data-nvt]`)) === 'n.v.t.' && await page.isVisible(`${rij} [data-nvt]`), 'veld verborgen, n.v.t. getoond');
+    await page.fill(`${rij} [data-d="visma"]`, v);
+  }
+  const nov = 'PR24-LEV-2026-11';
+  assert.ok((await metingen()).find((m) => m.id === nov).dossiers.every((d) => d.blokken === 99), 'opgeslagen verwacht aantal blijft bewaard');
+  let bn = await bereken(nov);
+  assert.deepStrictEqual([bn.dos.blokken.nvt, bn.dos.blokken.totaal, bn.dos.visma.totaal, bn.dos.visma.n, bn.dos.visma.gemiddelde, bn.dos.resterend.totaal], [true, null, 67, 8, 67 / 8, 0]);
+  assert.deepStrictEqual(bn.dossiers.map((x) => [x.blokken.n, x.blokken.bron]), vismaN.map((v) => [Number(v), 'werkelijk (Visma)']), 'blokken = werkelijk aantal, niet 99');
+  const res3n = await tekst('#resultaat3');
+  assert.ok(/Verwachte blokken voor niet-volledig verwerkte dossiers.*n\.v\.t\./.test(res3n) && /Werkelijk ingevoerde Visma-regels.*67/.test(res3n) && /Verwacht nog in te voeren blokken.*0/.test(res3n), res3n);
+  // Status terug naar gedeeltelijk: het veld (met de bewaarde waarde) is weer zichtbaar en telt weer mee; daarna weer volledig.
+  await page.selectOption('#dossierTabel tr[data-i="0"] [data-d="status"]', 'Gedeeltelijk verwerkt');
+  assert.ok(await page.isVisible('#dossierTabel tr[data-i="0"] [data-d="blokken"]') && !(await page.isVisible('#dossierTabel tr[data-i="0"] [data-nvt]')));
+  assert.strictEqual(await page.inputValue('#dossierTabel tr[data-i="0"] [data-d="blokken"]'), '99');
+  bn = await bereken(nov);
+  assert.deepStrictEqual([bn.dos.blokken.totaal, bn.dos.resterend.totaal, bn.dossiers[0].blokken.n], [99, 94, 99]);
+  await page.selectOption('#dossierTabel tr[data-i="0"] [data-d="status"]', 'Volledig verwerkt');
+  // Gedeeltelijk en nog niet verwerkt.
+  for (const [i, [r, bl, st, v]] of [[8, ['30', '10', 'Gedeeltelijk verwerkt', '4']], [9, ['60', '8', 'Nog niet verwerkt', '1']]]) {
+    await page.click('#knopDossier');
+    const rij = `#dossierTabel tr[data-i="${i}"]`;
+    await page.fill(`${rij} [data-d="regels"]`, r);
+    await page.selectOption(`${rij} [data-d="status"]`, st);
+    assert.ok(await page.isVisible(`${rij} [data-d="blokken"]`), 'veld zichtbaar bij ' + st);
+    await page.fill(`${rij} [data-d="blokken"]`, bl);
+    await page.fill(`${rij} [data-d="visma"]`, v);
+  }
+  // Tijden (per rekeneenheid) op een kopie van de meting, zodat de berekening los van de invoer te controleren is.
+  const tijdNov = await page.evaluate((id) => {
+    const m = JSON.parse(JSON.stringify(window.__pr24.staat().metingen.find((x) => x.id === id)));
+    for (const s of m.stappen) {
+      s.actief = 0; s.wacht = 0; s.inbegrepen = false;
+      s.klasseActief = { Klein: 0, Middel: 0, Groot: 0, 'Zeer groot': 0 }; s.klasseWacht = { ...s.klasseActief };
+    }
+    const st = (x) => m.stappen.find((s) => s.stapId === x);
+    st('PR24-S01').actief = 2;
+    st('PR24-S02').klasseActief = { Klein: 5, Middel: 10, Groot: 20, 'Zeer groot': 30 };
+    st('PR24-S04').actief = 1.5;
+    const b = window.__pr24.bereken(m);
+    return { per: b.dossiers.map((x) => x.actief.waarde), s04: b.dossiers.map((x) => x.stappen[3].actief), totaal: b.tijd.actief.waarde, verwerkt: b.tijd.verwerkt.waarde, overig: b.tijd.nogTeVerwerken.waarde };
+  }, nov);
+  assert.deepStrictEqual(tijdNov.s04, [...vismaN.map((v) => 1.5 * Number(v)), 15, 12], 'S04 × werkelijk (volledig) of × verwacht (overige); nooit verwacht + werkelijk');
+  assert.deepStrictEqual(tijdNov.per, [...vismaN.map((v) => 7 + 1.5 * Number(v)), 27, 34]);
+  assert.deepStrictEqual([tijdNov.totaal, tijdNov.verwerkt, tijdNov.overig], [217.5, 156.5, 61]);
+  bn = await bereken(nov);
+  assert.deepStrictEqual([bn.dos.blokken.nvt, bn.dos.blokken.totaal, bn.dos.blokken.n, bn.dos.blokken.dossiers, bn.dos.visma.totaal, bn.dos.visma.n], [false, 18, 2, 2, 72, 10]);
+  assert.deepStrictEqual(await page.evaluate((id) => window.__pr24.staat().metingen.find((x) => x.id === id).dossiers.map((d) => window.__pr24.restBlokken(d)), nov), [0, 0, 0, 0, 0, 0, 0, 0, 6, 7]);
+  assert.strictEqual(bn.dos.resterend.totaal, 13);
+  await stap(5);
+  const res5n = await tekst('#resultaat5');
+  assert.ok(/Verwachte blokken voor niet-volledig verwerkte dossiers.*18/.test(res5n) && /Werkelijk ingevoerde Visma-regels.*72/.test(res5n) && /Gemiddeld werkelijke Visma-regels.*7,20/.test(res5n) && !res5n.includes('Totaal verwachte blokken'), res5n);
+  const xlNov = await download(() => page.click('#knopExcel'), 'pr24_eenvoudig_november.xlsx');
+  const xn = JSON.parse(execFileSync('python3', ['-c', `
+import json, openpyxl
+wb = openpyxl.load_workbook(${JSON.stringify(xlNov)})
+def rijen(n): return [list(r) for r in wb[n].iter_rows(values_only=True)]
+def tabel(n, eerste):
+    rr = rijen(n); k = next(i for i, r in enumerate(rr) if r and r[0] == eerste and len([c for c in r if c is not None]) > 2)
+    return [dict(zip(rr[k], r)) for r in rr[k+1:] if r and r[0] is not None]
+print(json.dumps({"bladen": wb.sheetnames, "sam": tabel("Samenvatting", "Onderdeel"), "dos": tabel("Dossiers", "Bestuur"), "ber": tabel("Berekeningen en meetwijzen", "Onderdeel")}, default=str))`]).toString());
+  assert.strictEqual(xn.bladen.length, 6, 'exportstructuur ongewijzigd');
+  assert.deepStrictEqual(xn.dos.map((r) => r['Verwacht aantal diensttijdblokken']), [...vismaN.map(() => 'n.v.t.'), 10, 8]);
+  assert.deepStrictEqual(xn.dos.map((r) => r['Verwacht resterende blokken (berekend)']), [0, 0, 0, 0, 0, 0, 0, 0, 6, 7]);
+  assert.deepStrictEqual(xn.dos.map((r) => r['Gebruikt aantal blokken']), [...vismaN.map(Number), 10, 8]);
+  const samN = (u) => xn.sam.find((r) => r.Uitkomst === u);
+  assert.ok(samN('Verwachte blokken voor niet-volledig verwerkte dossiers').Waarde === 18 && samN('Werkelijk ingevoerde Visma-regels').Waarde === 72 && samN('Gemiddeld werkelijke Visma-regels').Waarde === 7.2 && samN('Verwacht resterende blokken').Waarde === 13);
+  assert.ok(xn.ber.some((r) => r.Uitkomst === 'Totaal verwachte blokken (niet-volledig verwerkte dossiers)' && r.Waarde === 18 && r['Berekening met gebruikte getallen'] === 'LEV-2026-11-D09: 10 + LEV-2026-11-D10: 8 = 18'));
+  // Alleen volledig verwerkte dossiers: n.v.t. in plaats van 0 of een kopie van de Visma-regels.
+  await stap(3);
+  for (let i = 0; i < 2; i++) { await page.click('[data-verwijder-dossier="8"]'); await knop('Dossier verwijderen'); }
+  await stap(5);
+  const xlNov2 = await download(() => page.click('#knopExcel'), 'pr24_eenvoudig_november_volledig.xlsx');
+  const xn2 = JSON.parse(execFileSync('python3', ['-c', `
+import json, openpyxl
+wb = openpyxl.load_workbook(${JSON.stringify(xlNov2)})
+rr = [list(r) for r in wb["Samenvatting"].iter_rows(values_only=True)]
+print(json.dumps({r[1]: r[2] for r in rr if r and len(r) > 2 and r[0] == "Diensttijdblokken"}, default=str))`]).toString());
+  assert.deepStrictEqual(xn2, { 'Verwachte blokken voor niet-volledig verwerkte dossiers': 'n.v.t.', 'Gemiddeld verwachte blokken (niet-volledig verwerkt)': 'n.v.t.', 'Werkelijk ingevoerde Visma-regels': 67, 'Gemiddeld werkelijke Visma-regels': 8.375, 'Verwacht resterende blokken': 0 });
+  ok('verwacht en werkelijk', 'Volledig verwerkt: verwacht veld verborgen (n.v.t.), opgeslagen 99 genegeerd maar bewaard en weer zichtbaar bij statuswijziging; 8 dossiers: verwacht n.v.t., werkelijk 67, resterend 0; gedeeltelijk 10/4 → 6; nog niet 8/1 → 7; verwachte blokken 18 en Visma-regels 72 apart, nooit opgeteld; actieve tijd per rekeneenheid 217,5 min; export met n.v.t.');
 
   // ---------- 12. Direct in de browser ----------
   assert.deepStrictEqual(netwerk, []);

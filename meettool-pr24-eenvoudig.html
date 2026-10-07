@@ -118,7 +118,7 @@ dialog::backdrop { background: rgba(20, 30, 25, .35); }
 </head>
 <body>
 <header class="kop">
-  <h1>Meettool PR24 <span>Diensttijdopgaven verwerken in Visma · eenvoudige versie 1.0</span></h1>
+  <h1>Meettool PR24 <span>Diensttijdopgaven verwerken in Visma · eenvoudige versie 1.2</span></h1>
   <div class="opslagstatus" id="opslagStatus"></div>
 </header>
 <nav class="voortgang" id="voortgang" aria-label="Stappen">
@@ -239,7 +239,7 @@ dialog::backdrop { background: rgba(20, 30, 25, .35); }
 // Meettool PR24 – eenvoudige versie
 // =====================================================================
 
-const VERSIE = 'PR24-eenvoudig 1.1';
+const VERSIE = 'PR24-eenvoudig 1.2';
 const SCHEMA = 2; // 1 = versie 1.0 (vrije rekeneenheid, S02-tijden in m.s02); 2 = vaste rekeneenheid per stap
 const SLEUTEL = 'meettool-pr24-eenvoudig';
 const FORMAAT = 'meettool-pr24-eenvoudig';
@@ -525,7 +525,8 @@ function valideerDossier(d, m, i) {
   else if (!ID_PATROON.test(d.code)) f.push(`${naam}: de dossiercode mag alleen letters, cijfers, - en _ bevatten.`);
   else if (m.dossiers.some((x, j) => j !== i && x.code === d.code)) f.push(`${naam}: deze dossiercode komt al voor.`);
   if (!geheel(d.regels, 1)) f.push(`${naam}: ABP-periode-regels moet een geheel getal van 1 of hoger zijn (0 is niet geldig bij een aangeleverde opgave).`);
-  if (!geheel(d.blokken, 0)) f.push(`${naam}: verwacht aantal diensttijdblokken moet een geheel getal van 0 of hoger zijn.`);
+  // Bij een volledig verwerkt dossier wordt een eventueel opgeslagen verwacht aantal genegeerd.
+  if (!volledig(d) && !geheel(d.blokken, 0)) f.push(`${naam}: verwacht aantal diensttijdblokken moet een geheel getal van 0 of hoger zijn.`);
   if (!geheel(d.visma, 0)) f.push(`${naam}: werkelijk aantal regels in Visma moet een geheel getal van 0 of hoger zijn.`);
   if (!STATUSSEN.includes(d.status)) f.push(`${naam}: kies een verwerkingsstatus.`);
   return f;
@@ -557,9 +558,14 @@ function reeks(dossiers, veld) {
   return { n: met.length, totaal, gemiddelde: met.length ? totaal / met.length : null, ontbrekend: dossiers.filter((d) => !isGetal(d[veld])).map((d) => d.code) };
 }
 
-/** Verwacht nog in te voeren blokken van één dossier; null als dat niet vast te stellen is. */
+const volledig = (d) => d.status === 'Volledig verwerkt';
+
+/**
+ * Verwacht nog in te voeren blokken van één dossier; null als dat niet vast te stellen is.
+ * Volledig verwerkt = 0 (een opgeslagen verwacht aantal wordt genegeerd); anders max(verwacht − werkelijk Visma, 0).
+ */
 function restBlokken(d) {
-  if (d.status === 'Volledig verwerkt') return 0;
+  if (volledig(d)) return 0;
   if (!isGetal(d.blokken)) return null;
   if (isGetal(d.visma)) return Math.max(0, d.blokken - d.visma);
   if (d.status === 'Nog niet verwerkt') return d.blokken;
@@ -581,7 +587,7 @@ function herkomst(meetwijze) {
  * Visma-regels, anders het verwachte aantal. Nooit beide in één berekening.
  */
 function blokkenVoor(d) {
-  const werkelijk = d.status === 'Volledig verwerkt';
+  const werkelijk = volledig(d);
   const n = werkelijk ? d.visma : d.blokken;
   return { bron: werkelijk ? 'werkelijk (Visma)' : 'verwacht', n: isGetal(n) ? n : null, reden: isGetal(n) ? '' : werkelijk ? 'werkelijk aantal Visma-regels niet ingevuld' : 'verwacht aantal diensttijdblokken niet ingevuld' };
 }
@@ -638,11 +644,13 @@ function bereken(m) {
   const D = m.dossiers;
   const perKlasse = Object.fromEntries(KLASSEN.map((k) => [k, D.filter((d) => klasse(d.regels) === k)]));
   const rest = D.map((d) => restBlokken(d));
+  // Verwachte blokken alleen voor niet-volledig verwerkte dossiers; nooit opgeteld bij de werkelijke Visma-regels.
+  const nietVolledig = D.filter((d) => !volledig(d));
   const dos = {
     aantal: D.length,
     perKlasse: Object.fromEntries(KLASSEN.map((k) => [k, perKlasse[k].length])),
     zonderKlasse: D.filter((d) => !klasse(d.regels)).map((d) => d.code),
-    regels: reeks(D, 'regels'), blokken: reeks(D, 'blokken'), visma: reeks(D, 'visma'),
+    regels: reeks(D, 'regels'), blokken: { ...reeks(nietVolledig, 'blokken'), dossiers: nietVolledig.length, nvt: !nietVolledig.length }, visma: reeks(D, 'visma'),
     perStatus: Object.fromEntries(STATUSSEN.map((s) => [s, D.filter((d) => d.status === s).length])),
     resterend: { totaal: rest.some(isGetal) ? som(rest.filter(isGetal)) : null, n: rest.filter(isGetal).length, onbekend: D.filter((d, i) => !isGetal(rest[i])).map((d) => d.code) },
     afwijking: isGetal(m.aangeleverd) && D.length !== m.aangeleverd,
@@ -796,18 +804,28 @@ function verwerkMaandInvoer() {
 // ---------- Stap 3: dossiers ----------
 
 function dossierTabelHtml(m) {
-  const getal = (d, veld, label) => `<input type="text" class="getal" data-d="${veld}" inputmode="numeric" value="${esc(naarInvoer(d[veld]))}" placeholder="–" aria-label="${label} ${esc(d.code)}">`;
+  const getal = (d, veld, label, extra = '') => `<input type="text" class="getal" data-d="${veld}" inputmode="numeric" value="${esc(naarInvoer(d[veld]))}" placeholder="–" aria-label="${label} ${esc(d.code)}"${extra}>`;
   if (!m.dossiers.length) return '<p class="leeg">Nog geen dossiers. Klik op ‘Dossier toevoegen’.</p>';
-  return `<table class="invoer" id="dossierTabel"><thead><tr><th style="width:170px">Dossiercode</th><th>ABP-periode-regels</th><th>Complexiteit ${info('Automatisch bepaald: 1–19 Klein, 20–50 Middel, 51–100 Groot, 101 of meer Zeer groot.')}</th><th>Verwacht aantal diensttijdblokken</th><th style="width:180px">Verwerkingsstatus</th><th>Werkelijk aantal regels in Visma</th><th>Korte bijzonderheid of knelpunt</th><th></th></tr></thead><tbody>
+  return `<table class="invoer" id="dossierTabel"><thead><tr><th style="width:170px">Dossiercode</th><th>ABP-periode-regels</th><th>Complexiteit ${info('Automatisch bepaald: 1–19 Klein, 20–50 Middel, 51–100 Groot, 101 of meer Zeer groot.')}</th><th>Verwacht aantal diensttijdblokken ${info('Alleen bij dossiers die niet of gedeeltelijk zijn verwerkt. Bij een volledig verwerkt dossier is dit n.v.t.: dan telt alleen het werkelijke aantal regels in Visma (een eerder ingevuld verwacht aantal blijft bewaard, maar wordt genegeerd).')}</th><th style="width:180px">Verwerkingsstatus</th><th>Werkelijk aantal regels in Visma</th><th>Korte bijzonderheid of knelpunt</th><th></th></tr></thead><tbody>
     ${m.dossiers.map((d, i) => `<tr data-i="${i}">
       <td><input type="text" data-d="code" value="${esc(d.code)}" maxlength="40" aria-label="Dossiercode"></td>
       <td>${getal(d, 'regels', 'ABP-periode-regels')}</td>
       <td class="berekend" data-klasse>${klasse(d.regels) ? esc(klasse(d.regels)) : leegHtml()}</td>
-      <td>${getal(d, 'blokken', 'Verwacht aantal diensttijdblokken')}</td>
+      <td>${getal(d, 'blokken', 'Verwacht aantal diensttijdblokken', volledig(d) ? ' hidden' : '')}<span class="nvt" data-nvt${volledig(d) ? '' : ' hidden'}>n.v.t.</span></td>
       <td><select data-d="status" aria-label="Verwerkingsstatus ${esc(d.code)}">${STATUSSEN.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
       <td>${getal(d, 'visma', 'Werkelijk aantal regels in Visma')}</td>
       <td><input type="text" data-d="bijzonderheid" value="${esc(d.bijzonderheid || '')}" maxlength="200" placeholder="optioneel" aria-label="Bijzonderheid ${esc(d.code)}"></td>
       <td style="text-align:right"><button type="button" class="klein gevaar" data-verwijder-dossier="${i}">Verwijderen</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+/** Verwachte blokken (alleen niet-volledig verwerkte dossiers) en werkelijke Visma-regels als afzonderlijke uitkomsten. */
+function blokkenKaartenHtml(d) {
+  const v = d.blokken;
+  const sub = v.nvt ? 'geen dossiers die niet of gedeeltelijk zijn verwerkt' : `gebaseerd op ${v.n} van ${v.dossiers} niet-volledig verwerkte dossiers`;
+  return `${uitkomst('Verwachte blokken voor niet-volledig verwerkte dossiers', v.nvt ? nvtHtml() : berekendHtml(v.totaal), 'Som van het verwachte aantal diensttijdblokken bij dossiers die niet of gedeeltelijk zijn verwerkt (of met onbekende status). Volledig verwerkte dossiers tellen niet mee; werkelijke Visma-regels worden hier nooit bij opgeteld.', sub)}
+      ${uitkomst('Gemiddeld verwachte blokken (niet-volledig verwerkt)', v.nvt ? nvtHtml() : isGetal(v.gemiddelde) ? esc(fmtGetal(v.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ niet-volledig verwerkte dossiers met een ingevuld verwacht aantal', sub)}
+      ${uitkomst('Werkelijk ingevoerde Visma-regels', berekendHtml(d.visma.totaal), 'Feitelijk aantal: som van de dossiers waarbij het werkelijke aantal regels in Visma is ingevuld', `gebaseerd op ${d.visma.n} van ${d.aantal} dossiers`)}
+      ${uitkomst('Gemiddeld werkelijke Visma-regels', isGetal(d.visma.gemiddelde) ? esc(fmtGetal(d.visma.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ aantal dossiers waarvoor het werkelijke aantal is ingevuld', `n = ${d.visma.n} dossiers`)}`;
 }
 
 function dossierResultaatHtml(b) {
@@ -820,12 +838,10 @@ function dossierResultaatHtml(b) {
       ${KLASSEN.map((k) => uitkomst(k, esc(String(d.perKlasse[k])), `Aantal dossiers met ${KLASSE_GRENZEN[k]}`)).join('')}
       ${uitkomst('Totaal ABP-periode-regels', berekendHtml(d.regels.totaal), 'Som van de ingevulde dossiers (nooit gemiddelde × aantal)', gebaseerd(d.regels))}
       ${uitkomst('Gemiddeld ABP-periode-regels', isGetal(d.regels.gemiddelde) ? esc(fmtGetal(d.regels.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ aantal dossiers met een ingevulde waarde', gebaseerd(d.regels))}
-      ${uitkomst('Totaal verwachte blokken', berekendHtml(d.blokken.totaal), 'Som van de ingevulde dossiers', gebaseerd(d.blokken))}
-      ${uitkomst('Gemiddeld verwachte blokken', isGetal(d.blokken.gemiddelde) ? esc(fmtGetal(d.blokken.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ aantal dossiers met een ingevulde waarde', gebaseerd(d.blokken))}
-      ${uitkomst('Ingevoerde Visma-regels', berekendHtml(d.visma.totaal), 'Som van de dossiers waarbij het aantal bekend is', gebaseerd(d.visma))}
+      ${blokkenKaartenHtml(d)}
       ${uitkomst('Volledig verwerkt', esc(String(d.perStatus['Volledig verwerkt'])), 'Dossiers met status volledig verwerkt')}
       ${uitkomst('Nog niet verwerkt', esc(String(d.perStatus['Nog niet verwerkt'])), 'Dossiers met status nog niet verwerkt')}
-      ${uitkomst('Verwacht nog in te voeren blokken', berekendHtml(d.resterend.totaal), 'Per dossier: volledig verwerkt = 0; anders verwachte blokken − Visma-regels (minimaal 0); nog niet verwerkt zonder Visma-regels = verwachte blokken. Overige dossiers tellen niet mee.',
+      ${uitkomst('Verwacht nog in te voeren blokken', berekendHtml(d.resterend.totaal), 'Per dossier: volledig verwerkt = 0; anders max(verwacht − werkelijk aantal Visma-regels, 0); nog niet verwerkt zonder Visma-regels = verwachte blokken. Overige dossiers tellen niet mee.',
         d.resterend.onbekend.length ? `onvolledig: ${ONVOLDOENDE} bij ${esc(d.resterend.onbekend.join(', '))}` : gebaseerd(d.resterend))}
     </div>`;
 }
@@ -838,11 +854,16 @@ function verwerkDossierInvoer(e) {
   for (const r of $$('#dossierTabel tr[data-i]')) {
     const i = Number(r.dataset.i);
     const veld = (k) => $(`[data-d="${k}"]`, r);
-    const d = { ...m.dossiers[i], code: veld('code').value.trim(), regels: leesGetal(veld('regels').value), blokken: leesGetal(veld('blokken').value), status: veld('status').value, visma: leesGetal(veld('visma').value), bijzonderheid: veld('bijzonderheid').value.trim() };
+    const status = veld('status').value;
+    const vol = status === 'Volledig verwerkt';
+    // Volledig verwerkt: het verwachte aantal is n.v.t.; een opgeslagen waarde blijft bewaard maar wordt genegeerd.
+    const d = { ...m.dossiers[i], code: veld('code').value.trim(), regels: leesGetal(veld('regels').value), blokken: vol ? m.dossiers[i].blokken : leesGetal(veld('blokken').value), status, visma: leesGetal(veld('visma').value), bijzonderheid: veld('bijzonderheid').value.trim() };
+    veld('blokken').hidden = vol;
+    $('[data-nvt]', r).hidden = !vol;
     const f = valideerDossier(d, m, i);
     veld('code').classList.toggle('ongeldig', f.some((x) => x.includes('dossiercode')));
     veld('regels').classList.toggle('ongeldig', !geheel(d.regels, 1));
-    veld('blokken').classList.toggle('ongeldig', !geheel(d.blokken, 0));
+    veld('blokken').classList.toggle('ongeldig', !vol && !geheel(d.blokken, 0));
     veld('visma').classList.toggle('ongeldig', !geheel(d.visma, 0));
     $('[data-klasse]', r).innerHTML = geheel(d.regels, 1) && klasse(d.regels) ? esc(klasse(d.regels)) : leegHtml();
     if (/\d{7,}/.test(d.code)) fouten.push(`${d.code}: deze code bevat een lange cijferreeks en lijkt op een echt nummer. Gebruik een geanonimiseerde code.`);
@@ -1003,10 +1024,8 @@ function dashboardHtml(b) {
         ${KLASSEN.map((k) => `<tr><td>${k}</td><td class="hint">${KLASSE_GRENZEN[k]}</td><td class="getal">${d.perKlasse[k]}</td></tr>`).join('')}
         ${d.zonderKlasse.length ? `<tr><td colspan="2" class="leeg">niet ingevuld</td><td class="getal">${d.zonderKlasse.length}</td></tr>` : ''}</tbody></table></div>
       <div class="berekend"><span class="etiket">Diensttijdblokken en verwerkingsstatus</span><div class="kaarten">
-        ${uitkomst('Totaal verwachte blokken', berekendHtml(d.blokken.totaal), 'Som van de afzonderlijke dossiers', `gebaseerd op ${d.blokken.n} van ${d.aantal} dossiers`)}
-        ${uitkomst('Gemiddeld blokken per dossier', isGetal(d.blokken.gemiddelde) ? esc(fmtGetal(d.blokken.gemiddelde)) : onvoldoendeHtml(), 'Totaal ÷ dossiers met een ingevulde waarde', `n = ${d.blokken.n}`)}
-        ${uitkomst('Ingevoerde Visma-regels', berekendHtml(d.visma.totaal), 'Som van de dossiers waarbij het aantal bekend is', `gebaseerd op ${d.visma.n} dossiers`)}
-        ${uitkomst('Verwacht resterende blokken', berekendHtml(d.resterend.totaal), 'Zie stap 3', d.resterend.onbekend.length ? `onvolledig (${d.resterend.onbekend.length} dossier(s) onbekend)` : '')}
+        ${blokkenKaartenHtml(d)}
+        ${uitkomst('Verwacht resterende blokken', berekendHtml(d.resterend.totaal), 'Per dossier: volledig verwerkt = 0; anders max(verwacht − werkelijk aantal Visma-regels, 0); nog niet verwerkt zonder Visma-regels = verwachte blokken. Overige dossiers tellen niet mee.', d.resterend.onbekend.length ? `onvolledig (${d.resterend.onbekend.length} dossier(s) onbekend)` : '')}
         </div>
         <table style="margin-top:8px"><thead><tr><th>Verwerkingsstatus</th><th class="getal">Dossiers</th></tr></thead><tbody>
         ${STATUSSEN.map((s) => `<tr><td>${s}</td><td class="getal">${d.perStatus[s]}</td></tr>`).join('')}</tbody></table></div>
@@ -1082,9 +1101,12 @@ function exportOnderdelen(m) {
   for (const k of KLASSEN) sv('Complexiteit', k, d.perKlasse[k], 'dossiers', KLASSE_GRENZEN[k]);
   sv('Bronregels', 'Totaal ABP-periode-regels', w(d.regels.totaal), 'regels', `som van ${d.regels.n} van ${d.aantal} dossiers`);
   sv('Bronregels', 'Gemiddeld ABP-periode-regels', w(d.regels.gemiddelde), 'regels per dossier', `gebaseerd op ${d.regels.n} dossiers`);
-  sv('Diensttijdblokken', 'Totaal verwachte blokken', w(d.blokken.totaal), 'blokken', `som van ${d.blokken.n} van ${d.aantal} dossiers`);
-  sv('Diensttijdblokken', 'Gemiddeld blokken per dossier', w(d.blokken.gemiddelde), 'blokken per dossier', `gebaseerd op ${d.blokken.n} dossiers`);
-  sv('Diensttijdblokken', 'Werkelijk ingevoerde Visma-regels', w(d.visma.totaal), 'regels', `som van ${d.visma.n} dossiers`);
+  const vb = d.blokken;
+  const vbTekst = vb.nvt ? 'geen dossiers die niet of gedeeltelijk zijn verwerkt' : `som van ${vb.n} van ${vb.dossiers} niet-volledig verwerkte dossiers`;
+  sv('Diensttijdblokken', 'Verwachte blokken voor niet-volledig verwerkte dossiers', vb.nvt ? 'n.v.t.' : w(vb.totaal), 'blokken', vbTekst);
+  sv('Diensttijdblokken', 'Gemiddeld verwachte blokken (niet-volledig verwerkt)', vb.nvt ? 'n.v.t.' : w(vb.gemiddelde), 'blokken per dossier', vb.nvt ? vbTekst : `gebaseerd op ${vb.n} dossiers`);
+  sv('Diensttijdblokken', 'Werkelijk ingevoerde Visma-regels', w(d.visma.totaal), 'regels', `som van ${d.visma.n} van ${d.aantal} dossiers`);
+  sv('Diensttijdblokken', 'Gemiddeld werkelijke Visma-regels', w(d.visma.gemiddelde), 'regels per dossier', `gebaseerd op ${d.visma.n} dossiers met een ingevuld aantal`);
   sv('Diensttijdblokken', 'Verwacht resterende blokken', w(d.resterend.totaal), 'blokken', d.resterend.onbekend.length ? `onvolledig; onbekend bij ${d.resterend.onbekend.join(', ')}` : '');
   for (const s of STATUSSEN) sv('Verwerkingsstatus', s, d.perStatus[s], 'dossiers');
   sv('Tijd', 'Gemiddelde actieve tijd per dossier', w(t.actief.gemiddelde), 'min per dossier', `gebaseerd op ${t.actief.nBekend} van ${t.actief.n} dossiers`);
@@ -1108,7 +1130,7 @@ function exportOnderdelen(m) {
       'Gebruikt aantal blokken', 'Bron gebruikte blokken', ...STAPPEN.map(([id]) => `${id} actief (min)`), 'Totale actieve tijd (min)', 'Totale wachttijd (min)', 'Herkomst', 'Laatst gewijzigd'])];
   for (const x of b.dossiers) {
     const dd = x.dossier;
-    dossiers.push([...sleutel, dd.code, i(dd.regels), klasse(dd.regels) || 'niet ingevuld', i(dd.blokken), dd.status, i(dd.visma), w(restBlokken(dd)), dd.bijzonderheid || '',
+    dossiers.push([...sleutel, dd.code, i(dd.regels), klasse(dd.regels) || 'niet ingevuld', volledig(dd) ? 'n.v.t.' : i(dd.blokken), dd.status, i(dd.visma), w(restBlokken(dd)), dd.bijzonderheid || '',
       w(x.blokken.n), x.blokken.bron, ...x.stappen.map((r) => (r.inbegrepen ? 'n.v.t. (inbegrepen)' : w(r.actief))), w(x.actief.waarde), w(x.wacht.waarde), x.herkomst, fmtTijdstip(dd.gewijzigd || dd.aangemaakt)]);
   }
 
@@ -1150,12 +1172,17 @@ function exportOnderdelen(m) {
   bw('Frequentie', 'Verwerkingspercentage', p(b.freq.verwerkingsPct), 'verwerkt ÷ aangeleverd × 100%', `${g(m.verwerkt)} ÷ ${g(m.aangeleverd)} × 100%`, 'maandgegevens', m.bron || '', '');
   bw('Frequentie', 'Verwerkt van alle nieuwe medewerkers', p(b.freq.verwerktVanNieuwePct), 'verwerkt ÷ nieuwe medewerkers × 100%', `${g(m.verwerkt)} ÷ ${g(m.nieuwe)} × 100%`, 'maandgegevens', m.bron || '', '');
   bw('Dossiers', 'Complexiteitsklasse', '', '1–19 Klein; 20–50 Middel; 51–100 Groot; ≥ 101 Zeer groot', KLASSEN.map((k) => `${k}: ${d.perKlasse[k]}`).join('; '), `${d.aantal} dossiers`, '', '');
-  for (const [naam, r, veld] of [['ABP-periode-regels', d.regels, 'regels'], ['verwachte blokken', d.blokken, 'blokken'], ['Visma-regels', d.visma, 'visma']]) {
-    const delen = m.dossiers.filter((x) => isGetal(x[veld])).map((x) => `${x.code}: ${x[veld]}`).join(' + ');
-    bw('Dossiers', `Totaal ${naam}`, w(r.totaal), 'som van de ingevulde dossierwaarden', r.n ? `${delen} = ${fmtAantal(r.totaal)}` : ONVOLDOENDE, `${r.n} van ${d.aantal} dossiers${r.ontbrekend.length ? `; niet ingevuld: ${r.ontbrekend.join(', ')}` : ''}`, '', '');
-    if (veld !== 'visma') bw('Dossiers', `Gemiddeld ${naam}`, w(r.gemiddelde), 'totaal ÷ aantal dossiers met een ingevulde waarde', r.n ? `${fmtAantal(r.totaal)} ÷ ${r.n}` : ONVOLDOENDE, `${r.n} dossiers`, '', '');
+  for (const [naam, r, veld, lijst, groep] of [['ABP-periode-regels', d.regels, 'regels', m.dossiers, 'dossiers'], ['verwachte blokken (niet-volledig verwerkte dossiers)', d.blokken, 'blokken', m.dossiers.filter((x) => !volledig(x)), 'niet-volledig verwerkte dossiers'], ['werkelijke Visma-regels', d.visma, 'visma', m.dossiers, 'dossiers']]) {
+    if (r.nvt) {
+      bw('Dossiers', `Totaal ${naam}`, 'n.v.t.', 'som van het verwachte aantal; volledig verwerkte dossiers tellen niet mee', 'geen dossiers die niet of gedeeltelijk zijn verwerkt', `0 van ${d.aantal} dossiers`, '', '');
+      bw('Dossiers', `Gemiddeld ${naam}`, 'n.v.t.', 'totaal ÷ aantal dossiers met een ingevulde waarde', 'geen dossiers die niet of gedeeltelijk zijn verwerkt', '', '', '');
+      continue;
+    }
+    const delen = lijst.filter((x) => isGetal(x[veld])).map((x) => `${x.code}: ${x[veld]}`).join(' + ');
+    bw('Dossiers', `Totaal ${naam}`, w(r.totaal), 'som van de ingevulde dossierwaarden', r.n ? `${delen} = ${fmtAantal(r.totaal)}` : ONVOLDOENDE, `${r.n} van ${lijst.length} ${groep}${r.ontbrekend.length ? `; niet ingevuld: ${r.ontbrekend.join(', ')}` : ''}`, '', '');
+    bw('Dossiers', `Gemiddeld ${naam}`, w(r.gemiddelde), 'totaal ÷ aantal dossiers met een ingevulde waarde', r.n ? `${fmtAantal(r.totaal)} ÷ ${r.n}` : ONVOLDOENDE, `${r.n} ${groep}`, '', '');
   }
-  bw('Dossiers', 'Verwacht resterende blokken', w(d.resterend.totaal), 'volledig verwerkt = 0; anders verwacht − Visma (min. 0); nog niet verwerkt zonder Visma = verwacht', m.dossiers.map((x) => `${x.code}: ${isGetal(restBlokken(x)) ? restBlokken(x) : '?'}`).join('; '), `${d.resterend.n} dossiers`, '', '');
+  bw('Dossiers', 'Verwacht resterende blokken', w(d.resterend.totaal), 'volledig verwerkt = 0 (verwacht aantal genegeerd); anders max(verwacht − werkelijk Visma, 0); nog niet verwerkt zonder Visma = verwacht', m.dossiers.map((x) => `${x.code}: ${isGetal(restBlokken(x)) ? restBlokken(x) : '?'}`).join('; '), `${d.resterend.n} dossiers`, '', '');
   bw('Rekenregel', 'Per dossier', '', 'ingevoerde tijd telt één keer per dossier', STAPPEN.filter((s) => s[2] === 'dossier').map((s) => s[0]).join(', '), '', '', '');
   bw('Rekenregel', 'Per complexiteitsklasse', '', 'tijd die hoort bij de automatisch bepaalde klasse van het dossier', STAPPEN.filter((s) => s[2] === 'klasse').map((s) => s[0]).join(', '), '', '', '');
   bw('Rekenregel', 'Per diensttijdblok', '', 'tijd per blok × aantal blokken; volledig verwerkt: werkelijk aantal Visma-regels; anders: verwacht aantal (nooit beide)', STAPPEN.filter((s) => s[2] === 'blok').map((s) => s[0]).join(', '), '', '', '');
@@ -1598,7 +1625,7 @@ function start() {
   toonStap(huidigeStap);
   if (!gelezen) toonMelding('De opgeslagen gegevens konden niet worden gelezen. Ze zijn niet gewist; importeer zo nodig een back-up.', true);
   // Alleen voor geautomatiseerde tests: lezen van gegevens en berekeningen.
-  window.__pr24 = { staat: () => staat, bereken, klasse, klaar: true };
+  window.__pr24 = { staat: () => staat, bereken, klasse, restBlokken, klaar: true };
 }
 
 document.addEventListener('DOMContentLoaded', start);
