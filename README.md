@@ -1,5 +1,7 @@
 # Meettool administratieve processen
 
+> **Nieuw: vereenvoudigde PR24-tool.** Alleen voor het verwerken van diensttijdopgaven in Visma (PR24) is er een aparte, eenvoudige tool: [`meettool-pr24-eenvoudig.html`](meettool-pr24-eenvoudig.html). Zie [Vereenvoudigde PR24-tool](#vereenvoudigde-pr24-tool). De brede meettool hieronder blijft ongewijzigd als back-up bestaan.
+
 Lokale meettool voor het registreren en analyseren van actieve verwerkingstijd, wachttijd, omvang en frequentie van handmatige administratieve processen.
 
 **Gebruik:** dubbelklik op [`Meettool.html`](Meettool.html). Het bestand opent in de standaardbrowser (Edge of Chrome aanbevolen). U hoeft niets te installeren en er is geen internet nodig.
@@ -172,3 +174,28 @@ Node.js en npm zijn alleen nodig voor ontwikkeling en tests. De gebruiker opent 
 ## Ontwikkeling
 
 De broncode staat in `src/`; `node build.js` voegt alles samen tot `Meettool.html`. Het versienummer staat in `src/versie.js` en bovenaan het gebouwde bestand.
+
+## Vereenvoudigde PR24-tool
+
+`meettool-pr24-eenvoudig.html` is een zelfstandige tool voor alleen PR24. Er is één flow in vijf stappen, met *Vorige* en *Volgende* en een voortgangsindicator bovenaan:
+
+1. **Bestuur en maand:** LEV of SAMANAS, kalendermaand en -jaar. Hier maakt u een nieuwe maandmeting, slaat u op, verwijdert u (met bevestiging) of opent u een bestaande maandmeting.
+2. **Volume en frequentie:** nieuwe medewerkers, aangeleverde en verwerkte diensttijdopgaven, met bron en toelichting. De controle verwerkt ≤ aangeleverd ≤ nieuwe medewerkers wordt direct uitgevoerd. Afgeleide aantallen en percentages staan erbij (één decimaal; een deler 0 levert geen fout op).
+3. **Dossiers:** één regel per opgave, met een geanonimiseerde dossiercode (voorstel `LEV-2026-08-D01`), het aantal ABP-periode-regels en een automatische complexiteitsklasse (1–19 Klein, 20–50 Gemiddeld, 51–100 Groot, 101 of meer Zeer groot; 0 is ongeldig). Daarnaast het verwachte aantal blokken, de status, de Visma-regels (alleen als bekend) en een bijzonderheid. Totalen zijn sommen, gemiddelden noemen het aantal dossiers, en lege velden tellen niet als 0.
+4. **Processtappen en tijd:** negen stappen met actieve tijd en wachttijd in minuten, rekeneenheid (S04–S06 per diensttijdblok, de rest per dossier), meetwijze, knelpunt en toelichting.
+   - S02 heeft een uitklapbare tijd per complexiteitsklasse: aantal dossiers in de klasse × tijd voor die klasse.
+   - Met *inbegrepen bij* telt een stap niet mee in de totalen, maar blijft hij zichtbaar. Zo wordt niets dubbel geteld.
+5. **Resultaat en export:** frequentie, bronregels en complexiteit, diensttijdblokken en status, tijd per stap (de drie hoogste gemarkeerd, oorspronkelijke volgorde) en de belangrijkste knelpunten. Daarbij export naar Excel (Samenvatting, Maandgegevens, Dossiers, Processtappen en tijden, Berekeningen en meetwijzen) en CSV, een JSON-back-up en het importeren van een JSON-back-up.
+
+**Tijd:**
+- Per dossier: uitgevoerd = tijd × verwerkte opgaven, verwacht = tijd × aangeleverde opgaven.
+- S02: uitgevoerd = volledig verwerkte dossiers per klasse × tijd, verwacht = geregistreerde dossiers per klasse × tijd.
+- Per blok: uitgevoerd = tijd × ingevoerde Visma-regels, verwacht = tijd × verwachte blokken.
+- Resterend = verwacht − uitgevoerd.
+- Ontbreekt een gegeven, dan staat er *onvoldoende gegevens*; er wordt nooit 0 ingevuld.
+
+**Opslag:** alleen lokaal in de browser, onder de eigen localStorage-sleutel `meettool-pr24-eenvoudig`. De gegevens van de brede meettool worden niet gelezen of gewijzigd. Onleesbare opgeslagen gegevens worden nooit overschreven.
+
+**Openen op Windows:** zet `meettool-pr24-eenvoudig.html` in een vaste map en dubbelklik erop. Het bestand opent in Edge of Chrome; kies anders *Openen met* > *Microsoft Edge*. Er is geen installatie, server of internet nodig. Gebruik steeds dezelfde browser en maak regelmatig een JSON-back-up.
+
+**Ontwikkeling:** het bestand wordt rechtstreeks bewerkt; er is geen buildstap. De Excel-schrijver is overgenomen uit `src/xlsx.js`. Controletest (vereist Playwright en python3 met openpyxl): `NODE_PATH=$(npm root -g) node tests/eenvoudigtest.js`.
