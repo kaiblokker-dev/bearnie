@@ -462,7 +462,7 @@ function normaliseer(m) {
     if (!oud || oud.klasseActief) return s; // nieuw of al omgezet
     const oudeEenheid = oud.eenheid || 'dossier';
     const heeftTijd = isGetal(oud.actief) || isGetal(oud.wacht);
-    const notitie = (reden) => { s.toelichting = [s.toelichting, `Eerdere waarde (${EENHEDEN[oudeEenheid] ? EENHEDEN[oudeEenheid].toLowerCase() : oudeEenheid}): actief ${isGetal(oud.actief) ? naarInvoer(oud.actief) : '–'} min, wacht ${isGetal(oud.wacht) ? naarInvoer(oud.wacht) : '–'} min – ${reden}`].filter(Boolean).join(' '); };
+    const notitie = (reden) => { s.toelichting = [s.toelichting, `Eerdere waarde (${EENHEDEN[oudeEenheid] ? EENHEDEN[oudeEenheid].toLowerCase() : oudeEenheid}): actieve verwerkingstijd ${isGetal(oud.actief) ? naarInvoer(oud.actief) : '–'} min, wacht ${isGetal(oud.wacht) ? naarInvoer(oud.wacht) : '–'} min – ${reden}`].filter(Boolean).join(' '); };
     if (stapId === S02 && m.s02) {
       for (const [k, w] of Object.entries(m.s02)) if (OUDE_KLASSE[k] && isGetal(w)) s.klasseActief[OUDE_KLASSE[k]] = w;
       if (isGetal(oud.wacht)) for (const k of KLASSEN) s.klasseWacht[k] = oud.wacht;
@@ -535,9 +535,9 @@ function valideerDossier(d, m, i) {
 function valideerStap(s) {
   const f = [];
   const tijdOk = (v) => v === null || v === undefined || (isGetal(v) && v >= 0);
-  for (const [k, l] of [['actief', 'actieve tijd'], ['wacht', 'wachttijd']]) if (!tijdOk(s[k])) f.push(`${s.stapId}: ${l} moet een getal van 0 of hoger zijn.`);
+  for (const [k, l] of [['actief', 'actieve verwerkingstijd'], ['wacht', 'wachttijd']]) if (!tijdOk(s[k])) f.push(`${s.stapId}: ${l} moet een getal van 0 of hoger zijn.`);
   for (const k of KLASSEN) {
-    if (!tijdOk((s.klasseActief || {})[k])) f.push(`${s.stapId} – ${k}: actieve tijd moet een getal van 0 of hoger zijn.`);
+    if (!tijdOk((s.klasseActief || {})[k])) f.push(`${s.stapId} – ${k}: actieve verwerkingstijd moet een getal van 0 of hoger zijn.`);
     if (!tijdOk((s.klasseWacht || {})[k])) f.push(`${s.stapId} – ${k}: wachttijd moet een getal van 0 of hoger zijn.`);
   }
   if (s.meetwijze && !MEETWIJZEN.includes(s.meetwijze)) f.push(`${s.stapId}: kies een geldige meetwijze.`);
@@ -611,7 +611,7 @@ function stapVoorDossier(s, d) {
     r.tijdWacht = s.wacht;
   }
   const eenheidTekst = s.eenheid === 'klasse' ? ` (${k || 'klasse onbekend'})` : '';
-  if (factor !== null && !isGetal(r.tijdActief)) r.redenen.push(`actieve tijd${eenheidTekst} niet ingevuld`);
+  if (factor !== null && !isGetal(r.tijdActief)) r.redenen.push(`actieve verwerkingstijd${eenheidTekst} niet ingevuld`);
   if (factor !== null && !isGetal(r.tijdWacht)) r.redenen.push(`wachttijd${eenheidTekst} niet ingevuld`);
   r.actief = isGetal(r.tijdActief) && isGetal(factor) ? r.tijdActief * factor : null;
   r.wacht = isGetal(r.tijdWacht) && isGetal(factor) ? r.tijdWacht * factor : null;
@@ -889,7 +889,7 @@ function stappenTabelHtml(m) {
     return `<tr data-stap="${s.stapId}"${s.inbegrepen ? ' class="inbegrepen"' : ''}>
       <td><span class="mono">${s.stapId}</span><br>${esc(s.naam)}${uitleg ? `<div class="hint">${esc(uitleg)}</div>` : ''}</td>
       <td>${esc(EENHEDEN[s.eenheid])}</td>
-      <td>${perKlasse ? klasseKnop(s) : tijd(s, 'actief', 'Actieve tijd')}</td>
+      <td>${perKlasse ? klasseKnop(s) : tijd(s, 'actief', 'Actieve verwerkingstijd')}</td>
       <td>${perKlasse ? '<span class="hint">per klasse</span>' : tijd(s, 'wacht', 'Wachttijd')}</td>
       <td><select data-s="meetwijze" aria-label="Meetwijze ${s.stapId}">${opties(MEETWIJZEN.map((w) => [w, w]), s.meetwijze, '–')}</select></td>
       <td><select data-s="knelpunt" aria-label="Knelpunt ${s.stapId}">${opties([['nee', 'Nee'], ['ja', 'Ja']], s.knelpunt === true ? 'ja' : s.knelpunt === false ? 'nee' : '', '–')}</select></td>
@@ -899,12 +899,12 @@ function stappenTabelHtml(m) {
     </tr>
     ${perKlasse ? `<tr class="klassen" data-klassen-voor="${s.stapId}" hidden><td></td><td colspan="7">
       <div class="klassenvelden">${KLASSEN.map((k) => `<div class="veld"><label>${k} <span class="hint">(${KLASSE_GRENZEN[k]})</span></label>
-        <span class="hint">actief · wacht (min per dossier)</span>
-        <div style="display:flex;gap:6px"><input type="text" class="getal" style="width:50%" data-klasse-actief="${k}" inputmode="decimal" value="${esc(naarInvoer(s.klasseActief[k]))}" placeholder="actief" aria-label="Actieve tijd ${k} ${s.stapId}">
+        <span class="hint">actieve verwerkingstijd · wachttijd (min per dossier)</span>
+        <div style="display:flex;gap:6px"><input type="text" class="getal" style="width:50%" data-klasse-actief="${k}" inputmode="decimal" value="${esc(naarInvoer(s.klasseActief[k]))}" placeholder="actief" aria-label="Actieve verwerkingstijd ${k} ${s.stapId}">
         <input type="text" class="getal" style="width:50%" data-klasse-wacht="${k}" inputmode="decimal" value="${esc(naarInvoer(s.klasseWacht[k]))}" placeholder="wacht" aria-label="Wachttijd ${k} ${s.stapId}"></div></div>`).join('')}</div>
-      <p class="hint" style="margin:6px 0 0">Actieve tijd en wachttijd per dossier, per complexiteitsklasse (min). Onbekend = leeg laten.${s.stapId === S02 ? ' Voorbeeld: een medewerker schat dat het bepalen van relevante diensttijd bij een opgave met meer dan vijftig periode-regels circa dertig minuten kan duren. Zo’n schatting voert u zelf in en valideert u.' : ''}</p></td></tr>` : ''}`;
+      <p class="hint" style="margin:6px 0 0">Actieve verwerkingstijd en wachttijd per dossier, per complexiteitsklasse (min). Onbekend = leeg laten.${s.stapId === S02 ? ' Voorbeeld: een medewerker schat dat het bepalen van relevante diensttijd bij een opgave met meer dan vijftig periode-regels circa dertig minuten kan duren. Zo’n schatting voert u zelf in en valideert u.' : ''}</p></td></tr>` : ''}`;
   };
-  return `<table class="invoer" id="stapTabel"><thead><tr><th style="width:250px">Processtap</th><th style="width:120px">Rekeneenheid ${info('Vast per stap. Per dossier: de tijd telt één keer per dossier. Per complexiteitsklasse: de tijd die hoort bij de klasse van het dossier. Per diensttijdblok: tijd × aantal blokken (werkelijk aantal Visma-regels bij volledig verwerkte dossiers, anders het verwachte aantal).')}</th><th>Actieve tijd (min)</th><th>Wachttijd (min)</th><th style="width:170px">Meetwijze</th><th>Knelpunt</th><th>Korte toelichting</th><th style="width:130px">Dubbeltelling ${info('Vink aan als de tijd van deze stap al in een andere stap zit. De stap blijft zichtbaar, maar telt niet mee in de totalen.')}</th></tr></thead>
+  return `<table class="invoer" id="stapTabel"><thead><tr><th style="width:250px">Processtap</th><th style="width:120px">Rekeneenheid ${info('Vast per stap. Per dossier: de tijd telt één keer per dossier. Per complexiteitsklasse: de tijd die hoort bij de klasse van het dossier. Per diensttijdblok: tijd × aantal blokken (werkelijk aantal Visma-regels bij volledig verwerkte dossiers, anders het verwachte aantal).')}</th><th>Actieve verwerkingstijd (min)</th><th>Wachttijd (min)</th><th style="width:170px">Meetwijze</th><th>Knelpunt</th><th>Korte toelichting</th><th style="width:130px">Dubbeltelling ${info('Vink aan als de tijd van deze stap al in een andere stap zit. De stap blijft zichtbaar, maar telt niet mee in de totalen.')}</th></tr></thead>
     <tbody>${m.stappen.map(rij).join('')}</tbody></table>`;
 }
 
@@ -946,7 +946,7 @@ function verwerkStapInvoer(e) {
     veld('inbegrepenBij').hidden = !s.inbegrepen;
     rij.classList.toggle('inbegrepen', s.inbegrepen);
     const f = valideerStap(s);
-    for (const k of ['actief', 'wacht']) if (veld(k)) veld(k).classList.toggle('ongeldig', f.some((x) => x.includes(k === 'actief' ? 'actieve tijd' : 'wachttijd')));
+    for (const k of ['actief', 'wacht']) if (veld(k)) veld(k).classList.toggle('ongeldig', f.some((x) => x.includes(k === 'actief' ? 'actieve verwerkingstijd' : 'wachttijd')));
     fouten.push(...f);
     if (!f.length && JSON.stringify(s) !== JSON.stringify(m.stappen[i])) { m.stappen[i] = { ...s, gewijzigd: nuIso() }; m.gewijzigd = nuIso(); }
   }
@@ -971,8 +971,8 @@ function tijdTotalenHtml(b) {
   const t = b.tijd;
   return `<span class="etiket">Tijd – automatisch berekend per dossier</span>${b.schatting ? '<span class="label-schatting">bevat schattingen</span>' : ''}
     <div class="kaarten">
-      ${totaalUitkomst('Totale actieve tijd alle dossiers', t.actief, `Som van de actieve tijd van alle dossiers. ${FORMULE_DOSSIER}`)}
-      ${gemiddeldeUitkomst('Gemiddelde actieve tijd per dossier', t.actief, 'Totale actieve tijd ÷ aantal dossiers met een volledig berekende tijd')}
+      ${totaalUitkomst('Totale actieve verwerkingstijd alle dossiers', t.actief, `Som van de actieve verwerkingstijd van alle dossiers. ${FORMULE_DOSSIER}`)}
+      ${gemiddeldeUitkomst('Gemiddelde actieve verwerkingstijd per dossier', t.actief, 'Totale actieve verwerkingstijd ÷ aantal dossiers met een volledig berekende tijd')}
       ${totaalUitkomst('Totale wachttijd alle dossiers', t.wacht, 'Som van de wachttijd van alle dossiers (zelfde rekenregels)')}
     </div>`;
 }
@@ -1034,26 +1034,26 @@ function dashboardHtml(b) {
       ${d.afwijking ? `<div class="melding waarschuwing">Gebaseerd op ${d.aantal} geregistreerde dossiers van ${fmtAantal(b.freq.aangeleverd)} aangeleverde opgaven; de totale tijd is daardoor mogelijk te laag.</div>` : ''}
       ${b.waarschuwingen.map((w) => `<div class="melding waarschuwing">${esc(w)}</div>`).join('')}
       <div class="kaarten">
-        ${gemiddeldeUitkomst('Gemiddelde actieve tijd per dossier', t.actief, 'Totale actieve tijd ÷ aantal dossiers met een volledig berekende tijd')}
-        ${totaalUitkomst('Totale actieve tijd alle dossiers', t.actief, `Som van de actieve tijd van alle dossiers. ${FORMULE_DOSSIER}`)}
+        ${gemiddeldeUitkomst('Gemiddelde actieve verwerkingstijd per dossier', t.actief, 'Totale actieve verwerkingstijd ÷ aantal dossiers met een volledig berekende tijd')}
+        ${totaalUitkomst('Totale actieve verwerkingstijd alle dossiers', t.actief, `Som van de actieve verwerkingstijd van alle dossiers. ${FORMULE_DOSSIER}`)}
         ${gemiddeldeUitkomst('Gemiddelde wachttijd per dossier', t.wacht, 'Totale wachttijd ÷ aantal dossiers met een volledig berekende wachttijd')}
         ${totaalUitkomst('Totale wachttijd alle dossiers', t.wacht, 'Som van de wachttijd van alle dossiers')}
-        ${totaalUitkomst('Actieve tijd volledig verwerkte dossiers', t.verwerkt, 'Som over dossiers met status volledig verwerkt (met het werkelijke aantal Visma-regels)')}
-        ${totaalUitkomst('Actieve tijd overige dossiers', t.nogTeVerwerken, 'Som over de overige dossiers (met het verwachte aantal blokken)')}
+        ${totaalUitkomst('Actieve verwerkingstijd volledig verwerkte dossiers', t.verwerkt, 'Som over dossiers met status volledig verwerkt (met het werkelijke aantal Visma-regels)')}
+        ${totaalUitkomst('Actieve verwerkingstijd overige dossiers', t.nogTeVerwerken, 'Som over de overige dossiers (met het verwachte aantal blokken)')}
       </div>
       <h3 style="margin-top:12px">Tijd per processtap</h3>
-      <div class="tabelhouder"><table id="resultaatStappen"><thead><tr><th style="width:230px">Processtap</th><th>Rekeneenheid</th><th class="getal">Actief per eenheid (min)</th><th class="getal">Wacht per eenheid (min)</th>
-        <th class="getal">Actief alle dossiers (min)</th><th class="getal">Gem. actief per dossier (min)</th><th class="getal">Wacht alle dossiers (min)</th><th>Meetwijze</th><th>Knelpunt</th></tr></thead>
+      <div class="tabelhouder"><table id="resultaatStappen"><thead><tr><th style="width:230px">Processtap</th><th>Rekeneenheid</th><th class="getal">Actieve verwerkingstijd per eenheid (min)</th><th class="getal">Wacht per eenheid (min)</th>
+        <th class="getal">Actieve verwerkingstijd alle dossiers (min)</th><th class="getal">Gem. actieve verwerkingstijd per dossier (min)</th><th class="getal">Wacht alle dossiers (min)</th><th>Meetwijze</th><th>Knelpunt</th></tr></thead>
         <tbody>${b.perStap.map(stapRij).join('')}</tbody></table></div>
       <h3 style="margin-top:12px">Tijd per complexiteitsklasse</h3>
-      <div class="tabelhouder"><table id="resultaatKlassen"><thead><tr><th>Klasse</th><th>Grenzen</th><th class="getal">Dossiers</th><th class="getal">Actieve tijd (min)</th><th class="getal">Gem. per dossier (min)</th><th class="getal">Wachttijd (min)</th></tr></thead>
+      <div class="tabelhouder"><table id="resultaatKlassen"><thead><tr><th>Klasse</th><th>Grenzen</th><th class="getal">Dossiers</th><th class="getal">Actieve verwerkingstijd (min)</th><th class="getal">Gem. per dossier (min)</th><th class="getal">Wachttijd (min)</th></tr></thead>
         <tbody>${b.perKlasseTijd.map((k) => `<tr><td>${k.klasse}</td><td class="hint">${KLASSE_GRENZEN[k.klasse]}</td><td class="getal">${k.aantal}</td><td class="getal berekend">${k.aantal ? somCel(k.actief) : nvtHtml()}</td>
           <td class="getal berekend">${k.aantal ? (isGetal(k.actief.waarde) ? esc(fmtGetal(k.actief.gemiddelde)) : onvoldoendeHtml()) : nvtHtml()}</td><td class="getal berekend">${k.aantal ? somCel(k.wacht) : nvtHtml()}</td></tr>`).join('')}</tbody></table></div>
-      <h3 style="margin-top:12px">Tijd per dossier ${info('Per dossier de actieve tijd per processtap (min), het gebruikte aantal blokken en de herkomst. Klik op Details voor de berekening per stap.')}</h3>
-      ${b.dossiers.length ? `<div class="tabelhouder"><table id="resultaatDossiers" class="compact"><thead><tr><th>Dossier</th><th>Klasse</th><th>Blokken</th>${STAPPEN.map(([id]) => `<th class="getal">${id.slice(5)}</th>`).join('')}<th class="getal">Totaal actief</th><th class="getal">Totaal wacht</th><th>Herkomst</th><th></th></tr></thead>
+      <h3 style="margin-top:12px">Tijd per dossier ${info('Per dossier de actieve verwerkingstijd per processtap (min), het gebruikte aantal blokken en de herkomst. Klik op Details voor de berekening per stap.')}</h3>
+      ${b.dossiers.length ? `<div class="tabelhouder"><table id="resultaatDossiers" class="compact"><thead><tr><th>Dossier</th><th>Klasse</th><th>Blokken</th>${STAPPEN.map(([id]) => `<th class="getal">${id.slice(5)}</th>`).join('')}<th class="getal">Totaal actieve verwerkingstijd</th><th class="getal">Totaal wacht</th><th>Herkomst</th><th></th></tr></thead>
         <tbody>${b.dossiers.map(dossierRij).join('')}</tbody></table></div>` : '<p class="leeg">Nog geen dossiers.</p>'}
       <h3 style="margin-top:12px">Tijd per bestuur en maand</h3>
-      <div class="tabelhouder"><table id="resultaatMaanden"><thead><tr><th>Maandmeting</th><th class="getal">Dossiers</th><th class="getal">Actieve tijd (min)</th><th class="getal">Gem. per dossier (min)</th><th class="getal">Wachttijd (min)</th></tr></thead>
+      <div class="tabelhouder"><table id="resultaatMaanden"><thead><tr><th>Maandmeting</th><th class="getal">Dossiers</th><th class="getal">Actieve verwerkingstijd (min)</th><th class="getal">Gem. per dossier (min)</th><th class="getal">Wachttijd (min)</th></tr></thead>
         <tbody>${overzichtPerMaand().map((r) => `<tr${r.meting.id === b.meting.id ? ' style="font-weight:600"' : ''}><td>${esc(metingLabel(r.meting))}</td><td class="getal">${r.dossiers}</td><td class="getal berekend">${r.dossiers ? somCel(r.actief) : nvtHtml()}</td>
           <td class="getal berekend">${isGetal(r.actief.gemiddelde) ? esc(fmtGetal(r.actief.gemiddelde)) : r.dossiers ? onvoldoendeHtml() : nvtHtml()}</td><td class="getal berekend">${r.dossiers ? somCel(r.wacht) : nvtHtml()}</td></tr>`).join('')}</tbody></table></div>
       <h3 style="margin-top:12px">Belangrijkste knelpunten</h3>
@@ -1063,7 +1063,7 @@ function dashboardHtml(b) {
 
 /** Berekening per stap voor één dossier (herleidbaarheid). */
 function dossierDetailHtml(x) {
-  return `<table class="compact"><thead><tr><th>Stap</th><th>Rekeneenheid</th><th>Gebruikt</th><th class="getal">Actief (min)</th><th class="getal">Wacht (min)</th><th>Berekening actief</th><th>Herkomst</th></tr></thead><tbody>
+  return `<table class="compact"><thead><tr><th>Stap</th><th>Rekeneenheid</th><th>Gebruikt</th><th class="getal">Actieve verwerkingstijd (min)</th><th class="getal">Wacht (min)</th><th>Berekening actieve verwerkingstijd</th><th>Herkomst</th></tr></thead><tbody>
     ${x.stappen.map((r) => `<tr${r.inbegrepen ? ' class="inbegrepen"' : ''}><td class="mono">${r.stapId}</td><td>${esc(EENHEDEN[r.eenheid])}</td>
       <td>${r.eenheid === 'klasse' ? `klasse ${esc(r.klasse || 'onbekend')}` : r.eenheid === 'blok' ? `${isGetal(r.blokken) ? fmtAantal(r.blokken) : '?'} blokken (${esc(r.bronBlokken)})` : '1 dossier'}</td>
       <td class="getal">${tijdWaarde(r.actief, r.inbegrepen)}</td><td class="getal">${tijdWaarde(r.wacht, r.inbegrepen)}</td>
@@ -1109,16 +1109,16 @@ function exportOnderdelen(m) {
   sv('Diensttijdblokken', 'Gemiddeld werkelijke Visma-regels', w(d.visma.gemiddelde), 'regels per dossier', `gebaseerd op ${d.visma.n} dossiers met een ingevuld aantal`);
   sv('Diensttijdblokken', 'Verwacht resterende blokken', w(d.resterend.totaal), 'blokken', d.resterend.onbekend.length ? `onvolledig; onbekend bij ${d.resterend.onbekend.join(', ')}` : '');
   for (const s of STATUSSEN) sv('Verwerkingsstatus', s, d.perStatus[s], 'dossiers');
-  sv('Tijd', 'Gemiddelde actieve tijd per dossier', w(t.actief.gemiddelde), 'min per dossier', `gebaseerd op ${t.actief.nBekend} van ${t.actief.n} dossiers`);
-  sv('Tijd', 'Totale actieve tijd alle dossiers', w(t.actief.waarde), 'min', somTekst(t.actief));
+  sv('Tijd', 'Gemiddelde actieve verwerkingstijd per dossier', w(t.actief.gemiddelde), 'min per dossier', `gebaseerd op ${t.actief.nBekend} van ${t.actief.n} dossiers`);
+  sv('Tijd', 'Totale actieve verwerkingstijd alle dossiers', w(t.actief.waarde), 'min', somTekst(t.actief));
   sv('Tijd', 'Gemiddelde wachttijd per dossier', w(t.wacht.gemiddelde), 'min per dossier', `gebaseerd op ${t.wacht.nBekend} van ${t.wacht.n} dossiers`);
   sv('Tijd', 'Totale wachttijd alle dossiers', w(t.wacht.waarde), 'min', somTekst(t.wacht));
-  sv('Tijd', 'Actieve tijd volledig verwerkte dossiers', w(t.verwerkt.waarde), 'min', somTekst(t.verwerkt));
-  sv('Tijd', 'Actieve tijd overige dossiers', w(t.nogTeVerwerken.waarde), 'min', somTekst(t.nogTeVerwerken));
+  sv('Tijd', 'Actieve verwerkingstijd volledig verwerkte dossiers', w(t.verwerkt.waarde), 'min', somTekst(t.verwerkt));
+  sv('Tijd', 'Actieve verwerkingstijd overige dossiers', w(t.nogTeVerwerken.waarde), 'min', somTekst(t.nogTeVerwerken));
   sv('Tijd', 'Bevat schattingen', b.schatting ? 'Ja' : 'Nee', '');
-  for (const r of b.perStap) sv('Tijd per processtap', `${r.stap.stapId} ${r.stap.naam}`, r.inbegrepen ? 'n.v.t. (inbegrepen)' : w(r.actief.waarde), 'min actief', `${EENHEDEN[r.stap.eenheid]}${b.hoogste.includes(r.stap.stapId) ? '; behoort tot de stappen met de meeste actieve tijd' : ''}${!r.inbegrepen && !isGetal(r.actief.waarde) && r.actief.nBekend ? `; deelsom ${fmtGetal(r.actief.deelsom)} min` : ''}`);
-  for (const k of b.perKlasseTijd) sv('Tijd per complexiteitsklasse', k.klasse, k.aantal ? w(k.actief.waarde) : 'n.v.t.', 'min actief', `${k.aantal} dossiers; gemiddeld ${isGetal(k.actief.waarde) ? fmtGetal(k.actief.gemiddelde) + ' min per dossier' : '–'}`);
-  for (const r of overzichtPerMaand()) sv('Tijd per bestuur en maand', metingLabel(r.meting), r.dossiers ? w(r.actief.waarde) : 'n.v.t.', 'min actief', `${r.dossiers} dossiers; gemiddeld ${isGetal(r.actief.gemiddelde) ? fmtGetal(r.actief.gemiddelde) + ' min per dossier' : '–'}; wacht ${isGetal(r.wacht.waarde) ? fmtGetal(r.wacht.waarde) + ' min' : '–'}`);
+  for (const r of b.perStap) sv('Tijd per processtap', `${r.stap.stapId} ${r.stap.naam}`, r.inbegrepen ? 'n.v.t. (inbegrepen)' : w(r.actief.waarde), 'min actieve verwerkingstijd', `${EENHEDEN[r.stap.eenheid]}${b.hoogste.includes(r.stap.stapId) ? '; behoort tot de stappen met de meeste actieve verwerkingstijd' : ''}${!r.inbegrepen && !isGetal(r.actief.waarde) && r.actief.nBekend ? `; deelsom ${fmtGetal(r.actief.deelsom)} min` : ''}`);
+  for (const k of b.perKlasseTijd) sv('Tijd per complexiteitsklasse', k.klasse, k.aantal ? w(k.actief.waarde) : 'n.v.t.', 'min actieve verwerkingstijd', `${k.aantal} dossiers; gemiddeld ${isGetal(k.actief.waarde) ? fmtGetal(k.actief.gemiddelde) + ' min per dossier' : '–'}`);
+  for (const r of overzichtPerMaand()) sv('Tijd per bestuur en maand', metingLabel(r.meting), r.dossiers ? w(r.actief.waarde) : 'n.v.t.', 'min actieve verwerkingstijd', `${r.dossiers} dossiers; gemiddeld ${isGetal(r.actief.gemiddelde) ? fmtGetal(r.actief.gemiddelde) + ' min per dossier' : '–'}; wacht ${isGetal(r.wacht.waarde) ? fmtGetal(r.wacht.waarde) + ' min' : '–'}`);
   for (const r of b.knelpunten) sv('Knelpunt', r.stap.stapId, r.stap.toelichting || '(geen toelichting)', '', r.stap.naam);
 
   const maandgegevens = [[{ v: `Maandgegevens – ${metingLabel(m)}`, s: 'titel' }], ...ident, kop(['Veld', 'Waarde']),
@@ -1127,7 +1127,7 @@ function exportOnderdelen(m) {
 
   const dossiers = [[{ v: `Dossiers – ${metingLabel(m)}`, s: 'titel' }], ...ident,
     kop(['Bestuur', 'Maand', 'Jaar', 'Dossiercode', 'ABP-periode-regels', 'Complexiteitsklasse', 'Verwacht aantal diensttijdblokken', 'Verwerkingsstatus', 'Werkelijk aantal regels in Visma', 'Verwacht resterende blokken (berekend)', 'Bijzonderheid of knelpunt',
-      'Gebruikt aantal blokken', 'Bron gebruikte blokken', ...STAPPEN.map(([id]) => `${id} actief (min)`), 'Totale actieve tijd (min)', 'Totale wachttijd (min)', 'Herkomst', 'Laatst gewijzigd'])];
+      'Gebruikt aantal blokken', 'Bron gebruikte blokken', ...STAPPEN.map(([id]) => `${id} actieve verwerkingstijd (min)`), 'Totale actieve verwerkingstijd (min)', 'Totale wachttijd (min)', 'Herkomst', 'Laatst gewijzigd'])];
   for (const x of b.dossiers) {
     const dd = x.dossier;
     dossiers.push([...sleutel, dd.code, i(dd.regels), klasse(dd.regels) || 'niet ingevuld', volledig(dd) ? 'n.v.t.' : i(dd.blokken), dd.status, i(dd.visma), w(restBlokken(dd)), dd.bijzonderheid || '',
@@ -1135,9 +1135,9 @@ function exportOnderdelen(m) {
   }
 
   const stappen = [[{ v: `Processtappen en tijden – ${metingLabel(m)}`, s: 'titel' }], ...ident,
-    kop(['Bestuur', 'Maand', 'Jaar', 'Stap-ID', 'Processtap', 'Afbakening', 'Rekeneenheid', 'Actieve tijd per eenheid (min)', 'Wachttijd per eenheid (min)',
-      ...KLASSEN.map((k) => `Actief ${k} (min per dossier)`), ...KLASSEN.map((k) => `Wacht ${k} (min per dossier)`), 'Meetwijze', 'Knelpunt', 'Korte toelichting', 'Inbegrepen bij',
-      'Actieve tijd alle dossiers (min)', 'Gem. actieve tijd per dossier (min)', 'Wachttijd alle dossiers (min)', 'Actieve tijd alle dossiers (uur)', 'Telt mee in totaal', 'Meeste actieve tijd (top 3)', 'Laatst gewijzigd'])];
+    kop(['Bestuur', 'Maand', 'Jaar', 'Stap-ID', 'Processtap', 'Afbakening', 'Rekeneenheid', 'Actieve verwerkingstijd per eenheid (min)', 'Wachttijd per eenheid (min)',
+      ...KLASSEN.map((k) => `Actieve verwerkingstijd ${k} (min per dossier)`), ...KLASSEN.map((k) => `Wacht ${k} (min per dossier)`), 'Meetwijze', 'Knelpunt', 'Korte toelichting', 'Inbegrepen bij',
+      'Actieve verwerkingstijd alle dossiers (min)', 'Gem. actieve verwerkingstijd per dossier (min)', 'Wachttijd alle dossiers (min)', 'Actieve verwerkingstijd alle dossiers (uur)', 'Telt mee in totaal', 'Meeste actieve verwerkingstijd (top 3)', 'Laatst gewijzigd'])];
   for (const r of b.perStap) {
     const s = r.stap;
     const pk = s.eenheid === 'klasse';
@@ -1151,7 +1151,7 @@ function exportOnderdelen(m) {
 
   const perDossierStap = [[{ v: `Tijd per dossier en stap – ${metingLabel(m)}`, s: 'titel' }], ...ident,
     kop(['Bestuur', 'Maand', 'Jaar', 'Dossiercode', 'Verwerkingsstatus', 'Stap-ID', 'Processtap', 'Rekeneenheid', 'Complexiteitsklasse', 'Gebruikt aantal blokken', 'Bron blokken',
-      'Actieve tijd per eenheid (min)', 'Wachttijd per eenheid (min)', 'Actieve tijd (min)', 'Wachttijd (min)', 'Berekening actief', 'Herkomst', 'Meetwijze', 'Telt mee', 'Reden onvoldoende gegevens'])];
+      'Actieve verwerkingstijd per eenheid (min)', 'Wachttijd per eenheid (min)', 'Actieve verwerkingstijd (min)', 'Wachttijd (min)', 'Berekening actieve verwerkingstijd', 'Herkomst', 'Meetwijze', 'Telt mee', 'Reden onvoldoende gegevens'])];
   for (const x of b.dossiers) {
     for (const r of x.stappen) {
       const s = m.stappen.find((y) => y.stapId === r.stapId);
@@ -1189,17 +1189,17 @@ function exportOnderdelen(m) {
   bw('Rekenregel', 'Inbegrepen stappen', '', 'een stap die is inbegrepen bij een andere stap telt niet mee (geen dubbeltelling)', b.perStap.filter((r) => r.inbegrepen).map((r) => `${r.stap.stapId} → ${r.stap.inbegrepenBij || '?'}`).join('; ') || 'geen', '', '', '');
   for (const x of b.dossiers) {
     const mee = x.stappen.filter((r) => !r.inbegrepen);
-    bw('Dossier', `${x.dossier.code} – totale actieve tijd`, w(x.actief.waarde), 'som van de meetellende stappen', mee.map((r) => `${r.stapId.slice(5)} ${isGetal(r.actief) ? fmtGetal(r.actief) : '?'}`).join(' + ') + (isGetal(x.actief.waarde) ? ` = ${fmtGetal(x.actief.waarde)} min` : ` = ${ONVOLDOENDE}`),
+    bw('Dossier', `${x.dossier.code} – totale actieve verwerkingstijd`, w(x.actief.waarde), 'som van de meetellende stappen', mee.map((r) => `${r.stapId.slice(5)} ${isGetal(r.actief) ? fmtGetal(r.actief) : '?'}`).join(' + ') + (isGetal(x.actief.waarde) ? ` = ${fmtGetal(x.actief.waarde)} min` : ` = ${ONVOLDOENDE}`),
       `klasse ${x.klasse || 'onbekend'}; ${isGetal(x.blokken.n) ? fmtAantal(x.blokken.n) : '?'} blokken (${x.blokken.bron})`, '', x.herkomst);
   }
   for (const r of b.perStap) {
     const s = r.stap;
-    if (r.inbegrepen) { bw(`${s.stapId} (${EENHEDEN[s.eenheid]})`, 'Actieve tijd alle dossiers', 'n.v.t.', 'inbegrepen bij een andere stap; telt niet mee', `inbegrepen bij ${s.inbegrepenBij || '(niet gekozen)'}`, '', s.meetwijze || 'niet ingevuld', r.schatting ? 'Ja' : 'Nee'); continue; }
-    bw(`${s.stapId} (${EENHEDEN[s.eenheid]})`, 'Actieve tijd alle dossiers', w(r.actief.waarde), 'som over de dossiers', b.dossiers.map((x) => { const y = x.stappen.find((z) => z.stapId === s.stapId); return `${x.dossier.code}: ${isGetal(y.actief) ? fmtGetal(y.actief) : '?'}`; }).join(' + '),
+    if (r.inbegrepen) { bw(`${s.stapId} (${EENHEDEN[s.eenheid]})`, 'Actieve verwerkingstijd alle dossiers', 'n.v.t.', 'inbegrepen bij een andere stap; telt niet mee', `inbegrepen bij ${s.inbegrepenBij || '(niet gekozen)'}`, '', s.meetwijze || 'niet ingevuld', r.schatting ? 'Ja' : 'Nee'); continue; }
+    bw(`${s.stapId} (${EENHEDEN[s.eenheid]})`, 'Actieve verwerkingstijd alle dossiers', w(r.actief.waarde), 'som over de dossiers', b.dossiers.map((x) => { const y = x.stappen.find((z) => z.stapId === s.stapId); return `${x.dossier.code}: ${isGetal(y.actief) ? fmtGetal(y.actief) : '?'}`; }).join(' + '),
       `${r.actief.nBekend} van ${r.actief.n} dossiers`, s.meetwijze || 'niet ingevuld', r.schatting ? 'Ja' : 'Nee');
   }
-  for (const k of b.perKlasseTijd) bw('Complexiteitsklasse', `${k.klasse} – actieve tijd`, k.aantal ? w(k.actief.waarde) : 'n.v.t.', 'som over de dossiers in de klasse', `${k.aantal} dossiers`, KLASSE_GRENZEN[k.klasse], '', '');
-  for (const [u, x, f] of [['Totale actieve tijd alle dossiers', t.actief, 'som van de dossiertotalen'], ['Gemiddelde actieve tijd per dossier', { ...t.actief, waarde: t.actief.gemiddelde }, 'totaal ÷ aantal dossiers met een volledig berekende tijd'], ['Totale wachttijd alle dossiers', t.wacht, 'som van de dossiertotalen']]) {
+  for (const k of b.perKlasseTijd) bw('Complexiteitsklasse', `${k.klasse} – actieve verwerkingstijd`, k.aantal ? w(k.actief.waarde) : 'n.v.t.', 'som over de dossiers in de klasse', `${k.aantal} dossiers`, KLASSE_GRENZEN[k.klasse], '', '');
+  for (const [u, x, f] of [['Totale actieve verwerkingstijd alle dossiers', t.actief, 'som van de dossiertotalen'], ['Gemiddelde actieve verwerkingstijd per dossier', { ...t.actief, waarde: t.actief.gemiddelde }, 'totaal ÷ aantal dossiers met een volledig berekende tijd'], ['Totale wachttijd alle dossiers', t.wacht, 'som van de dossiertotalen']]) {
     bw('Totaal', u, w(x.waarde), f, isGetal(x.waarde) ? `${x.nBekend} dossiers` : `${x.nBekend} van ${x.n} dossiers volledig berekend${x.nBekend ? `; deelsom ${fmtGetal(x.deelsom)} min` : ''}`, '', '', b.schatting ? 'Ja' : 'Nee');
   }
   return [

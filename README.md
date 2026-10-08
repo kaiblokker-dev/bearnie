@@ -182,17 +182,17 @@ De broncode staat in `src/`; `node build.js` voegt alles samen tot `Meettool.htm
 1. **Bestuur en maand:** LEV of SAMANAS, kalendermaand en -jaar. Hier maakt u een nieuwe maandmeting, slaat u op, verwijdert u (met bevestiging) of opent u een bestaande maandmeting.
 2. **Volume en frequentie:** nieuwe medewerkers, aangeleverde en verwerkte diensttijdopgaven, met bron en toelichting. De controle verwerkt ≤ aangeleverd ≤ nieuwe medewerkers wordt direct uitgevoerd. Afgeleide aantallen en percentages staan erbij (één decimaal; een deler 0 levert geen fout op).
 3. **Dossiers:** één regel per opgave, met een geanonimiseerde dossiercode (voorstel `LEV-2026-08-D01`), het aantal ABP-periode-regels en een automatische complexiteitsklasse (1–19 Klein, 20–50 Middel, 51–100 Groot, 101 of meer Zeer groot; 0 is ongeldig). Daarnaast het verwachte aantal blokken, de status, de Visma-regels (alleen als bekend) en een bijzonderheid. Totalen zijn sommen, gemiddelden noemen het aantal dossiers, en lege velden tellen niet als 0.
-4. **Processtappen en tijd:** negen stappen met een vaste rekeneenheid, actieve tijd en wachttijd in minuten (bij S02, S03 en S07 per complexiteitsklasse, uitklapbaar), meetwijze, knelpunt en toelichting.
+4. **Processtappen en tijd:** negen stappen met een vaste rekeneenheid, actieve verwerkingstijd en wachttijd in minuten (bij S02, S03 en S07 per complexiteitsklasse, uitklapbaar), meetwijze, knelpunt en toelichting.
    - Met *inbegrepen bij* telt een stap niet mee in de totalen, maar blijft hij zichtbaar. Zo wordt niets dubbel geteld.
 5. **Resultaat en export:** frequentie, bronregels en complexiteit, diensttijdblokken en status, tijd per dossier, per stap (de drie hoogste gemarkeerd, oorspronkelijke volgorde), per klasse en per bestuur en maand, en de belangrijkste knelpunten. Daarbij export naar Excel (Samenvatting, Maandgegevens, Dossiers, Processtappen en tijden, Tijd per dossier en stap, Berekeningen en meetwijzen) en CSV, een JSON-back-up en het importeren van een JSON-back-up.
 
 **Tijd (versie 1.1: berekend per dossier):** iedere stap heeft een vaste rekeneenheid.
 - *Per dossier* (S01, S09): de tijd telt één keer per dossier.
-- *Per complexiteitsklasse* (S02, S03, S07): de tijd die hoort bij de automatisch bepaalde klasse van het dossier (Klein 1–19, Middel 20–50, Groot 51–100, Zeer groot 101 of meer regels). Per klasse vult u een actieve tijd en een wachttijd in.
+- *Per complexiteitsklasse* (S02, S03, S07): de tijd die hoort bij de automatisch bepaalde klasse van het dossier (Klein 1–19, Middel 20–50, Groot 51–100, Zeer groot 101 of meer regels). Per klasse vult u een actieve verwerkingstijd en een wachttijd in.
 - *Per diensttijdblok* (S04, S05, S06, S08): tijd × aantal blokken. Bij volledig verwerkte dossiers telt het werkelijke aantal Visma-regels, bij de overige het verwachte aantal; nooit beide.
 - Afbakening om dubbeltelling te voorkomen: S02 bepaalt welke arbeidsverhoudingen relevant zijn; S03 bepaalt hoe de relevante perioden door aansluitingen, onderbrekingen en overlap tot diensttijdblokken worden gevormd.
-- Per dossier ziet u de tijd per stap, de rekeneenheid, de klasse, het gebruikte aantal blokken, de totale actieve tijd en wachttijd en de herkomst (gemeten, geschat of berekend).
-- Het dashboard toont de gemiddelde en totale tijd per dossier, en de tijd per processtap, per klasse en per bestuur en maand. De stappen met de meeste actieve tijd zijn gemarkeerd.
+- Per dossier ziet u de tijd per stap, de rekeneenheid, de klasse, het gebruikte aantal blokken, de totale actieve verwerkingstijd en wachttijd en de herkomst (gemeten, geschat of berekend).
+- Het dashboard toont de gemiddelde en totale tijd per dossier, en de tijd per processtap, per klasse en per bestuur en maand. De stappen met de meeste actieve verwerkingstijd zijn gemarkeerd.
 - Ontbreekt een gegeven, dan staat er *onvoldoende gegevens* (met de deelsom van wat wel bekend is); er wordt nooit 0 ingevuld.
 
 **Verwacht en werkelijk aantal blokken (versie 1.2):**
