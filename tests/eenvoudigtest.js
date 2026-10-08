@@ -193,7 +193,7 @@ function ok(stap, tekst) { console.log(`✔ ${stap}: ${tekst}`); }
   await vulKlassen('S02', { Klein: ['5', '0'], Middel: ['10', '0'], Groot: ['20', '15'] }, 'Geschat door medewerker');
   b = await bereken('PR24-LEV-2026-10');
   const s02D04 = b.dossiers[3].stappen[1];
-  assert.ok(s02D04.actief === null && s02D04.redenen.some((x) => x.includes('actieve tijd (Zeer groot) niet ingevuld')), JSON.stringify(s02D04.redenen));
+  assert.ok(s02D04.actief === null && s02D04.redenen.some((x) => x.includes('actieve verwerkingstijd (Zeer groot) niet ingevuld')), JSON.stringify(s02D04.redenen));
   assert.strictEqual(b.perStap[1].actief.waarde, null, 'S02 onvolledig zolang Zeer groot leeg is');
   assert.strictEqual(b.perStap[1].actief.deelsom, 35, 'deelsom 5 + 10 + 20');
   await page.fill('tr[data-klassen-voor="PR24-S02"] [data-klasse-actief="Zeer groot"]', '30');
@@ -242,7 +242,7 @@ function ok(stap, tekst) { console.log(`✔ ${stap}: ${tekst}`); }
   // ---------- Resultaat ----------
   await page.click('#knopVolgende');
   const res = await tekst('#resultaat5');
-  for (const w of ['Gemiddelde actieve tijd per dossier', '40,13 min', 'Totale actieve tijd alle dossiers', '160,50 min', '2 uur 41 min', 'Tijd per processtap', 'Tijd per complexiteitsklasse', 'Tijd per dossier', 'Tijd per bestuur en maand',
+  for (const w of ['Gemiddelde actieve verwerkingstijd per dossier', '40,13 min', 'Totale actieve verwerkingstijd alle dossiers', '160,50 min', '2 uur 41 min', 'Tijd per processtap', 'Tijd per complexiteitsklasse', 'Tijd per dossier', 'Tijd per bestuur en maand',
     'PR24 – LEV – oktober 2026', 'Visma traag bij opslaan', 'n.v.t. (inbegrepen bij PR24-S02)', '3 werkelijk (Visma)', '6 verwacht', 'berekend uit 7 gemeten, 1 geschatte staptijden']) assert.ok(res.includes(w), w);
   assert.deepStrictEqual(await page.$$eval('#resultaatStappen tbody tr', (r) => r.map((x) => x.querySelector('.mono').textContent)), ['PR24-S01', 'PR24-S02', 'PR24-S03', 'PR24-S04', 'PR24-S05', 'PR24-S06', 'PR24-S07', 'PR24-S08', 'PR24-S09'], 'oorspronkelijke volgorde');
   assert.strictEqual(await page.$$eval('#resultaatStappen .label-hoog', (x) => x.length), 3);
@@ -277,9 +277,9 @@ print(json.dumps({"bladen": wb.sheetnames, "kop": rijen("Samenvatting")[:8], "sa
   assert.ok(['LEV', 'oktober', '2026', 'Exportdatum', 'PR24 – LEV – oktober 2026'].every((w) => kopTekst.includes(w)), kopTekst);
   const sam = (u) => x.sam.find((r) => r.Uitkomst === u);
   assert.ok(sam('Geen diensttijdopgave').Waarde === 16 && sam('Aanleverpercentage').Waarde === 46.7 && sam('Verwerkingspercentage').Waarde === 35.7);
-  assert.ok(sam('Totale actieve tijd alle dossiers').Waarde === 160.5 && sam('Totale actieve tijd alle dossiers').Toelichting === '2,67 uur; 4 dossiers' && sam('Gemiddelde actieve tijd per dossier').Waarde === 40.125
-    && sam('Gemiddelde actieve tijd per dossier').Toelichting === 'gebaseerd op 4 van 4 dossiers' && sam('Totale wachttijd alle dossiers').Waarde === 25.5, JSON.stringify(x.sam.filter((r) => r.Onderdeel === 'Tijd')));
-  assert.ok(x.sam.some((r) => r.Onderdeel === 'Tijd per processtap' && r.Uitkomst.startsWith('PR24-S02') && r.Waarde === 65 && r.Toelichting.includes('meeste actieve tijd')));
+  assert.ok(sam('Totale actieve verwerkingstijd alle dossiers').Waarde === 160.5 && sam('Totale actieve verwerkingstijd alle dossiers').Toelichting === '2,67 uur; 4 dossiers' && sam('Gemiddelde actieve verwerkingstijd per dossier').Waarde === 40.125
+    && sam('Gemiddelde actieve verwerkingstijd per dossier').Toelichting === 'gebaseerd op 4 van 4 dossiers' && sam('Totale wachttijd alle dossiers').Waarde === 25.5, JSON.stringify(x.sam.filter((r) => r.Onderdeel === 'Tijd')));
+  assert.ok(x.sam.some((r) => r.Onderdeel === 'Tijd per processtap' && r.Uitkomst.startsWith('PR24-S02') && r.Waarde === 65 && r.Toelichting.includes('meeste actieve verwerkingstijd')));
   assert.ok(x.sam.some((r) => r.Onderdeel === 'Tijd per processtap' && r.Uitkomst.startsWith('PR24-S03') && r.Waarde === 'n.v.t. (inbegrepen)'));
   assert.ok(x.sam.some((r) => r.Onderdeel === 'Tijd per complexiteitsklasse' && r.Uitkomst === 'Zeer groot' && r.Waarde === 65));
   assert.ok(x.sam.some((r) => r.Onderdeel === 'Tijd per bestuur en maand' && r.Uitkomst === 'PR24 – LEV – oktober 2026' && r.Waarde === 160.5));
@@ -290,19 +290,19 @@ print(json.dumps({"bladen": wb.sheetnames, "kop": rijen("Samenvatting")[:8], "sa
   assert.deepStrictEqual(x.dos.map((r) => r['Verwacht resterende blokken (berekend)']), [0, 4, 4, 0]);
   assert.ok(sam('Verwachte blokken voor niet-volledig verwerkte dossiers').Waarde === 10 && sam('Werkelijk ingevoerde Visma-regels').Waarde === 13 && bijna(sam('Gemiddeld werkelijke Visma-regels').Waarde, 13 / 3) && !sam('Totaal verwachte blokken'));
   const xd = (c) => x.dos.find((r) => r.Dossiercode === c);
-  assert.deepStrictEqual([xd('LEV-2026-10-D01').Complexiteitsklasse, xd('LEV-2026-10-D01')['Gebruikt aantal blokken'], xd('LEV-2026-10-D01')['Bron gebruikte blokken'], xd('LEV-2026-10-D01')['PR24-S04 actief (min)'], xd('LEV-2026-10-D01')['PR24-S03 actief (min)'], xd('LEV-2026-10-D01')['Totale actieve tijd (min)'], xd('LEV-2026-10-D01')['Totale wachttijd (min)']],
+  assert.deepStrictEqual([xd('LEV-2026-10-D01').Complexiteitsklasse, xd('LEV-2026-10-D01')['Gebruikt aantal blokken'], xd('LEV-2026-10-D01')['Bron gebruikte blokken'], xd('LEV-2026-10-D01')['PR24-S04 actieve verwerkingstijd (min)'], xd('LEV-2026-10-D01')['PR24-S03 actieve verwerkingstijd (min)'], xd('LEV-2026-10-D01')['Totale actieve verwerkingstijd (min)'], xd('LEV-2026-10-D01')['Totale wachttijd (min)']],
     ['Klein', 3, 'werkelijk (Visma)', 4.5, 'n.v.t. (inbegrepen)', 19.5, 1.5]);
   assert.strictEqual(xd('LEV-2026-10-D02').Complexiteitsklasse, 'Middel');
   const s02x = x.st.find((r) => r['Stap-ID'] === 'PR24-S02');
-  assert.ok(s02x.Rekeneenheid === 'Per complexiteitsklasse' && s02x['Actief Groot (min per dossier)'] === 20 && s02x['Wacht Groot (min per dossier)'] === 15 && s02x['Actieve tijd alle dossiers (min)'] === 65 && s02x.Afbakening === 'Bepalen welke arbeidsverhoudingen relevant zijn.' && s02x['Meeste actieve tijd (top 3)'] === 'Ja');
+  assert.ok(s02x.Rekeneenheid === 'Per complexiteitsklasse' && s02x['Actieve verwerkingstijd Groot (min per dossier)'] === 20 && s02x['Wacht Groot (min per dossier)'] === 15 && s02x['Actieve verwerkingstijd alle dossiers (min)'] === 65 && s02x.Afbakening === 'Bepalen welke arbeidsverhoudingen relevant zijn.' && s02x['Meeste actieve verwerkingstijd (top 3)'] === 'Ja');
   const s03x = x.st.find((r) => r['Stap-ID'] === 'PR24-S03');
-  assert.ok(s03x['Inbegrepen bij'] === 'PR24-S02' && s03x['Telt mee in totaal'] === 'Nee' && s03x['Actieve tijd alle dossiers (min)'] === 'n.v.t. (inbegrepen)');
+  assert.ok(s03x['Inbegrepen bij'] === 'PR24-S02' && s03x['Telt mee in totaal'] === 'Nee' && s03x['Actieve verwerkingstijd alle dossiers (min)'] === 'n.v.t. (inbegrepen)');
   assert.strictEqual(x.pds.length, 36, '4 dossiers × 9 stappen');
   const p = x.pds.find((r) => r.Dossiercode === 'LEV-2026-10-D03' && r['Stap-ID'] === 'PR24-S04');
-  assert.deepStrictEqual([p.Rekeneenheid, p['Gebruikt aantal blokken'], p['Bron blokken'], p['Actieve tijd (min)'], p['Berekening actief'], p.Meetwijze], ['Per diensttijdblok', 6, 'verwacht', 9, '1,50 min × 6 blokken (verwacht) = 9,00 min', 'Daadwerkelijk gemeten']);
+  assert.deepStrictEqual([p.Rekeneenheid, p['Gebruikt aantal blokken'], p['Bron blokken'], p['Actieve verwerkingstijd (min)'], p['Berekening actieve verwerkingstijd'], p.Meetwijze], ['Per diensttijdblok', 6, 'verwacht', 9, '1,50 min × 6 blokken (verwacht) = 9,00 min', 'Daadwerkelijk gemeten']);
   const pk = x.pds.find((r) => r.Dossiercode === 'LEV-2026-10-D04' && r['Stap-ID'] === 'PR24-S02');
-  assert.deepStrictEqual([pk.Complexiteitsklasse, pk['Actieve tijd (min)'], pk.Herkomst], ['Zeer groot', 30, 'geschat']);
-  assert.ok(x.ber.some((r) => r.Uitkomst === 'LEV-2026-10-D01 – totale actieve tijd' && r.Waarde === 19.5 && r['Berekening met gebruikte getallen'] === 'S01 2,00 + S02 5,00 + S04 4,50 + S05 3,00 + S06 1,50 + S07 1,00 + S08 1,50 + S09 1,00 = 19,50 min'));
+  assert.deepStrictEqual([pk.Complexiteitsklasse, pk['Actieve verwerkingstijd (min)'], pk.Herkomst], ['Zeer groot', 30, 'geschat']);
+  assert.ok(x.ber.some((r) => r.Uitkomst === 'LEV-2026-10-D01 – totale actieve verwerkingstijd' && r.Waarde === 19.5 && r['Berekening met gebruikte getallen'] === 'S01 2,00 + S02 5,00 + S04 4,50 + S05 3,00 + S06 1,50 + S07 1,00 + S08 1,50 + S09 1,00 = 19,50 min'));
   assert.ok(x.ber.some((r) => r.Uitkomst === 'Per diensttijdblok' && r.Formule.includes('nooit beide')));
   const csvPad = await download(async () => { await page.selectOption('#csvKeuze', 'perDossierStap'); await page.click('#knopCsv'); }, 'pr24_per_dossier.csv');
   const csv = fs.readFileSync(csvPad, 'utf8').replace(/^﻿/, '').split(/\r\n/);
@@ -384,7 +384,7 @@ print(json.dumps({"bladen": wb.sheetnames, "kop": rijen("Samenvatting")[:8], "sa
   assert.deepStrictEqual(st('PR24-S02').klasseWacht, { Klein: 1, Middel: 1, Groot: 1, 'Zeer groot': 1 });
   assert.deepStrictEqual(st('PR24-S03').klasseActief, { Klein: 8, Middel: 8, Groot: 8, 'Zeer groot': 8 }, 'per dossier → zelfde tijd voor iedere klasse');
   assert.ok(st('PR24-S04').actief === 1.5 && st('PR24-S04').eenheid === 'blok' && st('PR24-S04').knelpunt === true);
-  assert.ok(st('PR24-S08').actief === null && st('PR24-S08').eenheid === 'blok' && st('PR24-S08').toelichting.includes('Eerdere waarde (per dossier): actief 3 min'), 'onverenigbare eenheid niet overgenomen, wel vermeld');
+  assert.ok(st('PR24-S08').actief === null && st('PR24-S08').eenheid === 'blok' && st('PR24-S08').toelichting.includes('Eerdere waarde (per dossier): actieve verwerkingstijd 3 min'), 'onverenigbare eenheid niet overgenomen, wel vermeld');
   assert.ok(!('s02' in mig));
   assert.strictEqual(await page.evaluate((k) => JSON.parse(localStorage.getItem(k + '-kopie-versie-1.0')).versie, SLEUTEL), 'PR24-eenvoudig 1.0', 'kopie van versie 1.0 bewaard');
   // Klik op Volgende direct na het invullen van een klassetijd moet aankomen (pagina verspringt niet).
@@ -491,9 +491,12 @@ wb = openpyxl.load_workbook(${JSON.stringify(xlNov2)})
 rr = [list(r) for r in wb["Samenvatting"].iter_rows(values_only=True)]
 print(json.dumps({r[1]: r[2] for r in rr if r and len(r) > 2 and r[0] == "Diensttijdblokken"}, default=str))`]).toString());
   assert.deepStrictEqual(xn2, { 'Verwachte blokken voor niet-volledig verwerkte dossiers': 'n.v.t.', 'Gemiddeld verwachte blokken (niet-volledig verwerkt)': 'n.v.t.', 'Werkelijk ingevoerde Visma-regels': 67, 'Gemiddeld werkelijke Visma-regels': 8.375, 'Verwacht resterende blokken': 0 });
-  ok('verwacht en werkelijk', 'Volledig verwerkt: verwacht veld verborgen (n.v.t.), opgeslagen 99 genegeerd maar bewaard en weer zichtbaar bij statuswijziging; 8 dossiers: verwacht n.v.t., werkelijk 67, resterend 0; gedeeltelijk 10/4 → 6; nog niet 8/1 → 7; verwachte blokken 18 en Visma-regels 72 apart, nooit opgeteld; actieve tijd per rekeneenheid 217,5 min; export met n.v.t.');
+  ok('verwacht en werkelijk', 'Volledig verwerkt: verwacht veld verborgen (n.v.t.), opgeslagen 99 genegeerd maar bewaard en weer zichtbaar bij statuswijziging; 8 dossiers: verwacht n.v.t., werkelijk 67, resterend 0; gedeeltelijk 10/4 → 6; nog niet 8/1 → 7; verwachte blokken 18 en Visma-regels 72 apart, nooit opgeteld; actieve verwerkingstijd per rekeneenheid 217,5 min; export met n.v.t.');
 
   // ---------- 12. Direct in de browser ----------
+  // Terminologie: overal 'actieve verwerkingstijd', nergens meer 'actieve tijd'.
+  assert.ok(!/actieve tijd/i.test(fs.readFileSync(HTML, 'utf8')), 'term actieve tijd komt niet meer voor');
+  assert.ok(!/actieve tijd/i.test(JSON.stringify(xn)) && JSON.stringify(xn).includes('actieve verwerkingstijd'), 'export gebruikt actieve verwerkingstijd');
   assert.deepStrictEqual(netwerk, []);
   assert.deepStrictEqual(fouten, [], fouten.join('\n'));
   ok('12 browser', 'Geopend via file:// zonder Node.js, npm, server of buildstap: 0 netwerkverzoeken, 0 JavaScript-fouten');
